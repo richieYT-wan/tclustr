@@ -1,0 +1,20 @@
+###### ARGS::
+nb_epochs:30
+latent_dim:50
+outdir:./output/xxxPaddedBefore_CycExpComparison
+batchsize:32768
+lr:0.001
+adaptive:[2.0, 0.94]
+wd:5e-06
+how:MSE
+alpha:1.0
+beta:0.1
+cyclic:True
+hyperbolic:False
+gamma:168.0
+weighted:0.5
+positional:True
+pad:before
+name:RedoCycExp_comparison_CYCLIC
+seed:33
+device:cuda

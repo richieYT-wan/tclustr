@@ -5,6 +5,13 @@ from torch.utils.data import DataLoader, Dataset
 from src.data_processing import encode_batch, encode_batch_weighted, ics_dict, get_positional_encoding, pad_tensor, get_ic_weights
 
 
+class CDR3Dataset(Dataset):
+    """
+    For now, only use CDR3
+    """
+    def __init__(self, df, max_len_alpha=20, max_len_beta=20, encoding=
+
+
 class MutWtDataset(Dataset):
     """
     Here for now, only get encoding and try to

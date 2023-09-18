@@ -3,7 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.data_processing import get_positional_encoding
 import math
-#import wandb
+
+
+# import wandb
 
 class NetParent(nn.Module):
     """
@@ -206,352 +208,550 @@ class StdBypass(nn.Module):
         return x_tensor
 
 
-class LSTMModule(NetParent):
+class FullFVAE(NetParent):
+    # Define the input dimension as some combination of sequence length, AA dim,
+    def __init__(self, seq_len, aa_dim=21, use_v=True, use_j=True, v_dim=0, j_dim=0, act=nn.ReLU(), hidden_dim=128,
+                 latent_dim=32):
+        super(FullFVAE, self).__init__()
 
-    def __init__(self, input_dim=20, hidden_dim=64, num_layers=1, bidirectional=False):
-        super(LSTMModule, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True, bidirectional=bidirectional)
-
-    # TODO:
-    #   Should check whether it makes more sense to put this here in the final module that combines everything.
-    #   In theory shouldn't change anything, but gotta check out in practice
-    #   In this module, I will only return out_mut, out_wt, to keep all information.
-    #   In subsequent modules, I can then decide how to take care of the aggregation and representation
-    #   This way, the code is more modular and LSTMModule only does pure LSTM
-    def forward(self, x):
-        # output should have shape (N, len, hidden)
-        # z = output, (hidden, cell)
-        out, (hidden, cell) = self.lstm(x)
-        return out, hidden.permute(1, 0, 2).flatten(start_dim=1), cell.permute(1, 0, 2).flatten(start_dim=1)
-
-
-class AttentionModule(NetParent):
-    # TODO : test, either as a aggregation/pooling method or as a module replacing LSTM
-    def __init__(self, input_dim, pad_scale, num_heads=2, dropout=0.):
-        super(AttentionModule, self).__init__()
+        input_dim = (seq_len * aa_dim) + v_dim + j_dim
         self.input_dim = input_dim
-        # self.max_len = max_len
-        # self.embed_dim = embed_dim
-        self.n_heads = num_heads
-        self.pad_scale = pad_scale
-        self.attention = nn.MultiheadAttention(input_dim, num_heads, dropout, batch_first=True)
+        self.v_dim = v_dim
+        self.use_v = use_v
+        self.j_im = j_dim
+        self.use_j = use_j
+        self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+        # TODO: For now, just use a fixed set of layers.
+        # Encoder
+        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), act,
+                                     nn.Linear(input_dim // 2, hidden_dim), act)
+        self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+        self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+        # Decoder
+        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), act,
+                                     nn.Linear(hidden_dim, hidden_dim), act)
 
-    def forward(self, x, need_weights=False):
-        # Explicitly takes pe here to make my life a bit easier during dataset/data processing and forward calls
-        # in a lower / next module
-        # because we need to standardize the data BEFORE adding the positional encoding
-        attention_output, attention_weight = self.attention(x, x, x, need_weights=need_weights)
+        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), act,
+                                              nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
 
-        return attention_output, attention_weight
+        self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else None
+        self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else None
 
+    @staticmethod
+    def reparameterise(mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+        z = (epsilon * std) + mu
+        return z
 
-# TODO : deal with this stupid pooling thing ; For now, just check that the concat sandwich works-ish
-#   and gives some sort of minimal result (say 63-65% AUC ?)
-class PoolingModule(NetParent):
+    def encode(self, x):
+        mu_logvar = self.encoder(x.flatten(start_dim=1))
+        mu = self.encoder_mu(mu_logvar)
+        logvar = self.encoder_logvar(mu_logvar)
+        return mu, logvar
 
-    def __init__(self, pool_type='max', **kwargs):
-        super(PoolingModule, self).__init__()
-        pool = {'max': nn.MaxPool2d,
-                'mean': nn.AvgPool2d,
-                'global_max': nn.AdaptiveMaxPool1d,
-                'global_mean': nn.AdaptiveAvgPool1d}
-        # TODO: Forget attention_module for now until I understand better what it does / how it works
-        # 'attention_module': nn.MultiheadAttention}
-        self.pool = pool[pool_type](**kwargs)
+    def decode(self, z):
+        decoded = self.decoder(z)
+        sequence = self.decoder_sequence(decoded)
+        v_gene = self.decoder_v(decoded) if self.use_v else None
+        j_gene = self.decoder_j(decoded) if self.use_j else None
+        return sequence, v_gene, j_gene
 
     def forward(self, x):
-        return self.pool(x)
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        sequence, v_gene, j_gene = self.decode(z)
+        return sequence, v_gene, j_gene, mu, logvar
 
+    def embed(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        return z
 
-class AggregatingPoolingModule(NetParent):
+    def embed_reconstruct(self, x):
+        with torch.no_grad():
+            sequence, v_gene, j_gene, _, _ = self.forward(x)
+            return sequence, v_gene, j_gene
 
-    def __init__(self, in_dim, pool_type, pool_kwargs=None, to_pool=True, agg_before_pooling=False):
-        super(AggregatingPoolingModule, self).__init__()
-        if pool_kwargs is None:
-            pool_kwargs = {}
-        self.pooling = PoolingModule(pool_type, **pool_kwargs) if to_pool else nn.Identity()
-        self.agg_before_pooling = agg_before_pooling
-        self.pool_type = pool_type
-
-    def forward(self, z_mut, z_wt):
-        # Flattening in case there's an extra batch dimension
-        # z_mut, z_wt = z_mut.squeeze(0), z_wt.squeeze(0)
-
-        # self.pooling will be bypassed with identity if self.to_pool is not true
-        if self.agg_before_pool:
-            z = torch.cat([z_mut, z_wt], dim=1)
-            z = self.pooling(z)
-        else:
-            z_mut = self.pooling(z_mut)
-            z_wt = self.pooling(z_wt)
-            z = torch.cat([z_mut, z_wt], dim=1)
-
+    def sample_latent(self, n_samples):
+        z = torch.randn((n_samples, self.lat_dim)).to(device=self.encoder[0].weight.device)
         return z
 
 
-class PredictorModule(NetParent):
-    """
-    Learning from my mistake (NNAlignEF reloading was not working properly compared to EF2)
-    So here, I split the predictor into its own class for the final FC layer(s) prediction module,
-    Then I update the state_dict function so that I can re-load everything more easily/correctly
-    without having to use strict=False which might cause a lot of errors to appear
-    """
+class FullCVAE(NetParent):
+    # TODO: DO CNN VAE
+    raise NotImplementedError
+    # def __init__(self, seq_len, aa_dim=21, use_v=True, use_j=True, v_dim=0, j_dim=0, act=nn.ReLU(), hidden_dim=128,
+    #              latent_dim=32):
+    #     super(CVAE, self).__init__()
+    #     input_dim = (seq_len * aa_dim) + v_dim + j_dim
+    #     self.input_dim = input_dim
+    #     self.v_dim = v_dim
+    #     self.use_v = use_v
+    #     self.j_im = j_dim
+    #     self.use_j = use_j
+    #     self.hidden_dim = hidden_dim
+    #     self.latent_dim = latent_dim
+    #     # TODO: For now, just use a fixed set of layers.
+    #     # Encoder
+    #     self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), act,
+    #                                  nn.Linear(input_dim // 2, hidden_dim), act)
+    #     self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+    #     self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+    #     # Decoder
+    #     self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), act,
+    #                                  nn.Linear(hidden_dim, hidden_dim), act)
+    #
+    #     self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), act,
+    #                                           nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
+    #
+    #     self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else None
+    #     self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else None
 
-    # noinspection PyTypeChecker
-    def __init__(self, input_dim, hidden_dim, num_layers=1, activation=nn.ReLU(),
-                 dropout=0., batchnorm=False):
-        super(PredictorModule, self).__init__()
-        layers = [nn.Linear(input_dim, hidden_dim), nn.BatchNorm1d(hidden_dim), activation,
-                  nn.Dropout(dropout)] if batchnorm \
-            else [nn.Linear(input_dim, hidden_dim), activation, nn.Dropout(dropout)]
-        for n in range(num_layers - 1):
 
-            layers.append(nn.Linear(hidden_dim, hidden_dim // 2))
-            hidden_dim = hidden_dim // 2
-            if batchnorm:
-                layers.append(nn.BatchNorm1d(hidden_dim))
-            layers.append(activation)
-            if dropout > 0.:
-                layers.append(nn.Dropout(dropout))
+class SeqFVAE(NetParent):
+    # Define the input dimension as some combination of sequence length, AA dim,
+    def __init__(self, seq_len, aa_dim=21, act=nn.ReLU(), hidden_dim=128,
+                 latent_dim=32):
+        super(SeqFVAE, self).__init__()
 
-        final_layer = [nn.Linear(hidden_dim, 1)]
-        layers.extend(final_layer)
-        self.layers = nn.Sequential(*layers)
+        input_dim = (seq_len * aa_dim)
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+        # TODO: For now, just use a fixed set of layers.
+        # Encoder : 3 layers total, two to dimensionally reduce, one final layer to get mu and logvar (separate layers)
+        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), act,
+                                     nn.Linear(input_dim // 2, hidden_dim), act)
+        self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+        self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+        # Decoder 3 layers to go from the latent back to the original dim
+        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), act,
+                                     nn.Linear(hidden_dim, input_dim // 2), act,
+                                     nn.Linear(input_dim // 2, input_dim))
+
+    @staticmethod
+    def reparameterise(mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+        z = (epsilon * std) + mu
+        return z
+
+    def encode(self, x):
+        # Flatten my encoded sequence vector (N, seq_len, 20) -> (N, seq_len * 20)
+        mu_logvar = self.encoder(x.flatten(start_dim=1))
+        mu = self.encoder_mu(mu_logvar)
+        logvar = self.encoder_logvar(mu_logvar)
+        return mu, logvar
+
+    def decode(self, z):
+        x_reconstructed = F.sigmoid(self.decoder(z))
+        return x_reconstructed
 
     def forward(self, x):
-        return self.layers(x)
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        x_reconstructed = self.decode(z)
+        return x_reconstructed, mu, logvar
 
-
-class SandwichLSTM(NetParent):
-    # TODO:
-    #   Here, should at some point replace input_dim, hidden_dim, num_layers to a input_network_kwargs
-    #   And implement a dictionary to call another constructor (for example if we use CNN instead of LSTM
-    #   Then we would have, instead of self.lstm_module : self.encoder (that is either LSTM, CNN, or something else)
-    #   Then the pooling etc treats the output of Z the same. So maybe self.representation should be put in lstmmodule
-    def __init__(self, input_dim, n_hidden_encoder=64, n_layers_encoder=1, bidirectional=False, n_hidden_predictor=30,
-                 n_layers_predictor=1, predictor_activation=nn.ReLU(), dropout=0, batchnorm_predictor=False,
-                 standardize=False, pool_type='max', pool_kwargs={'kernel_size': 1}, to_pool=False,
-                 agg_before_pooling=False, representation='hidden', n_extrafeatures=0, standardize_features=True):
-        super(SandwichLSTM, self).__init__()
-
-        # TODO 230817: TESTING VECTORIZED STANDARDIZER INSTEAD OF 20 AA STD ; Works better (68% AUC on valid vs ~66%)
-        self.standardizer_mut = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
-        self.standardizer_wt = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
-
-        # This is added so we can add extra features such as the %Rank to the sequences
-        self.n_extrafeatures = n_extrafeatures
-        if n_extrafeatures > 0:
-            self.standardizer_features = StandardizerFeatures(
-                n_feats=n_extrafeatures) if standardize_features else StdBypass()
-        # TODO : add EF and all that pertains to it incl. EF standardizer etc
-
-        self.lstm = LSTMModule(input_dim, n_hidden_encoder, n_layers_encoder, bidirectional)
-        self.init_params = {key: value for key, value in locals().items() if key != 'self' and key != '__class__'}
-
-        # # TODO: To fix code
-        # factor = num_layers if representation in ['hidden', 'cell'] else 1
-        #
-        # self.agg_pooling = AggregatingPoolingModule(in_dim=hidden_dim * factor, pool_type=pool_type,
-        #                                             pool_kwargs=pool_kwargs,
-        #                                             to_pool=to_pool, agg_before_pooling=agg_before_pooling)
-
-        self.indexing = {'ts': 0, 'hidden': 1, 'cell': 2}[representation]
-        self.representation = representation
-        # TODO: get concatenated dim after pooling somewhere
-        n_dir = 2 if bidirectional else 1
-        # TODO: Current input_dim assumes no pooling of any sort so we just concatenate the x_mut and x_wt
-        #       vectors and have n_hidden * 2 * n_layers * n_directions
-        #       Additionally : Need to add extra features dimensions into this predictor
-
-        self.predictor = PredictorModule(input_dim=(n_dir * n_hidden_encoder * 2 * n_layers_encoder) + n_extrafeatures,
-                                         hidden_dim=n_hidden_predictor, num_layers=n_layers_predictor,
-                                         activation=predictor_activation, dropout=dropout, batchnorm=batchnorm_predictor)
-
-    # Here include x_features=None as a bypass in case we don't use it so that it's not necessary to the call
-    def forward(self, x_mut, x_wt, x_features=None):
-        with torch.no_grad():
-            x_mut = self.standardizer_mut(x_mut)
-            x_wt = self.standardizer_wt(x_wt)
-
-        z_mut = self.lstm(x_mut)
-        z_wt = self.lstm(x_wt)
-        # Index the wanted representation from the tuples
-        z_mut, z_wt = z_mut[self.indexing], z_wt[self.indexing]
-        if self.representation == 'ts':
-            z_mut, z_wt = z_mut[:, -1, :], z_wt[:, -1, :]
-        # Concat without pooling for now
-        z = torch.cat([z_mut, z_wt], dim=1)
-        if self.n_extrafeatures > 0:
-            x_features = self.standardizer_features(x_features)
-            z = torch.cat([z, x_features], dim=1)
-
-        # z = self.agg_pooling(z_mut, z_wt)
-        z = self.predictor(z)
-        # Here z should be scores, then if wanted we can add a sigmoid fct somewhere
+    def embed(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
         return z
 
-    def predict(self, x_mut, x_wt, x_features=None):
-        with torch.no_grad():
-            z = self.forward(x_mut, x_wt, x_features)
-            return F.sigmoid(z)
-
-    def fit_standardizer(self, x_mut, x_wt, x_mask, x_features=None):
-        assert self.training, 'Must be in training mode to fit!'
-        with torch.no_grad():
-            self.standardizer_mut.fit(x_mut, x_mask)
-            self.standardizer_wt.fit(x_wt, x_mask)
-            if self.n_extrafeatures > 0 and x_features is not None:
-                self.standardizer_features.fit(x_features)
-
-
-class SandwichAttnLSTM(NetParent):
-    def __init__(self, input_dim=20, pad_scale=-15,
-                 num_heads_attention=4, dropout_attention=0., concat_order='concat_first', add_pe=True,
-                 n_hidden_encoder=64, n_layers_encoder=1, bidirectional=False,
-                 n_hidden_predictor=30, n_layers_predictor=1, predictor_activation=nn.ReLU(), dropout_predictor=0,
-                 batchnorm_predictor=False,
-                 pool_type='max', standardize=False, pool_kwargs=None, to_pool=False,
-                 agg_before_pooling=False, representation='hidden', n_extrafeatures=0, standardize_features=False):
-        super(SandwichAttnLSTM, self).__init__()
-
-        # Orders are :
-        #   1. concat->attn->lstm_module
-        #   2. attn->concat->lstm_module
-        #   3. attn->lstm_module->concat
-
-        assert concat_order in ['concat_first', 'after_attention', 'after_lstm']
-        self.concat_order = concat_order
-        self.pad_scale = pad_scale
-        self.add_pe = add_pe
-        if pool_kwargs is None:
-            pool_kwargs = {'kernel_size': 1}
-        self.standardizer_mut = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
-        self.standardizer_wt = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
-
-        # This is added, so we can add extra features such as the %Rank to the sequences
-        self.n_extrafeatures = n_extrafeatures
-        if n_extrafeatures > 0:
-            self.standardizer_features = StandardizerFeatures(
-                n_feats=n_extrafeatures) if standardize_features else StdBypass()
-        # TODO : add EF and all that pertains to it incl. EF standardizer etc
-        self.attention_module = AttentionModule(input_dim, pad_scale, num_heads_attention, dropout_attention)
-        self.lstm_module = LSTMModule(input_dim, n_hidden_encoder, n_layers_encoder, bidirectional)
-
-        self.init_params = {key: value for key, value in locals().items() if key != 'self' and key != '__class__'}
-
-        self.indexing = {'ts': 0, 'hidden': 1, 'cell': 2}[representation]
-        self.representation = representation
-        # TODO: Current input_dim assumes no pooling of any sort so we just concatenate the x_mut and x_wt
-        #       vectors and have n_hidden * n_cat * n_layers * n_directions (HERE N_CAT REPLACES THE *2 IN THE OTHER MODEL
-        #       BECAUSE IF WE CONCAT LAST THEN WE HAVE TWICE THE LSTM DIM, otherwise we have them a single time)
-        #       Additionally : Need to add extra features dimensions into this predictor
-        dim_dir = 2 if bidirectional else 1
-        dim_cat = 2 if concat_order == 'after_lstm' else 1
-        self.predictor = PredictorModule(
-            input_dim=(dim_dir * n_hidden_encoder * dim_cat * n_layers_encoder) + n_extrafeatures,
-            hidden_dim=n_hidden_predictor, num_layers=n_layers_predictor,
-            activation=predictor_activation, dropout=dropout_predictor, batchnorm=batchnorm_predictor)
-
-    # Here include x_features=None as a bypass in case we don't use it so that it's not necessary to the call
-    def forward(self, x_mut, x_wt, x_features=None, need_weights=False):
-        """
-        Here, there are three operations possible
-            1. Concat->Attention->LSTM->Predictor
-            2. Attention->Concat->LSTM->Predictor
-            3. Attention->LSTM->Concat->Predictor
-
-        Depending on the order of the operations, predictor's input dim has to be adjusted
-        Also for each case, the positional encoding should be treated differently. Standardizer should always happen first
-        This is the reason for the ugly triple if/else loop, to treat each concatenation strategy
-
-        Args:
-            x_mut: mutant input tensor
-            x_wt: wild-type input tensor
-            x_features: extra features if needed
-            need_weights: Return attention weights (False by default)
-
-        Returns: z: predictions (logits) tensor of dimension (batch_size, 1)
-
-        """
-
-        # Always standardize them separately (due to paddings)
-        with torch.no_grad():
-            # Get the positional encoding before standardizer, add them whenever it makes sense
-            # because it takes pad_scale into account, otherwise it will not get the right PEs
-            z_mut = self.standardizer_mut(x_mut)
-            z_wt = self.standardizer_wt(x_wt)
-
-        if self.concat_order == 'concat_first':
-            z = torch.cat([z_mut, z_wt], dim=1)
-            # Do it this way to get the correct positional encoding using x_mut/x_wt (i.e. not standardized) because of pad_scale
-            z = z + self.get_positional_encoding(torch.concat([x_mut, x_wt], dim=1)) if self.add_pe else z
-            z, attention_weights = self.attention_module(z, need_weights=need_weights)
-            z = self.lstm(z)
-        else:
-            z_mut = z_mut + get_positional_encoding(x_mut, self.pad_scale) if self.add_pe else z_mut
-            z_wt = z_wt + get_positional_encoding(x_wt, self.pad_scale) if self.add_pe else z_wt
-
-            if self.concat_order == 'after_attention':
-                z_mut, atn_mut = self.attention_module(z_mut, need_weights=need_weights)
-                z_wt, atn_wt = self.attention_module(z_wt, need_weights=need_weights)
-                z = torch.cat([z_mut, z_wt], dim=1)
-                z = self.lstm(z)
-            elif self.concat_order == 'after_lstm':  # Here, concat_order == 'after_lstm':
-                z_mut, atn_mut = self.attention_module(z_mut, need_weights=need_weights)
-                z_wt, atn_wt = self.attention_module(z_wt, need_weights=need_weights)
-                z_mut = self.lstm(z_mut)
-                z_wt = self.lstm(z_wt)
-                z = torch.cat([z_mut, z_wt], dim=1)
-            else:
-                raise Exception(f'No proper concat_order provided. Current: {self.concat_order}')
-
-        if self.n_extrafeatures > 0:
-            z = torch.cat([z, x_features], dim=1)
-
-        z = self.predictor(z)
-        # Here z should be scores, then if wanted we can add a sigmoid fct somewhere
+    def sample_latent(self, n_samples):
+        z = torch.randn((n_samples, self.lat_dim)).to(device=self.encoder[0].weight.device)
         return z
 
-    def predict(self, x_mut, x_wt):
-        with torch.no_grad():
-            z = self.forward(x_mut, x_wt)
-            return F.sigmoid(z)
+class PairedVAE(NetParent):
+    """
+    Just a class that combines a VAE for alpha and beta
+    """
 
-    def fit_standardizer(self, x_mut, x_wt, x_mask, x_features=None):
-        assert self.training, 'Must be in training mode to fit!'
-        with torch.no_grad():
-            self.standardizer_mut.fit(x_mut, x_mask)
-            self.standardizer_wt.fit(x_wt, x_mask)
-            if self.n_extrafeatures > 0:
-                self.standardizer_features.fit(x_features)
+    def __init__(self, seq_len_a, seq_len_b, use_v_a, use_v_b, use_j_a, use_j_b, v_dim_a=0, j_dim_a=0, v_dim_b=0, j_dim_b=0,
+                 act=nn.ReLU(), aa_dim=20, hidden_dim=128, latent_dim=32, which='FVAE'):
+        super(PairedVAE, self).__init__()
+        constructor = {'FVAE': FVAE, 'CVAE': CVAE}
+        self.vae_alpha = constructor[which](seq_len=seq_len_a, aa_dim=aa_dim, use_v=use_v_a, use_j=use_j_a,
+                                            v_dim=v_dim_a, j_dim=j_dim_a, act=act, hidden_dim=hidden_dim, latent_dim=latent_dim)
+        self.vae_beta = constructor[which](seq_len=seq_len_b, aa_dim=aa_dim, use_v=use_v_b, use_j=use_j_b,
+                                           v_dim=v_dim_b, j_dim=j_dim_b, act=act, hidden_dim=hidden_dim, latent_dim=latent_dim)
 
-    def get_positional_encoding(self, x, n=10000):
-        batch_size, max_seq_len, n_features = x.size()
-
-        pos = torch.arange(0, max_seq_len, dtype=torch.float32).unsqueeze(0).expand(batch_size, -1)
-        mask = (~(x == self.pad_scale).all(dim=2)).float()
-        pos = pos * mask
-
-        div_term = torch.exp(torch.arange(0, n_features, 2, dtype=torch.float32) * (-math.log(n) / n_features))
-
-        pe = torch.zeros(batch_size, max_seq_len, n_features)
-        pe[:, :, 0::2] = torch.sin(pos.unsqueeze(2) * div_term)
-        pe[:, :, 1::2] = torch.cos(pos.unsqueeze(2) * div_term)
-        return pe
-
-    def lstm(self, z):
+    def encode(self, x_a, x_b):
         """
-
+        x should be a tuple or a concatenated version of (seq, v, j)
         Args:
-            z: input tensor
+            x_a:
+            x_b:
+
         Returns:
-            z: output tensor after running lstm module and indexing for the representation (hidden, cell, timestep)
+
         """
-        z = self.lstm_module(z)
-        z = z[self.indexing]
-        if self.representation == 'ts':
-            z = z[:, -1, :]
-        return z
+        mu_a, logvar_a = self.vae_alpha.encode(x_a)
+        mu_b, logvar_b = self.vae_beta.encode(x_b)
+
+        return mu_a, logvar_a, mu_b, logvar_b
+
+    def decode(self, z_a, z_b):
+        x_a, v_a, j_a = self.vae_alpha.decode(z_a)
+        x_b, v_b, j_b = self.vae_beta.decode(z_b)
+        return x_a, v_a, j_a, x_b, v_b, j_b
+
+    def forward(self, x_a, x_b):
+        seq_a, v_a, j_a, mu_a, logvar_a = self.vae_alpha(x_a)
+        seq_b, v_b, j_b, mu_b, logvar_b = self.vae_beta(x_b)
+
+
+############################
+####    LSTMut stuff    ####
+############################
+# class LSTMModule(NetParent):
+#
+#     def __init__(self, input_dim=20, hidden_dim=64, num_layers=1, bidirectional=False):
+#         super(LSTMModule, self).__init__()
+#         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True, bidirectional=bidirectional)
+#
+#     # TODO:
+#     #   Should check whether it makes more sense to put this here in the final module that combines everything.
+#     #   In theory shouldn't change anything, but gotta check out in practice
+#     #   In this module, I will only return out_mut, out_wt, to keep all information.
+#     #   In subsequent modules, I can then decide how to take care of the aggregation and representation
+#     #   This way, the code is more modular and LSTMModule only does pure LSTM
+#     def forward(self, x):
+#         # output should have shape (N, len, hidden)
+#         # z = output, (hidden, cell)
+#         out, (hidden, cell) = self.lstm(x)
+#         return out, hidden.permute(1, 0, 2).flatten(start_dim=1), cell.permute(1, 0, 2).flatten(start_dim=1)
+#
+#
+# class AttentionModule(NetParent):
+#     # TODO : test, either as a aggregation/pooling method or as a module replacing LSTM
+#     def __init__(self, input_dim, pad_scale, num_heads=2, dropout=0.):
+#         super(AttentionModule, self).__init__()
+#         self.input_dim = input_dim
+#         # self.max_len = max_len
+#         # self.embed_dim = embed_dim
+#         self.n_heads = num_heads
+#         self.pad_scale = pad_scale
+#         self.attention = nn.MultiheadAttention(input_dim, num_heads, dropout, batch_first=True)
+#
+#     def forward(self, x, need_weights=False):
+#         # Explicitly takes pe here to make my life a bit easier during dataset/data processing and forward calls
+#         # in a lower / next module
+#         # because we need to standardize the data BEFORE adding the positional encoding
+#         attention_output, attention_weight = self.attention(x, x, x, need_weights=need_weights)
+#
+#         return attention_output, attention_weight
+#
+#
+# # TODO : deal with this stupid pooling thing ; For now, just check that the concat sandwich works-ish
+# #   and gives some sort of minimal result (say 63-65% AUC ?)
+# class PoolingModule(NetParent):
+#
+#     def __init__(self, pool_type='max', **kwargs):
+#         super(PoolingModule, self).__init__()
+#         pool = {'max': nn.MaxPool2d,
+#                 'mean': nn.AvgPool2d,
+#                 'global_max': nn.AdaptiveMaxPool1d,
+#                 'global_mean': nn.AdaptiveAvgPool1d}
+#         # TODO: Forget attention_module for now until I understand better what it does / how it works
+#         # 'attention_module': nn.MultiheadAttention}
+#         self.pool = pool[pool_type](**kwargs)
+#
+#     def forward(self, x):
+#         return self.pool(x)
+#
+#
+# class AggregatingPoolingModule(NetParent):
+#
+#     def __init__(self, in_dim, pool_type, pool_kwargs=None, to_pool=True, agg_before_pooling=False):
+#         super(AggregatingPoolingModule, self).__init__()
+#         if pool_kwargs is None:
+#             pool_kwargs = {}
+#         self.pooling = PoolingModule(pool_type, **pool_kwargs) if to_pool else nn.Identity()
+#         self.agg_before_pooling = agg_before_pooling
+#         self.pool_type = pool_type
+#
+#     def forward(self, z_mut, z_wt):
+#         # Flattening in case there's an extra batch dimension
+#         # z_mut, z_wt = z_mut.squeeze(0), z_wt.squeeze(0)
+#
+#         # self.pooling will be bypassed with identity if self.to_pool is not true
+#         if self.agg_before_pool:
+#             z = torch.cat([z_mut, z_wt], dim=1)
+#             z = self.pooling(z)
+#         else:
+#             z_mut = self.pooling(z_mut)
+#             z_wt = self.pooling(z_wt)
+#             z = torch.cat([z_mut, z_wt], dim=1)
+#
+#         return z
+#
+#
+# class PredictorModule(NetParent):
+#     """
+#     Learning from my mistake (NNAlignEF reloading was not working properly compared to EF2)
+#     So here, I split the predictor into its own class for the final FC layer(s) prediction module,
+#     Then I update the state_dict function so that I can re-load everything more easily/correctly
+#     without having to use strict=False which might cause a lot of errors to appear
+#     """
+#
+#     # noinspection PyTypeChecker
+#     def __init__(self, input_dim, hidden_dim, num_layers=1, activation=nn.ReLU(),
+#                  dropout=0., batchnorm=False):
+#         super(PredictorModule, self).__init__()
+#         layers = [nn.Linear(input_dim, hidden_dim), nn.BatchNorm1d(hidden_dim), activation,
+#                   nn.Dropout(dropout)] if batchnorm \
+#             else [nn.Linear(input_dim, hidden_dim), activation, nn.Dropout(dropout)]
+#         for n in range(num_layers - 1):
+#
+#             layers.append(nn.Linear(hidden_dim, hidden_dim // 2))
+#             hidden_dim = hidden_dim // 2
+#             if batchnorm:
+#                 layers.append(nn.BatchNorm1d(hidden_dim))
+#             layers.append(activation)
+#             if dropout > 0.:
+#                 layers.append(nn.Dropout(dropout))
+#
+#         final_layer = [nn.Linear(hidden_dim, 1)]
+#         layers.extend(final_layer)
+#         self.layers = nn.Sequential(*layers)
+#
+#     def forward(self, x):
+#         return self.layers(x)
+#
+#
+# class SandwichLSTM(NetParent):
+#     # TODO:
+#     #   Here, should at some point replace input_dim, hidden_dim, num_layers to a input_network_kwargs
+#     #   And implement a dictionary to call another constructor (for example if we use CNN instead of LSTM
+#     #   Then we would have, instead of self.lstm_module : self.encoder (that is either LSTM, CNN, or something else)
+#     #   Then the pooling etc treats the output of Z the same. So maybe self.representation should be put in lstmmodule
+#     def __init__(self, input_dim, n_hidden_encoder=64, n_layers_encoder=1, bidirectional=False, n_hidden_predictor=30,
+#                  n_layers_predictor=1, predictor_activation=nn.ReLU(), dropout=0, batchnorm_predictor=False,
+#                  standardize=False, pool_type='max', pool_kwargs={'kernel_size': 1}, to_pool=False,
+#                  agg_before_pooling=False, representation='hidden', n_extrafeatures=0, standardize_features=True):
+#         super(SandwichLSTM, self).__init__()
+#
+#         # TODO 230817: TESTING VECTORIZED STANDARDIZER INSTEAD OF 20 AA STD ; Works better (68% AUC on valid vs ~66%)
+#         self.standardizer_mut = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
+#         self.standardizer_wt = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
+#
+#         # This is added so we can add extra features such as the %Rank to the sequences
+#         self.n_extrafeatures = n_extrafeatures
+#         if n_extrafeatures > 0:
+#             self.standardizer_features = StandardizerFeatures(
+#                 n_feats=n_extrafeatures) if standardize_features else StdBypass()
+#         # TODO : add EF and all that pertains to it incl. EF standardizer etc
+#
+#         self.lstm = LSTMModule(input_dim, n_hidden_encoder, n_layers_encoder, bidirectional)
+#         self.init_params = {key: value for key, value in locals().items() if key != 'self' and key != '__class__'}
+#
+#         # # TODO: To fix code
+#         # factor = num_layers if representation in ['hidden', 'cell'] else 1
+#         #
+#         # self.agg_pooling = AggregatingPoolingModule(in_dim=hidden_dim * factor, pool_type=pool_type,
+#         #                                             pool_kwargs=pool_kwargs,
+#         #                                             to_pool=to_pool, agg_before_pooling=agg_before_pooling)
+#
+#         self.indexing = {'ts': 0, 'hidden': 1, 'cell': 2}[representation]
+#         self.representation = representation
+#         # TODO: get concatenated dim after pooling somewhere
+#         n_dir = 2 if bidirectional else 1
+#         # TODO: Current input_dim assumes no pooling of any sort so we just concatenate the x_mut and x_wt
+#         #       vectors and have n_hidden * 2 * n_layers * n_directions
+#         #       Additionally : Need to add extra features dimensions into this predictor
+#
+#         self.predictor = PredictorModule(input_dim=(n_dir * n_hidden_encoder * 2 * n_layers_encoder) + n_extrafeatures,
+#                                          hidden_dim=n_hidden_predictor, num_layers=n_layers_predictor,
+#                                          activation=predictor_activation, dropout=dropout, batchnorm=batchnorm_predictor)
+#
+#     # Here include x_features=None as a bypass in case we don't use it so that it's not necessary to the call
+#     def forward(self, x_mut, x_wt, x_features=None):
+#         with torch.no_grad():
+#             x_mut = self.standardizer_mut(x_mut)
+#             x_wt = self.standardizer_wt(x_wt)
+#
+#         z_mut = self.lstm(x_mut)
+#         z_wt = self.lstm(x_wt)
+#         # Index the wanted representation from the tuples
+#         z_mut, z_wt = z_mut[self.indexing], z_wt[self.indexing]
+#         if self.representation == 'ts':
+#             z_mut, z_wt = z_mut[:, -1, :], z_wt[:, -1, :]
+#         # Concat without pooling for now
+#         z = torch.cat([z_mut, z_wt], dim=1)
+#         if self.n_extrafeatures > 0:
+#             x_features = self.standardizer_features(x_features)
+#             z = torch.cat([z, x_features], dim=1)
+#
+#         # z = self.agg_pooling(z_mut, z_wt)
+#         z = self.predictor(z)
+#         # Here z should be scores, then if wanted we can add a sigmoid fct somewhere
+#         return z
+#
+#     def predict(self, x_mut, x_wt, x_features=None):
+#         with torch.no_grad():
+#             z = self.forward(x_mut, x_wt, x_features)
+#             return F.sigmoid(z)
+#
+#     def fit_standardizer(self, x_mut, x_wt, x_mask, x_features=None):
+#         assert self.training, 'Must be in training mode to fit!'
+#         with torch.no_grad():
+#             self.standardizer_mut.fit(x_mut, x_mask)
+#             self.standardizer_wt.fit(x_wt, x_mask)
+#             if self.n_extrafeatures > 0 and x_features is not None:
+#                 self.standardizer_features.fit(x_features)
+#
+#
+# class SandwichAttnLSTM(NetParent):
+#     def __init__(self, input_dim=20, pad_scale=-15,
+#                  num_heads_attention=4, dropout_attention=0., concat_order='concat_first', add_pe=True,
+#                  n_hidden_encoder=64, n_layers_encoder=1, bidirectional=False,
+#                  n_hidden_predictor=30, n_layers_predictor=1, predictor_activation=nn.ReLU(), dropout_predictor=0,
+#                  batchnorm_predictor=False,
+#                  pool_type='max', standardize=False, pool_kwargs=None, to_pool=False,
+#                  agg_before_pooling=False, representation='hidden', n_extrafeatures=0, standardize_features=False):
+#         super(SandwichAttnLSTM, self).__init__()
+#
+#         # Orders are :
+#         #   1. concat->attn->lstm_module
+#         #   2. attn->concat->lstm_module
+#         #   3. attn->lstm_module->concat
+#
+#         assert concat_order in ['concat_first', 'after_attention', 'after_lstm']
+#         self.concat_order = concat_order
+#         self.pad_scale = pad_scale
+#         self.add_pe = add_pe
+#         if pool_kwargs is None:
+#             pool_kwargs = {'kernel_size': 1}
+#         self.standardizer_mut = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
+#         self.standardizer_wt = StandardizerSequenceVector(input_dim, max_len=12) if standardize else StdBypass()
+#
+#         # This is added, so we can add extra features such as the %Rank to the sequences
+#         self.n_extrafeatures = n_extrafeatures
+#         if n_extrafeatures > 0:
+#             self.standardizer_features = StandardizerFeatures(
+#                 n_feats=n_extrafeatures) if standardize_features else StdBypass()
+#         # TODO : add EF and all that pertains to it incl. EF standardizer etc
+#         self.attention_module = AttentionModule(input_dim, pad_scale, num_heads_attention, dropout_attention)
+#         self.lstm_module = LSTMModule(input_dim, n_hidden_encoder, n_layers_encoder, bidirectional)
+#
+#         self.init_params = {key: value for key, value in locals().items() if key != 'self' and key != '__class__'}
+#
+#         self.indexing = {'ts': 0, 'hidden': 1, 'cell': 2}[representation]
+#         self.representation = representation
+#         # TODO: Current input_dim assumes no pooling of any sort so we just concatenate the x_mut and x_wt
+#         #       vectors and have n_hidden * n_cat * n_layers * n_directions (HERE N_CAT REPLACES THE *2 IN THE OTHER MODEL
+#         #       BECAUSE IF WE CONCAT LAST THEN WE HAVE TWICE THE LSTM DIM, otherwise we have them a single time)
+#         #       Additionally : Need to add extra features dimensions into this predictor
+#         dim_dir = 2 if bidirectional else 1
+#         dim_cat = 2 if concat_order == 'after_lstm' else 1
+#         self.predictor = PredictorModule(
+#             input_dim=(dim_dir * n_hidden_encoder * dim_cat * n_layers_encoder) + n_extrafeatures,
+#             hidden_dim=n_hidden_predictor, num_layers=n_layers_predictor,
+#             activation=predictor_activation, dropout=dropout_predictor, batchnorm=batchnorm_predictor)
+#
+#     # Here include x_features=None as a bypass in case we don't use it so that it's not necessary to the call
+#     def forward(self, x_mut, x_wt, x_features=None, need_weights=False):
+#         """
+#         Here, there are three operations possible
+#             1. Concat->Attention->LSTM->Predictor
+#             2. Attention->Concat->LSTM->Predictor
+#             3. Attention->LSTM->Concat->Predictor
+#
+#         Depending on the order of the operations, predictor's input dim has to be adjusted
+#         Also for each case, the positional encoding should be treated differently. Standardizer should always happen first
+#         This is the reason for the ugly triple if/else loop, to treat each concatenation strategy
+#
+#         Args:
+#             x_mut: mutant input tensor
+#             x_wt: wild-type input tensor
+#             x_features: extra features if needed
+#             need_weights: Return attention weights (False by default)
+#
+#         Returns: z: predictions (logits) tensor of dimension (batch_size, 1)
+#
+#         """
+#
+#         # Always standardize them separately (due to paddings)
+#         with torch.no_grad():
+#             # Get the positional encoding before standardizer, add them whenever it makes sense
+#             # because it takes pad_scale into account, otherwise it will not get the right PEs
+#             z_mut = self.standardizer_mut(x_mut)
+#             z_wt = self.standardizer_wt(x_wt)
+#
+#         if self.concat_order == 'concat_first':
+#             z = torch.cat([z_mut, z_wt], dim=1)
+#             # Do it this way to get the correct positional encoding using x_mut/x_wt (i.e. not standardized) because of pad_scale
+#             z = z + self.get_positional_encoding(torch.concat([x_mut, x_wt], dim=1)) if self.add_pe else z
+#             z, attention_weights = self.attention_module(z, need_weights=need_weights)
+#             z = self.lstm(z)
+#         else:
+#             z_mut = z_mut + get_positional_encoding(x_mut, self.pad_scale) if self.add_pe else z_mut
+#             z_wt = z_wt + get_positional_encoding(x_wt, self.pad_scale) if self.add_pe else z_wt
+#
+#             if self.concat_order == 'after_attention':
+#                 z_mut, atn_mut = self.attention_module(z_mut, need_weights=need_weights)
+#                 z_wt, atn_wt = self.attention_module(z_wt, need_weights=need_weights)
+#                 z = torch.cat([z_mut, z_wt], dim=1)
+#                 z = self.lstm(z)
+#             elif self.concat_order == 'after_lstm':  # Here, concat_order == 'after_lstm':
+#                 z_mut, atn_mut = self.attention_module(z_mut, need_weights=need_weights)
+#                 z_wt, atn_wt = self.attention_module(z_wt, need_weights=need_weights)
+#                 z_mut = self.lstm(z_mut)
+#                 z_wt = self.lstm(z_wt)
+#                 z = torch.cat([z_mut, z_wt], dim=1)
+#             else:
+#                 raise Exception(f'No proper concat_order provided. Current: {self.concat_order}')
+#
+#         if self.n_extrafeatures > 0:
+#             z = torch.cat([z, x_features], dim=1)
+#
+#         z = self.predictor(z)
+#         # Here z should be scores, then if wanted we can add a sigmoid fct somewhere
+#         return z
+#
+#     def predict(self, x_mut, x_wt):
+#         with torch.no_grad():
+#             z = self.forward(x_mut, x_wt)
+#             return F.sigmoid(z)
+#
+#     def fit_standardizer(self, x_mut, x_wt, x_mask, x_features=None):
+#         assert self.training, 'Must be in training mode to fit!'
+#         with torch.no_grad():
+#             self.standardizer_mut.fit(x_mut, x_mask)
+#             self.standardizer_wt.fit(x_wt, x_mask)
+#             if self.n_extrafeatures > 0:
+#                 self.standardizer_features.fit(x_features)
+#
+#     def get_positional_encoding(self, x, n=10000):
+#         batch_size, max_seq_len, n_features = x.size()
+#
+#         pos = torch.arange(0, max_seq_len, dtype=torch.float32).unsqueeze(0).expand(batch_size, -1)
+#         mask = (~(x == self.pad_scale).all(dim=2)).float()
+#         pos = pos * mask
+#
+#         div_term = torch.exp(torch.arange(0, n_features, 2, dtype=torch.float32) * (-math.log(n) / n_features))
+#
+#         pe = torch.zeros(batch_size, max_seq_len, n_features)
+#         pe[:, :, 0::2] = torch.sin(pos.unsqueeze(2) * div_term)
+#         pe[:, :, 1::2] = torch.cos(pos.unsqueeze(2) * div_term)
+#         return pe
+#
+#     def lstm(self, z):
+#         """
+#
+#         Args:
+#             z: input tensor
+#         Returns:
+#             z: output tensor after running lstm module and indexing for the representation (hidden, cell, timestep)
+#         """
+#         z = self.lstm_module(z)
+#         z = z[self.indexing]
+#         if self.representation == 'ts':
+#             z = z[:, -1, :]
+#         return z
 
 ############################
 ####   NNAlign stuff    ####

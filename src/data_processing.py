@@ -14,10 +14,10 @@ import peptides
 
 warnings.filterwarnings('ignore')
 
-DATADIR = '/Users/riwa/Documents/code/PyNNalign/data/' if os.path.exists(os.path.abspath(
-    '/Users/riwa/Documents/code/PyNNalign/data')) else '/home/projects/vaccine/people/yatwan/PyNNalign/data/'
-OUTDIR = '/Users/riwa/Documents/code/PyNNalign/output/' if os.path.exists(os.path.abspath(
-    '/Users/riwa/Documents/code/PyNNalign/output')) else '/home/projects/vaccine/people/yatwan/PyNNalign/output/'
+DATADIR = '/Users/riwa/Documents/code/tclustr/data/' if os.path.exists(os.path.abspath(
+    '/Users/riwa/Documents/code/tclustr/data')) else '/home/projects/vaccine/people/yatwan/tclustr/data/'
+OUTDIR = '/Users/riwa/Documents/code/tclustr/output/' if os.path.exists(os.path.abspath(
+    '/Users/riwa/Documents/code/tclustr/output')) else '/home/projects/vaccine/people/yatwan/tclustr/output/'
 # Stupid hardcoded variable
 CNN_FEATS = ['EL_ratio', 'anchor_mutation', 'delta_VHSE1', 'delta_VHSE3', 'delta_VHSE7', 'delta_VHSE8',
              'delta_aliphatic_index',
