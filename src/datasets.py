@@ -5,11 +5,48 @@ from torch.utils.data import DataLoader, Dataset
 from src.data_processing import encode_batch, encode_batch_weighted, ics_dict, get_positional_encoding, pad_tensor, get_ic_weights
 
 
-class CDR3Dataset(Dataset):
+class CDR3BetaDataset(Dataset):
     """
-    For now, only use CDR3
+    For now, only use CDR3b
     """
-    def __init__(self, df, max_len_alpha=20, max_len_beta=20, encoding=
+    def __init__(self, df, max_len=20, encoding='BL50LO', pad_scale=None, cdr3b_col = 'B3',
+                 use_v=False, use_j=False, vcol='TRBV_gene', jcol = 'TRBJ_gene', v_maxdim=51, j_maxdim=13):
+        super(CDR3BetaDataset, self).__init__()
+        self.max_len = max_len
+        self.encoding = encoding
+        self.pad_scale = pad_scale
+        self.use_v = use_v
+        self.use_j = use_j
+        self.v_map = None
+        self.j_map = None
+        self.v_maxdim = v_maxdim
+        self.j_maxdim = j_maxdim
+        df['len'] = df[cdr3b_col].apply(len)
+        df = df.query('len<=@max_len')
+        # Only get sequences, no target because unsupervised learning, flattened to concat to classes
+        x = encode_batch(df[cdr3b_col], max_len, encoding, pad_scale).flatten(start_dim=1)
+        if use_v:
+            # get the mapping to a class
+            self.v_map = {k: v for v, k in enumerate(sorted(df[vcol].unique()))}
+            df['v_class'] = df[vcol].map(self.v_map).astype(int)
+            x_v = F.one_hot(torch.from_numpy(df['v_class'].values), num_classes = v_maxdim).float()
+            x = torch.cat([x, x_v], dim=1)
+        if use_v:
+            # get the mapping to a class
+            self.j_map = {k: v for v, k in enumerate(sorted(df[jcol].unique()))}
+            df['j_class'] = df[jcol].map(self.j_map).astype(int)
+            x_j = F.one_hot(torch.from_numpy(df['j_class'].values), num_classes=j_maxdim).float()
+            x = torch.cat([x, x_j], dim=1)
+
+        self.x = x
+
+    def __len(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        return self.x[idx]
+
+
 
 
 class MutWtDataset(Dataset):

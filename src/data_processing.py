@@ -218,7 +218,7 @@ def encode(sequence, max_len=None, encoding='onehot', pad_scale=None):
         diff = int(max_len) - int(size)
         try:
             if pad_scale is None:
-                pad_scale = 0 if encoding == 'onehot' else -12
+                pad_scale = 0 if encoding == 'onehot' else -15
             tmp = np.concatenate([tmp, pad_scale * np.ones([diff, len(AA_KEYS)], dtype=np.float32)],
                                  axis=0)
         except:

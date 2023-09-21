@@ -117,6 +117,7 @@ def onehot_batch(sequences, max_len = 23, weighted= 1.6, pad = 'before', positio
     """takes a bunch of sequences and onehot encode +pad them"""
     return torch.stack([onehot_aa(x, max_len, weighted, pad, positional, atchley) for x in sequences])#.unsqueeze(1) 
 
+
 def batch_aa_vj(dataset, max_len, weighted, pad, positional, atchley, device):
     """
     Takes a batch of sequences, the associated V and J info and encodes them 
