@@ -31,7 +31,7 @@ class VAELoss_cel(nn.Module):
     def __init__(self, alpha=1, beta=1e-2, cyclic=False, hyperbolic = False, linear = False, gamma = None, atchley = False):
         super(VAELoss_cel, self).__init__()
         self.criterion = nn.CrossEntropyLoss(reduction='mean')
-        # When using CEL, should transpose (1,2) on the x_hat and do torch.argmax(x, dim=2) 
+        # When using CEL, should transpose (1,2) on the x and do torch.argmax(x, dim=2)
         # But should also get rid of the positional encoding or separate it somehow
 
         self.alpha = alpha
@@ -64,7 +64,7 @@ class VAELoss_cel(nn.Module):
             
             
     def forward(self, x_hat, x, mu, logvar):
-        """x_hat and x should be tuples of (amino_acid, v, j) """
+        """x and x should be tuples of (amino_acid, v, j) """
         if self.cyclic == True : 
             self.beta = self.beta_0*(0.1+ math.pow(math.sin((-0.3+ math.pi*(self.count/(self.gamma)))), 2)/1.1)
             #Only steps during training
@@ -109,16 +109,16 @@ class VAELoss_cel(nn.Module):
     
     def rearrange(self, x_hat:tuple, x:tuple):
         """
-        Splits tuples of x_hat, x into their corresponding components,
+        Splits tuples of x, x into their corresponding components,
         reshape and permutes them as needed, transforms from onehot to int encoding, etc.
         They should be tuples of content (onehot_aa, onehot_v, onehot_j)
         """
-        #Splitting x_hat
+        #Splitting x
         x_hat_aa = x_hat[0].view(-1, x[0].shape[1], x[0].shape[2]) #corresponds to .view(-1, 23, 25)
         x_hat_pos = x_hat_aa[:,:,-4:].permute(0, 2, 1) #shape (N, 4, 23) as required by nn.CEL
         x_hat_aa = x_hat_aa[:,:,:21].permute(0, 2, 1) #shape (N, 21, 23) as required by nn.CEL
-        x_hat_v = x_hat[1]# 2nd element of the tuple x_hat, of shape(N,30)
-        x_hat_j = x_hat[2]# 3rd element of the tuple x_hat, of shape(N,2)
+        x_hat_v = x_hat[1]# 2nd element of the tuple x, of shape(N,30)
+        x_hat_j = x_hat[2]# 3rd element of the tuple x, of shape(N,2)
         
         #Splitting and taking argmax of x, same stuff
         oh_aa = x[0]#onehot_aa is the first item

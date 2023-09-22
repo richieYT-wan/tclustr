@@ -91,7 +91,7 @@ class VAE_tune(nn.Module):
         z = self.reparameterise(mu, logvar)
         x_hat = self.decode(z) # = Decoded view
         x_hat = F.relu(x_hat)
-        #x_hat = self.sig(x_hat)
+        #x = self.sig(x)
         return x_hat, mu, logvar
     
     def sample(self, n_samples):
@@ -105,7 +105,7 @@ class VAE_tune(nn.Module):
 class VAE_VJ_tune(nn.Module):
     """
     Input : Flattened&concatenated AA_onehot, v_onehot, j_onehot 
-    shape (N, aa_dim*seq_len + v_dim + j_dim), should be (N, 25*23+30+2) when using Positional encoding
+    shape (N, aa_dim*max_len + v_dim + j_dim), should be (N, 25*23+30+2) when using Positional encoding
     """
     def __init__(self, seq_len = 23, aa_dim = 21, positional = True, 
                  latent_dim= 50, act = nn.SELU(), 
@@ -137,7 +137,7 @@ class VAE_VJ_tune(nn.Module):
         self.out_aa = nn.Linear(math.floor(self.in_dim/2), self.seq_len * self.aa_dim)
         #if positional == True:
         #    self.pos_dim = 4
-        #    self.out_pos = nn.Linear(math.floor(self.in_dim/2), self.seq_len*self.pos_dim)
+        #    self.out_pos = nn.Linear(math.floor(self.in_dim/2), self.max_len*self.pos_dim)
             
         self.out_v = nn.Linear(math.floor(self.in_dim/2), self.v_dim)
         self.out_j = nn.Linear(math.floor(self.in_dim/2), self.j_dim)
@@ -162,16 +162,16 @@ class VAE_VJ_tune(nn.Module):
         x_hat = self.decoder(z)
         #I can do this, or maybe just do the ReLU thing for the aa/pos reconstruction (like normal VAE)
         #then another layers for V and J
-        #aa_reconstructed = self.out_aa(x_hat) 
-        #aa_reconstructed = F.softmax(aa_reconstructed.view(-1, self.seq_len, self.aa_dim), dim = 2)
+        #aa_reconstructed = self.out_aa(x)
+        #aa_reconstructed = F.softmax(aa_reconstructed.view(-1, self.max_len, self.aa_dim), dim = 2)
         v_reconstructed = self.out_v(x_hat) #Logits with no activation to use with CrossEntropyLoss
         j_reconstructed = self.out_j(x_hat) #Logits with no activation to use with CrossEntropyLoss
         # FOR NOW, DO GOOD OLD RELU ON OUTPUT
         aa_reconstructed = self.out_aa(x_hat)
         
         #if self.pos_dim is not None:
-        #    positional_reconstructed = self.out_pos(x_hat)
-        #    positional_reconstructed = F.softmax(positional_reconstructed.view(self.seq_len, 
+        #    positional_reconstructed = self.out_pos(x)
+        #    positional_reconstructed = F.softmax(positional_reconstructed.view(self.max_len,
         #                                                                       self.pos_dim), 
         #                                         dim = 2)
         #    return aa_reconstructed, positional_reconstructed, v_reconstructed, j_reconstructed
@@ -181,7 +181,7 @@ class VAE_VJ_tune(nn.Module):
     def forward(self, x):
         mu, logvar = self.encode(x)
         z = self.reparameterise(mu, logvar)
-        xs_hat = self.decode(z) #this is a tuple, so its xs_hat instead of x_hat
+        xs_hat = self.decode(z) #this is a tuple, so its xs_hat instead of x
         return xs_hat, mu, logvar
     
     def sample(self, n_samples):

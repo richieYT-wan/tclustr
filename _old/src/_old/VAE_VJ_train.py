@@ -34,8 +34,8 @@ def train_model(model, criterion, optimizer, epoch, train_loader, device):
         target = (x.to(device) for x in target)
         if model.__class__.__name__ == 'AutoEncoder':#AE
             pass
-        #    _, x_hat = model(data)
-        #    loss = criterion(x_hat.view(-1, onehot.shape[1], onehot.shape[2]), target)#Here was MSE loss
+        #    _, x = model(data)
+        #    loss = criterion(x.view(-1, onehot.shape[1], onehot.shape[2]), target)#Here was MSE loss
         elif model.__class__.__name__.startswith('VAE'):
             x_hat, mu, logvar = model(data)
             loss = criterion(x_hat, target, mu, logvar)
@@ -62,8 +62,8 @@ def eval_model(model, criterion, val_loader, device):
             target = (x.to(device) for x in target)
             if model.__class__.__name__ == 'AutoEncoder':#AE
                 pass
-            #    _, x_hat = model(onehot)
-            #    loss = criterion(x_hat.view(-1, onehot.shape[1], onehot.shape[2]), onehot)
+            #    _, x = model(onehot)
+            #    loss = criterion(x.view(-1, onehot.shape[1], onehot.shape[2]), onehot)
             
             elif model.__class__.__name__.startswith('VAE'):
                 x_hat, mu, logvar = model(onehot)

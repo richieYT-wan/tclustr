@@ -23,14 +23,13 @@ CNN_FEATS = ['EL_ratio', 'anchor_mutation', 'delta_VHSE1', 'delta_VHSE3', 'delta
              'delta_aliphatic_index',
              'delta_boman', 'delta_hydrophobicity', 'delta_isoelectric_point', 'delta_rank']
 
-
 def _init(DATADIR):
     #### ==== CONST (blosum, multiprocessing, keys, etc) ==== ####
     VAL = math.floor(4 + (multiprocessing.cpu_count() / 1.5))
     N_CORES = VAL if VAL <= multiprocessing.cpu_count() else int(multiprocessing.cpu_count() - 2)
 
     MATRIXDIR = f'{DATADIR}Matrices/'
-    ICSDIR = f'{DATADIR}ic_dicts/'
+    # ICSDIR = f'{DATADIR}ic_dicts/'
     AA_KEYS = [x for x in 'ARNDCQEGHILKMFPSTWYV']
 
     CHAR_TO_INT = dict((c, i) for i, c in enumerate(AA_KEYS))
@@ -65,9 +64,12 @@ def _init(DATADIR):
         BL62FREQ_VALUES[letter_1] = _blosum62[i]
         for j, letter_2 in enumerate(AA_KEYS):
             BL62FREQ[letter_1][letter_2] = _blosum62[i, j]
-    ICS_KL = pkl_load(ICSDIR + 'ics_kl_new.pkl')
-    ICS_SHANNON = pkl_load(ICSDIR + 'ics_shannon.pkl')
-    HLAS = ICS_SHANNON[9].keys()
+    # ICS_KL = pkl_load(ICSDIR + 'ics_kl_new.pkl')
+    # ICS_SHANNON = pkl_load(ICSDIR + 'ics_shannon.pkl')
+    # HLAS = ICS_SHANNON[9].keys()
+    ICS_KL = None
+    ICS_SHANNON = None
+    HLAS = None
 
     return VAL, N_CORES, DATADIR, AA_KEYS, CHAR_TO_INT, INT_TO_CHAR, BG, BL62FREQ, BL62FREQ_VALUES, BL50, BL50_VALUES, BL62, BL62_VALUES, HLAS, ICS_KL, ICS_SHANNON
 
@@ -376,13 +378,13 @@ def encode_batch_weighted(df, ics_dict=None, device=None, max_len=None, encoding
     """
     # df = verify_df(df, seq_col, hla_col, target_col)
     if seq_col == 'expanded_input':
-        df['seq_len'] = df[seq_col].apply(lambda x: len(x) - x.count('-'))
+        df['max_len'] = df[seq_col].apply(lambda x: len(x) - x.count('-'))
     else:
-        df['seq_len'] = df[seq_col].apply(len)
+        df['max_len'] = df[seq_col].apply(len)
     if max_len is not None:
-        df = df.query('seq_len<=@max_len')
+        df = df.query('max_len<=@max_len')
     else:
-        max_len = df['seq_len'].max()
+        max_len = df['max_len'].max()
 
     # Encoding the sequences
     encoded_sequences = encode_batch(df[seq_col].values, max_len, encoding=encoding, pad_scale=pad_scale)
@@ -400,7 +402,7 @@ def encode_batch_weighted(df, ics_dict=None, device=None, max_len=None, encoding
     else:
         weighted_sequences = (torch.from_numpy(weights) * encoded_sequences)
 
-    true_lens = df['seq_len'].values
+    true_lens = df['max_len'].values
 
     if device is None:
         return weighted_sequences.float()

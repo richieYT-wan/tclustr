@@ -31,7 +31,7 @@ from torch.utils.data import BatchSampler, RandomSampler
 class VAE_cel(nn.Module):
     """
     Input : Flattened&concatenated AA_onehot, v_onehot, j_onehot 
-    shape (N, aa_dim*seq_len + v_dim + j_dim), should be (N, 25*23+30+2) when using Positional encoding
+    shape (N, aa_dim*max_len + v_dim + j_dim), should be (N, 25*23+30+2) when using Positional encoding
     """
     def __init__(self, seq_len = 23, aa_dim = 21, 
                  latent_dim= 100, act = nn.SELU(), 
@@ -69,7 +69,7 @@ class VAE_cel(nn.Module):
     
     def get_infos(self):
         tmp = {}
-        tmp['seq_len'] = self.seq_len
+        tmp['max_len'] = self.seq_len
         tmp['aa_dim'] = self.aa_dim
         tmp['latent_dim']= self.lat_dim
         tmp['in_dim'] = self.in_dim
@@ -120,7 +120,7 @@ class VAE_cel(nn.Module):
         x = self.reshape_input_tuple(x)
         mu, logvar = self.encode(x)
         z = self.reparameterise(mu, logvar)
-        xs_hat = self.decode(z) #this is a tuple, so its xs_hat instead of x_hat
+        xs_hat = self.decode(z) #this is a tuple, so its xs_hat instead of x
         return xs_hat, mu, logvar
     
     def embed_reconstruct(self, x):

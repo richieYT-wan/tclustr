@@ -208,33 +208,43 @@ class StdBypass(nn.Module):
 
 class FullFVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
-    def __init__(self, seq_len=23, aa_dim=20, use_v=True, use_j=True, v_dim=51, j_dim=13, act=nn.SELU(), hidden_dim=128,
-                 latent_dim=32):
+    def __init__(self, max_len=23, aa_dim=20, use_v=True, use_j=True, v_dim=51, j_dim=13, activation=nn.SELU(),
+                 hidden_dim=128, latent_dim=32):
         super(FullFVAE, self).__init__()
-
-        input_dim = (seq_len * aa_dim) + v_dim + j_dim
+        # Init params that will be needed at some point for reconstruction
+        v_dim = v_dim if use_v else 0
+        j_dim = j_dim if use_j else 0
+        input_dim = (max_len * aa_dim) + v_dim + j_dim
         self.input_dim = input_dim
-        self.v_dim = v_dim
+        self.max_len = max_len
+        self.aa_dim = aa_dim
+        self.v_dim = v_dim if use_v else 0
         self.use_v = use_v
-        self.j_im = j_dim
+        self.j_dim = j_dim if use_j else 0
         self.use_j = use_j
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
         # TODO: For now, just use a fixed set of layers.
-        # Encoder
-        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), act,
-                                     nn.Linear(input_dim // 2, hidden_dim), act)
+        # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
+        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
+                                     nn.Linear(input_dim // 2, hidden_dim), activation)
         self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
         self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
-        # Decoder
-        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), act,
-                                     nn.Linear(hidden_dim, hidden_dim), act)
+        # TODO: Maybe split the decoder into parts for seq, v, j and also update behaviour in forward etc.
+        # Decoder: latent (z) -> hidden -> in // 2 -> in
+        # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+        #                              nn.Linear(hidden_dim, input_dim //2), nn.ReLU(),
+        #                              nn.Linear(input_dim // 2, input_dim))
 
-        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), act,
+        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+                                     nn.Linear(hidden_dim, hidden_dim), activation)
+                                     # nn.Linear(input_dim // 2, input_dim))
+
+        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
                                               nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
 
-        self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else None
-        self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else None
+        self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else nn.Identity()
+        self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else nn.Identity()
 
     @staticmethod
     def reparameterise(mu, logvar):
@@ -250,40 +260,56 @@ class FullFVAE(NetParent):
         return mu, logvar
 
     def decode(self, z):
-        decoded = self.decoder(z)
-        sequence = self.decoder_sequence(decoded)
-        v_gene = self.decoder_v(decoded) if self.use_v else None
-        j_gene = self.decoder_j(decoded) if self.use_j else None
+        x_hat = self.decoder(z)
+        seq = self.decoder_sequence(x_hat)
+        v = self.decoder_v(x_hat)#, dim=1)
+        j = self.decoder_j(x_hat)#, dim=1)
+        return torch.cat([seq, v, j], dim=1)
+
+    def slice_xhat(self, x_hat):
+        # with torch.no_grad():
+        sequence = x_hat[:, 0:self.max_len * self.aa_dim].view(-1, self.max_len, self.aa_dim)
+        # Reconstructs the v/j gene as one hot vectors
+        v_gene = x_hat[:, self.max_len * self.aa_dim: self.max_len * self.aa_dim + self.v_dim] if self.use_v else None
+        j_gene = x_hat[:, self.input_dim - self.j_dim:] if self.use_j else None
         return sequence, v_gene, j_gene
+
+    def reconstruct(self, z):
+        with torch.no_grad():
+            x_hat = self.decode(z)
+            # Reconstruct and unflattens the sequence
+            sequence, v_gene, j_gene = self.slice_xhat(x_hat)
+            return sequence, v_gene, j_gene
 
     def forward(self, x):
         mu, logvar = self.encode(x)
         z = self.reparameterise(mu, logvar)
-        sequence, v_gene, j_gene = self.decode(z)
-        return sequence, v_gene, j_gene, mu, logvar
+        x_hat = self.decode(z)
+        return x_hat, mu, logvar
 
     def embed(self, x):
         mu, logvar = self.encode(x)
         z = self.reparameterise(mu, logvar)
         return z
 
-    def embed_reconstruct(self, x):
-        with torch.no_grad():
-            sequence, v_gene, j_gene, _, _ = self.forward(x)
-            return sequence, v_gene, j_gene
-
     def sample_latent(self, n_samples):
         z = torch.randn((n_samples, self.lat_dim)).to(device=self.encoder[0].weight.device)
         return z
 
 
+class VAELoss(nn.Module):
+    def __init__(self, beta, use_v, use_j):
+        super(VAELoss, self).__init__()
+        pass
+
+
 class FullCVAE(NetParent):
     # TODO: DO CNN VAE
-    raise NotImplementedError
-    # def __init__(self, seq_len, aa_dim=21, use_v=True, use_j=True, v_dim=0, j_dim=0, act=nn.ReLU(), hidden_dim=128,
+    pass #raise NotImplementedError
+    # def __init__(self, max_len, aa_dim=21, use_v=True, use_j=True, v_dim=0, j_dim=0, act=nn.ReLU(), hidden_dim=128,
     #              latent_dim=32):
     #     super(CVAE, self).__init__()
-    #     input_dim = (seq_len * aa_dim) + v_dim + j_dim
+    #     input_dim = (max_len * aa_dim) + v_dim + j_dim
     #     self.input_dim = input_dim
     #     self.v_dim = v_dim
     #     self.use_v = use_v

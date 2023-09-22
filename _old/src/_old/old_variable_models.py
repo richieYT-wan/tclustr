@@ -6,7 +6,7 @@ import os
 class var_merged_v2(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):
@@ -56,7 +56,7 @@ class var_merged_v2(torch.nn.Module):
 class var_merged_v3(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):
@@ -106,7 +106,7 @@ class var_merged_v3(torch.nn.Module):
 class var_merged_v4(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):
@@ -155,7 +155,7 @@ class var_merged_v4(torch.nn.Module):
 class var_merged_v5(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):

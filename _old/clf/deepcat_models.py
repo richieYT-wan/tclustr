@@ -7,7 +7,7 @@ import os
 class deepcat_cnn(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):
@@ -52,7 +52,7 @@ class deepcat_cnn(torch.nn.Module):
 class richie_net(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):
@@ -147,7 +147,7 @@ class variable_net(torch.nn.Module):
 class variable_atchley_net(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):
@@ -196,7 +196,7 @@ class variable_atchley_net(torch.nn.Module):
 class xd(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):
@@ -251,7 +251,7 @@ class xd(torch.nn.Module):
 class xd2(torch.nn.Module):
     """
     PyTorch version of DeepCAT CNN
-    seq_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
+    max_len represents the length (# of AAs) of the CDR3 region (L = 12, 13, ..., 16)
     When initializing CNN_CDR3, the L should be specified 
     """ 
     def __init__(self, seq_len):

@@ -126,6 +126,7 @@ def eval_model_step(model, criterion, valid_loader):
             y_valid = data.pop(-1)
             output = model(*data)
             loss = criterion(output, y_valid)
+            # TODO: Here need to change this because I need to evaluate the VAE outputs
             y_true.append(y_valid)
             y_scores.append(F.sigmoid(output))
             valid_loss += loss.item() * y_valid.shape[0]
@@ -137,7 +138,7 @@ def eval_model_step(model, criterion, valid_loader):
     return valid_loss, valid_metrics
 
 
-def predict_model(model, dataset: NNAlignDataset, dataloader: torch.utils.data.DataLoader):
+def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.utils.data.DataLoader):
     assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'

@@ -9,6 +9,8 @@ from torch import nn as nn
 
 from src.data_processing import verify_df, get_dataset
 from src.utils import get_palette
+from torch import nn
+from torch.nn import functional as F
 
 mpl.rcParams['figure.dpi'] = 180
 sns.set_style('darkgrid')
@@ -16,45 +18,69 @@ from sklearn.metrics import roc_curve, roc_auc_score, f1_score, accuracy_score, 
     recall_score, precision_score, precision_recall_curve, auc, average_precision_score
 
 
-def get_predictions(df, models, ics_dict, encoding_kwargs):
+class VAELoss(nn.Module):
+    """
+    No fucking annealing, just some basic stuff for now
     """
 
-    Args:
-        df (pd.DataFrame) : The dataframe containing the data (i.e. peptides and eventually additional columns)
-        models (list) : list of all the models for a given fold. Should be a LIST
-        ics_dict (dict): weights or None
-        encoding_kwargs: the kwargs needed to process the df
-    Returns:
-        predictions_df (pd
-        df (pd.DataFrame): DataFrame containing the Peptide-HLA pairs to evaluate
-        models (list): A.DataFrame): Original DataFrame + a column predictions which are the scores + y_true
-    """
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'),
+                 use_v=True, use_j=True, max_len=21, aa_dim=20, v_dim=51, j_dim=13,
+                 weight_seq=1, weight_v=.3, weight_j=.15, weight_kld=.5, debug=False):
+        super(VAELoss, self).__init__()
+        weight_v = weight_v if use_v else 0
+        weight_j = weight_j if use_j else 0
+        self.norm_factor = weight_seq + weight_v + weight_j + weight_kld
+        self.sequence_criterion = sequence_criterion
+        self.max_len = max_len
+        self.aa_dim = aa_dim
+        self.use_v = use_v
+        self.use_j = use_j
+        self.v_dim = v_dim if use_v else 0
+        self.j_dim = j_dim if use_j else 0
+        self.weight_seq = weight_seq / self.norm_factor
+        self.weight_v = weight_v / self.norm_factor
+        self.weight_j = weight_j / self.norm_factor
+        self.base_weight_kld = weight_kld / self.norm_factor
+        self.weight_kld = 0
+        self.step = 0
+        self.debug = debug
 
-    df = verify_df(df, encoding_kwargs['seq_col'], encoding_kwargs['hla_col'],
-                   encoding_kwargs['target_col'])
+    def slice_x(self, x):
+        sequence = x[:, 0:self.max_len * self.aa_dim].view(-1, self.max_len, self.aa_dim)
+        # Reconstructs the v/j gene as one hot vectors
+        v_gene = x[:, self.max_len * self.aa_dim: self.max_len * self.aa_dim + self.v_dim] if self.use_v else None
+        j_gene = x[:, ((self.max_len * self.aa_dim) + self.v_dim):] if self.use_j else None
+        return sequence, v_gene, j_gene
 
-    x, y = get_dataset(df, ics_dict, **encoding_kwargs)
+    def forward(self, x_hat, x, mu, logvar):
+        x_hat_seq, x_hat_v, x_hat_j = self.slice_x(x_hat)
+        x_true_seq, x_true_v, x_true_j = self.slice_x(x)
+        reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
+        if self.debug:
+            print('seq_loss', reconstruction_loss)
+        if self.use_v:
+            # Something wrong here with_loss, it explodes to minus infinity for some reasons
+            v_loss = self.weight_v * F.cross_entropy(x_hat_v, x_true_v.argmax(dim=1),  reduction='mean')
+            if self.debug:
+                print('v_loss', v_loss)
+            reconstruction_loss += v_loss
+        if self.use_j:
+            j_loss = self.weight_j * F.cross_entropy(x_hat_j, x_true_j.argmax(dim=1),  reduction='mean')
+            if self.debug:
+                print('j_loss', j_loss)
+            reconstruction_loss += j_loss
 
-    # Take the first model in the list and get its class
-    model_class = models[0].__class__
+        kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
+        self.step += 1
+        self.weight_kld = min(self.base_weight_kld, self.base_weight_kld * self.step / 100)
+        if self.debug:
+            print('kld_weight', self.weight_kld)
+            print('kld_loss', kld, '\n')
 
-    # If model is a scikit-learn model, get pred prob
-    if issubclass(model_class, sklearn.base.BaseEstimator):
-        average_predictions = [model.predict_proba(x)[:, 1] \
-                               for model in models]
+        return reconstruction_loss + kld
 
-    # If models list is a torch model, use forward
-    # elif issubclass(model_class, nn.Module):
-    #     # This only works for models that inherit from NetParent
-    #     x, y = to_tensors(x, y, device=models[0].device)
-    #     with torch.no_grad():
-    #         average_predictions = [model(x).detach().cpu().numpy() for model in models]
-
-    average_predictions = np.mean(np.stack(average_predictions), axis=0)
-    # assert len(average_predictions)==len(df), f'Wrong shapes passed preds:{len(average_predictions)},df:{len(df)}'
-    output_df = df.copy(deep=True)
-    output_df['pred'] = average_predictions
-    return output_df
+    def set_debug(self, debug):
+        self.debug = debug
 
 
 def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:
@@ -316,55 +342,6 @@ def get_mean_pr_curve(pr_curves, extra_key=None):
     return base_recall, mean_precisions, lower, upper, mean_auc
 
 
-def get_nested_feature_importance(models):
-    feat_importances = []
-    for k in models.keys():
-        inner_mean_fi = np.mean([x['model'].feature_importances_ for x in models[k]], axis=0)
-        feat_importances.append(inner_mean_fi)
-    return np.mean(np.stack(feat_importances), axis=0)
-
-
-def plot_feature_importance(importance, names, title='', ax=None, label_number=False, palette='viridis_r'):
-    # Create arrays from feature importance and feature names
-    feature_importance = np.array(importance)
-    feature_names = np.array(names)
-
-    # Create a DataFrame using a Dictionary
-    data = {'feature_names': feature_names, 'feature_importance': feature_importance}
-    fi_df = pd.DataFrame(data)
-
-    # Sort the DataFrame in order decreasing feature importance
-    fi_df.sort_values(by=['feature_importance'], ascending=False, inplace=True)
-
-    if ax is None:
-        # Define size of bar plot
-        f, ax = plt.subplots(1, 1, figsize=(7, 6))
-        # Plot Searborn bar chart
-        sns.barplot(x=fi_df['feature_importance'], y=fi_df['feature_names'],
-                    ax=ax, palette=get_palette(palette, n_colors=len(feature_names)))
-        # Add chart labels
-        plt.xticks(ax.get_xticks(), (ax.get_xticks() * 100).round(1))
-        plt.xlabel('Percentage importance [%]', fontsize=14, fontweight='semibold')
-        plt.ylabel('Feature name', fontweight='semibold', fontsize=14)
-        if title != '':
-            ax.set_title(title, fontweight='semibold', fontsize=14)
-    else:
-        sns.barplot(x=fi_df['feature_importance'], y=fi_df['feature_names'],
-                    ax=ax, palette=get_palette(palette, n_colors=len(feature_names)))
-        # Add chart labels
-        # ax.set_xticks((ax.get_xticks() * 100).round(1))
-        ax.set_xticklabels((ax.get_xticks() * 100).round(1))
-        ax.set_xlabel('Percentage importance [%]', fontweight='semibold', fontsize=13)
-        ax.set_ylabel('Feature name', fontweight='semibold', fontsize=13)
-        if title != '':
-            ax.set_title(title, fontweight='semibold', fontsize=14)
-        f = None
-    if label_number:
-        values = [f'{(100 * x).round(1)}%' for x in ax.containers[0].datavalues]
-        ax.bar_label(ax.containers[0], labels=values, fontweight='semibold')
-    return f, ax
-
-
 def get_roc(df, score='pred', target='agg_label', binder=None, anchor_mutation=None):
     """
     Args:
@@ -396,62 +373,3 @@ def get_roc(df, score='pred', target='agg_label', binder=None, anchor_mutation=N
               "auc01": auc01,
               "npep": len(df)}
     return output
-
-
-def plot_nn_train_metrics(train_metrics, title, filename):
-    train_auc = np.stack(
-        [train_metrics[k1][k2]['train']['auc'] for k1 in train_metrics for k2 in
-         train_metrics[k1]])
-    valid_auc = np.stack(
-        [train_metrics[k1][k2]['valid']['auc'] for k1 in train_metrics for k2 in
-         train_metrics[k1]])
-    train_losses = np.stack(
-        [train_metrics[k1][k2]['train']['losses'] for k1 in train_metrics for k2 in
-         train_metrics[k1]])
-    valid_losses = np.stack(
-        [train_metrics[k1][k2]['valid']['losses'] for k1 in train_metrics for k2 in
-         train_metrics[k1]])
-
-    mean_train_losses = np.mean(train_losses, axis=0)
-    mean_valid_losses = np.mean(valid_losses, axis=0)
-    std_train_losses = np.std(train_losses, axis=0)
-    std_valid_losses = np.std(valid_losses, axis=0)
-    low_train_losses = mean_train_losses - std_train_losses
-    high_train_losses = mean_train_losses + std_train_losses
-    low_valid_losses = mean_valid_losses - std_valid_losses
-    high_valid_losses = mean_valid_losses + std_valid_losses
-
-    mean_train_auc = np.mean(train_auc, axis=0)
-    mean_valid_auc = np.mean(valid_auc, axis=0)
-    std_train_auc = np.std(train_auc, axis=0)
-    std_valid_auc = np.std(valid_auc, axis=0)
-    low_train_auc = mean_train_auc - std_train_auc
-    high_train_auc = mean_train_auc + std_train_auc
-    low_valid_auc = mean_valid_auc - std_valid_auc
-    high_valid_auc = mean_valid_auc + std_valid_auc
-
-    f, a = plt.subplots(1, 2, figsize=(12, 4))
-    f.suptitle(f'{title}')
-    x = np.arange(1, len(mean_train_auc) + 1, 1)
-    a[0].plot(x, mean_train_losses, label='mean_train_loss')
-    a[0].fill_between(x, y1=low_train_losses,
-                      y2=high_train_losses, alpha=0.175)
-
-    a[0].plot(x, mean_valid_losses, label='mean_valid_loss')
-    a[0].fill_between(x, y1=low_valid_losses,
-                      y2=high_valid_losses, alpha=0.175)
-    a[0].legend()
-    a[0].set_title('Losses')
-    a[0].set_xlabel('Epoch')
-    a[1].plot(x, mean_train_auc, label='mean_train_auc')
-    a[1].fill_between(x, y1=low_train_auc,
-                      y2=high_train_auc, alpha=0.175)
-
-    a[1].plot(x, mean_valid_auc, label='mean_valid_auc')
-    a[1].fill_between(x, y1=low_valid_auc,
-                      y2=high_valid_auc, alpha=0.175)
-    a[1].legend(loc='lower right')
-    a[1].set_title('AUCs')
-    a[1].set_xlabel('Epoch')
-    if filename is not None:
-        f.savefig(filename, bbox_inches='tight')

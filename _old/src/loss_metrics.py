@@ -40,7 +40,7 @@ class VAELoss(nn.Module):
         super(VAELoss, self).__init__()
         self.criterion = dict_[how]
         self.reshape = False
-        # When using CEL, should transpose (1,2) on the x_hat and do torch.argmax(x, dim=2) 
+        # When using CEL, should transpose (1,2) on the x and do torch.argmax(x, dim=2)
         # But should also get rid of the positional encoding or separate it somehow
         if how == 'CEL':
             self.CEL = True
@@ -138,7 +138,7 @@ class VAELoss_vj(nn.Module):
         self.istrain = False
         
     def forward(self, x_hat, x, mu, logvar):
-        """x_hat and x are tuples of format (amino_acid_encoding, v_encoding, j_encoding)"""
+        """x and x are tuples of format (amino_acid_encoding, v_encoding, j_encoding)"""
         if self.cyclic == True : 
             self.beta = self.beta_0 * math.pow(math.sin((-0.3+ math.pi*(self.count/(self.gamma)))), 2)
             if self.istrain == True :

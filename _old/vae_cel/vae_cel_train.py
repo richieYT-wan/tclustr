@@ -41,7 +41,7 @@ def train_model(model, criterion, optimizer,epoch, dataset,
         
         #Sending everything to device, x is a tuple of onehot-vectors (sequence_oh, v_oh, j_oh)
         x = batch_aa_vj(dataset[b,:], max_len, weighted, pad, positional, atchley, device)
-        x_hat, mu, logvar = model(x) #x_hat is also a tuple
+        x_hat, mu, logvar = model(x) #x is also a tuple
         loss = criterion(x_hat, x, mu, logvar)
 
         #Optimizer
@@ -93,7 +93,7 @@ def test_model(model, criterion, dataset, batch_size, max_len, weighted, pad, po
                       desc = 'test set', leave =False):
             #xs_Z are tuples!!!
             xs_true = batch_aa_vj(dataset[b,:], max_len, weighted, pad, positional, atchley, device)
-            xs_hat, mu, logvar = model(xs_true) #x_hat is also a tuple
+            xs_hat, mu, logvar = model(xs_true) #x is also a tuple
             loss = criterion(xs_hat, xs_true, mu, logvar)
             losses.append(loss.item())
             #Reconstructing 
