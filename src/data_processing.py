@@ -8,6 +8,7 @@ import multiprocessing
 import math
 from torch.utils.data import TensorDataset
 from src.utils import pkl_load, pkl_dump
+from copy import deepcopy
 import os
 import warnings
 import peptides

@@ -232,19 +232,19 @@ class FullFVAE(NetParent):
         self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
         # TODO: Maybe split the decoder into parts for seq, v, j and also update behaviour in forward etc.
         # Decoder: latent (z) -> hidden -> in // 2 -> in
-        # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-        #                              nn.Linear(hidden_dim, input_dim //2), nn.ReLU(),
-        #                              nn.Linear(input_dim // 2, input_dim))
-
         self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                     nn.Linear(hidden_dim, hidden_dim), activation)
-                                     # nn.Linear(input_dim // 2, input_dim))
+                                     nn.Linear(hidden_dim, input_dim //2), nn.ReLU(),
+                                     nn.Linear(input_dim // 2, input_dim))
 
-        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
-                                              nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
-
-        self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else nn.Identity()
-        self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else nn.Identity()
+        # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+        #                              nn.Linear(hidden_dim, hidden_dim), activation)
+        #                              # nn.Linear(input_dim // 2, input_dim))
+        #
+        # self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
+        #                                       nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
+        #
+        # self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else nn.Identity()
+        # self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else nn.Identity()
 
     @staticmethod
     def reparameterise(mu, logvar):
@@ -261,24 +261,23 @@ class FullFVAE(NetParent):
 
     def decode(self, z):
         x_hat = self.decoder(z)
-        seq = self.decoder_sequence(x_hat)
-        v = self.decoder_v(x_hat)#, dim=1)
-        j = self.decoder_j(x_hat)#, dim=1)
-        return torch.cat([seq, v, j], dim=1)
+        # seq = self.decoder_sequence(x_hat)
+        # v = self.decoder_v(x_hat)#, dim=1)
+        # j = self.decoder_j(x_hat)#, dim=1)
+        return x_hat #torch.cat([seq, v, j], dim=1)
 
-    def slice_xhat(self, x_hat):
-        # with torch.no_grad():
-        sequence = x_hat[:, 0:self.max_len * self.aa_dim].view(-1, self.max_len, self.aa_dim)
+    def slice_x(self, x):
+        sequence = x[:, 0:(self.max_len * self.aa_dim)].view(-1, self.max_len, self.aa_dim)
         # Reconstructs the v/j gene as one hot vectors
-        v_gene = x_hat[:, self.max_len * self.aa_dim: self.max_len * self.aa_dim + self.v_dim] if self.use_v else None
-        j_gene = x_hat[:, self.input_dim - self.j_dim:] if self.use_j else None
+        v_gene = x[:, (self.max_len * self.aa_dim):(self.max_len * self.aa_dim + self.v_dim)] if self.use_v else None
+        j_gene = x[:, ((self.max_len * self.aa_dim) + self.v_dim):] if self.use_j else None
         return sequence, v_gene, j_gene
 
     def reconstruct(self, z):
         with torch.no_grad():
             x_hat = self.decode(z)
             # Reconstruct and unflattens the sequence
-            sequence, v_gene, j_gene = self.slice_xhat(x_hat)
+            sequence, v_gene, j_gene = self.slice_x(x_hat)
             return sequence, v_gene, j_gene
 
     def forward(self, x):
@@ -296,12 +295,23 @@ class FullFVAE(NetParent):
         z = torch.randn((n_samples, self.lat_dim)).to(device=self.encoder[0].weight.device)
         return z
 
+    def recover_indices(self, seq_tensor, MATRIX_VALUES):
+        # Sample data
+        N, max_len = seq_tensor.shape[0], seq_tensor.shape[1]
 
-class VAELoss(nn.Module):
-    def __init__(self, beta, use_v, use_j):
-        super(VAELoss, self).__init__()
-        pass
+        # Expand MATRIX_VALUES to have the same shape as x_seq for broadcasting
+        expanded_MATRIX_VALUES = MATRIX_VALUES.unsqueeze(0).expand(N, -1, -1, -1)
+        # Compute the absolute differences
+        abs_diff = torch.abs(seq_tensor.unsqueeze(2) - expanded_MATRIX_VALUES)
+        # Sum along the last dimension (20) to get the absolute differences for each character
+        abs_diff_sum = abs_diff.sum(dim=-1)
 
+        # Find the argmin along the character dimension (21)
+        argmin_indices = torch.argmin(abs_diff_sum, dim=-1)
+        return argmin_indices
+
+    def recover_sequences_blosum(self, seq_tensor, MATRIX_VALUES, AA_KEYS):
+        return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor, MATRIX_VALUES)]
 
 class FullCVAE(NetParent):
     # TODO: DO CNN VAE

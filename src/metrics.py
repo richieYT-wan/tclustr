@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from torch import nn as nn
 
-from src.data_processing import verify_df, get_dataset
+from src.data_processing import verify_df, get_dataset, encoding_matrix_dict
 from src.utils import get_palette
 from torch import nn
 from torch.nn import functional as F
@@ -41,14 +41,15 @@ class VAELoss(nn.Module):
         self.weight_v = weight_v / self.norm_factor
         self.weight_j = weight_j / self.norm_factor
         self.base_weight_kld = weight_kld / self.norm_factor
-        self.weight_kld = 0
+        self.weight_kld = self.base_weight_kld
         self.step = 0
         self.debug = debug
+        print(self.weight_seq, self.weight_v, self.weight_j, self.base_weight_kld)
 
     def slice_x(self, x):
-        sequence = x[:, 0:self.max_len * self.aa_dim].view(-1, self.max_len, self.aa_dim)
+        sequence = x[:, 0:(self.max_len * self.aa_dim)].view(-1, self.max_len, self.aa_dim)
         # Reconstructs the v/j gene as one hot vectors
-        v_gene = x[:, self.max_len * self.aa_dim: self.max_len * self.aa_dim + self.v_dim] if self.use_v else None
+        v_gene = x[:, (self.max_len * self.aa_dim):(self.max_len * self.aa_dim + self.v_dim)] if self.use_v else None
         j_gene = x[:, ((self.max_len * self.aa_dim) + self.v_dim):] if self.use_j else None
         return sequence, v_gene, j_gene
 
@@ -60,27 +61,34 @@ class VAELoss(nn.Module):
             print('seq_loss', reconstruction_loss)
         if self.use_v:
             # Something wrong here with_loss, it explodes to minus infinity for some reasons
-            v_loss = self.weight_v * F.cross_entropy(x_hat_v, x_true_v.argmax(dim=1),  reduction='mean')
+            v_loss = self.weight_v * F.cross_entropy(x_hat_v, x_true_v.argmax(dim=1), reduction='mean')
             if self.debug:
                 print('v_loss', v_loss)
             reconstruction_loss += v_loss
         if self.use_j:
-            j_loss = self.weight_j * F.cross_entropy(x_hat_j, x_true_j.argmax(dim=1),  reduction='mean')
+            j_loss = self.weight_j * F.cross_entropy(x_hat_j, x_true_j.argmax(dim=1), reduction='mean')
             if self.debug:
                 print('j_loss', j_loss)
             reconstruction_loss += j_loss
 
+        if self.step <= 500:
+            self.weight_kld = self.step / 1000 * self.base_weight_kld
         kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
         self.step += 1
-        self.weight_kld = min(self.base_weight_kld, self.base_weight_kld * self.step / 100)
+        self.weight_kld = max(self.base_weight_kld - (self.base_weight_kld * (self.step / 1000)),
+                              self.base_weight_kld / 5)
         if self.debug:
             print('kld_weight', self.weight_kld)
             print('kld_loss', kld, '\n')
 
-        return reconstruction_loss + kld
+        # Return them separately and sum later so that I can debug each component
+        return reconstruction_loss, kld
 
     def set_debug(self, debug):
         self.debug = debug
+
+    def reset_parameters(self):
+        self.step = 0
 
 
 def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:

@@ -77,6 +77,8 @@ def invoke(early_stopping, loss, model, implement=False):
         return False
 
 
+# TODO : HERE CHANGE ALL THE CODE TO ACCOMODATE FOR VAE AND THE SPLIT OPTIMIZER AS WELL AS SPLIT LOSSES WITH THE CUSTOM LOSS!!1
+
 def train_model_step(model, criterion, optimizer, train_loader):
     """
     230525: Updated train_loader behaviour. Now returns x_tensor, x_mask, y for each idx, used to remove padded positions

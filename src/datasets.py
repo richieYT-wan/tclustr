@@ -25,6 +25,7 @@ class CDR3BetaDataset(Dataset):
         self.j_dim = j_dim
         df['len'] = df[cdr3b_col].apply(len)
         df = df.query('len<=@max_len')
+        self.df = df
         # Only get sequences, no target because unsupervised learning, flattened to concat to classes
         x = encode_batch(df[cdr3b_col], max_len, encoding, pad_scale).flatten(start_dim=1)
         if use_v:
