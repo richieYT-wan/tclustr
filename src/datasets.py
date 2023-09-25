@@ -16,6 +16,7 @@ class CDR3BetaDataset(Dataset):
         super(CDR3BetaDataset, self).__init__()
         self.max_len = max_len
         self.encoding = encoding
+
         self.pad_scale = pad_scale
         self.use_v = use_v
         self.use_j = use_j
@@ -57,7 +58,7 @@ class CDR3BetaDataset(Dataset):
     def __getitem__(self, idx):
         # TODO : Here, I return x twice because I'm too lazy to change everything in train_eval.py
         #        For the sake of memory and efficiency, this should be changed along with code in train_eval.py
-        return self.x[idx], self.x[idx]
+        return self.x[idx]#, self.x[idx]
 
     def get_dataset(self):
         return self

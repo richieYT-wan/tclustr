@@ -137,13 +137,13 @@ def args_parser():
     """
     Training hyperparameters & args
     """
-    parser.add_argument('-lr', '--learning_rate', dest='lr', type=float, default=1e-4, required=False,
+    parser.add_argument('-lr', '--learning_rate', dest='lr', type=float, default=5e-4, required=False,
                         help='Learning rate for the optimizer')
-    parser.add_argument('-wd', '--weight_decay', dest='weight_decay', type=float, default=1e-2, required=False,
+    parser.add_argument('-wd', '--weight_decay', dest='weight_decay', type=float, default=3.3e-3, required=False,
                         help='Weight decay for the optimizer')
-    parser.add_argument('-bs', '--batch_size', dest='batch_size', type=int, default=128, required=False,
+    parser.add_argument('-bs', '--batch_size', dest='batch_size', type=int, default=512, required=False,
                         help='Batch size for mini-batch optimization')
-    parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=500, required=False,
+    parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=1000, required=False,
                         help='Number of epochs to train')
     parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=1e-5, required=False,
                         help='Tolerance for loss variation to log best model')
@@ -183,15 +183,18 @@ def main():
     start = dt.now()
     # I like dictionary for args :-)
     args = vars(args_parser())
+    # Convert the activation string codes to their nn counterparts
+    args['activation'] = {'selu':nn.SELU(), 'relu':nn.ReLU(),
+                          'leakyrelu':nn.LeakyReLU(), 'elu':nn.ELU()}[args['activation']]
+
     # Loading data and getting train/valid
     # TODO: Restore valid kcv behaviour // or not
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
-    train_df = df.query('fold!=@args["fold"]')
-    valid_df = df.query('fold==@args["fold"]')
+    train_df = df.query('partition!=@args["fold"]')
+    valid_df = df.query('partition==@args["fold"]')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
-    #
     args['use_v'] = False if args['v_col'] == "None" else True
     args['use_j'] = False if args['j_col'] == "None" else True
     args['v_dim'] = len(train_df[args['v_col']].unique())
@@ -223,14 +226,12 @@ def main():
 
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
-
+    loss_params = {k:args[k] for k in loss_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
-
-
 
 
     train_dataset, valid_dataset = CDR3BetaDataset(train_df, **dataset_params), CDR3BetaDataset(valid_df, **dataset_params)

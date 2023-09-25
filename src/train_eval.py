@@ -14,10 +14,9 @@ from functools import partial
 from tqdm.auto import tqdm
 import numpy as np
 from torch.utils.data import DataLoader
-from src.datasets import NNAlignDataset, MutWtDataset
-from src.models import SandwichLSTM, SandwichAttnLSTM
+from src.data_processing import encoding_matrix_dict
 from src.torch_utils import save_checkpoint, load_checkpoint
-from src.metrics import get_metrics
+from src.metrics import get_metrics, reconstruction_accuracy
 
 
 class EarlyStopping:
@@ -78,11 +77,11 @@ def invoke(early_stopping, loss, model, implement=False):
 
 
 # TODO : HERE CHANGE ALL THE CODE TO ACCOMODATE FOR VAE AND THE SPLIT OPTIMIZER AS WELL AS SPLIT LOSSES WITH THE CUSTOM LOSS!!1
+# TODO: STOP BEING A LAZY FUCK AND JUST FIX THIS JFC
+# Maybe no need to do the split optimizer because the loss behaviour seemed to come from the weight decay and not the split LR
 
 def train_model_step(model, criterion, optimizer, train_loader):
     """
-    230525: Updated train_loader behaviour. Now returns x_tensor, x_mask, y for each idx, used to remove padded positions
-            in the forward of NNAlign. vvv Change signature below
     Args:
         model:
         criterion:
@@ -94,49 +93,66 @@ def train_model_step(model, criterion, optimizer, train_loader):
     """
     assert type(train_loader.sampler) == torch.utils.data.RandomSampler, 'TrainLoader should use RandomSampler!'
     model.train()
-    train_loss = 0
-    y_scores, y_true = [], []
-    # Here, workaround so that the same fct can pass different number of arguments to the model
-    # e.g. to accomodate for an extra x_feature tensor if returned by train_loader
-    for data in train_loader:
-        y_train = data.pop(-1)
-        output = model(*data)
-        loss = criterion(output, y_train)
+    acum_total_loss, acum_recon_loss, acum_kld_loss = 0, 0, 0
+    x_reconstructed, x_true = [], []
+
+    for x in train_loader:
+        x_hat, mu, logvar = model(x)
+        recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
+        loss = recon_loss + kld_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        y_true.append(y_train)
-        y_scores.append(F.sigmoid(output))
-        train_loss += loss.item() * y_train.shape[0]
+        x_reconstructed.append(x_hat)
+        x_true.append(x)
+        acum_total_loss += loss.item() * x.shape[0]
+        acum_recon_loss += recon_loss.item() * x.shape[0]
+        acum_kld_loss += kld_loss.item() * x.shape[0]
 
     # Concatenate the y_pred & y_true tensors and compute metrics
-    y_scores, y_true = torch.cat(y_scores), torch.cat(y_true)
-    train_metrics = get_metrics(y_true, y_scores, threshold=0.5, reduced=True)
+    x_reconstructed, x_true = torch.cat(x_reconstructed), torch.cat(x_true)
+    seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
+    seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+
+    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat)
     # Normalizes to loss per batch
-    train_loss /= len(train_loader.dataset)
+    acum_total_loss /= len(train_loader.dataset)
+    acum_recon_loss /= len(train_loader.dataset)
+    acum_kld_loss /= len(train_loader.dataset)
+    train_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld':acum_kld_loss}
+    train_metrics = {'seq_accuracy':seq_accuracy, 'v_accuracy':v_accuracy, 'j_accuracy':j_accuracy}
     return train_loss, train_metrics
 
 
 def eval_model_step(model, criterion, valid_loader):
     model.eval()
     # disables gradient logging
-    valid_loss = 0
-    y_scores, y_true = [], []
+    acum_total_loss, acum_recon_loss, acum_kld_loss = 0, 0, 0
+    x_reconstructed, x_true = [], []
     with torch.no_grad():
         # Same workaround as above
-        for data in valid_loader:
-            y_valid = data.pop(-1)
-            output = model(*data)
-            loss = criterion(output, y_valid)
-            # TODO: Here need to change this because I need to evaluate the VAE outputs
-            y_true.append(y_valid)
-            y_scores.append(F.sigmoid(output))
-            valid_loss += loss.item() * y_valid.shape[0]
+        for x in valid_loader:
+            x_hat, mu, logvar = model(x)
+            recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
+            loss = recon_loss + kld_loss
+            x_reconstructed.append(x_hat)
+            x_true.append(x)
+            acum_total_loss += loss.item() * x.shape[0]
+            acum_recon_loss += recon_loss.item() * x.shape[0]
+            acum_kld_loss += kld_loss.item() * x.shape[0]
     # Concatenate the y_pred & y_true tensors and compute metrics
-    y_scores, y_true = torch.cat(y_scores), torch.cat(y_true)
-    valid_metrics = get_metrics(y_true, y_scores, threshold=0.5, reduced=True)
+    x_reconstructed, x_true = torch.cat(x_reconstructed), torch.cat(x_true)
+
+    seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
+    seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+
+    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat)
     # Normalizes to loss per batch
-    valid_loss /= len(valid_loader.dataset)
+    acum_total_loss /= len(valid_loader.dataset)
+    acum_recon_loss /= len(valid_loader.dataset)
+    acum_kld_loss /= len(valid_loader.dataset)
+    valid_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss}
+    valid_metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
     return valid_loss, valid_metrics
 
 
@@ -169,7 +185,8 @@ def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.ut
     return df
 
 
-def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer, train_dataset, train_loader, valid_loader,
+def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
+                     train_dataset, train_loader, valid_loader,
                      checkpoint_filename, outdir):
     """ Trains and validates a model over n_epochs, then reloads the best checkpoint
 
@@ -197,18 +214,13 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer, train_dat
         best_val_auc
     """
 
-    if any([(hasattr(child, 'standardizer_mut') or hasattr(child, 'ef_standardizer')) for child in
-            [model.children()] + [model]]):
-        # TODO: Not sure about this workaround (works the same as in above with *data & pop(-1))
-        xs = train_dataset.get_std_tensors()
-        model.fit_standardizer(*xs)
     print(f'Starting {n_epochs} training cycles')
     # Pre-saving the model at the very start because some bugged partitions
     # would have terrible performance and never save for very short debug runs.
     save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir)
     # Actual runs
     train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
-    best_val_loss, best_val_auc, best_epoch = 1000, 0.5, 1
+    best_val_loss, best_val_reconstruction, best_epoch = 1000, 0.7, 1
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_model_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_model_step(model, criterion, valid_loader)
@@ -216,27 +228,28 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer, train_dat
         valid_metrics.append(valid_metric)
         train_losses.append(train_loss)
         valid_losses.append(valid_loss)
-        if n_epochs >= 10 and e % (n_epochs // 10) == 0:
+        if n_epochs >= 10 and e % (n_epochs // 50) == 0:
             tqdm.write(
-                f'\nEpoch {e}: train loss, AUC, AUC01:\t{train_loss:.4f},\t{train_metric["auc"]:.3f}, \t{train_metric["auc_01"]:.3f}')
+                f'\nEpoch {e}: train recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{train_loss["reconstruction"]:.4f},\t{train_loss["kld"]:.4f}\t{train_metric["seq_accuracy"]:.3f}, \t{train_metric["v_accuracy"]:.3f}, \t{train_metric["j_accuracy"]:.3f}')
             tqdm.write(
-                f'Epoch {e}: valid loss, AUC, AUC01:\t{valid_loss:.4f},\t{valid_metric["auc"]:.3f}, \t{valid_metric["auc_01"]:.3f}')
+                f'Epoch {e}: valid recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{valid_loss["reconstruction"]:.4f},\t{valid_loss["kld"]:.4f}\t{valid_metric["seq_accuracy"]:.3f}, \t{valid_metric["v_accuracy"]:.3f}, \t{valid_metric["j_accuracy"]:.3f}')
 
         # Doesn't allow saving the very first model as sometimes it gets stuck in a random state that has good
         # performance for whatever reasons
-        if e > 1 and ((valid_loss <= best_val_loss + tolerance and valid_metric['auc'] > best_val_auc) \
-                      or valid_metric['auc'] > best_val_auc):
+        if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and valid_metric['seq_accuracy'] > best_val_reconstruction) \
+                      or valid_metric['seq_accuracy'] > best_val_reconstruction):
             best_epoch = e
-            best_val_loss = valid_loss
-            best_val_auc = valid_metric['auc']
+            best_val_loss = valid_loss['total']
+            best_val_reconstruction = valid_metric['seq_accuracy']
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir)
 
     print(f'End of training cycles')
-    print(f'Best train loss:\t{min(train_losses):.3e}, best train AUC:\t{max([x["auc"] for x in train_metrics])}')
+    print(f'Best train loss:\t{min([x["total"] for x in train_losses]):.3e}'\
+          f'best train AUC:\t{max([x["seq_accuracy"] for x in train_metrics])}')
     print(f'Best valid epoch: {best_epoch}')
-    print(f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC:\t{best_val_auc}')
+    print(f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC:\t{best_val_reconstruction}')
     print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
     model = load_checkpoint(model, checkpoint_filename, outdir)
-    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_loss, best_val_auc
+    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_loss, best_val_reconstruction
 
 

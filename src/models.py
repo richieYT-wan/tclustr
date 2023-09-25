@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.data_processing import get_positional_encoding
+from copy import deepcopy
+import numpy as np
+from src.data_processing import get_positional_encoding, encoding_matrix_dict
 import math
 # import wandb
 
@@ -208,13 +210,22 @@ class StdBypass(nn.Module):
 
 class FullFVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
-    def __init__(self, max_len=23, aa_dim=20, use_v=True, use_j=True, v_dim=51, j_dim=13, activation=nn.SELU(),
-                 hidden_dim=128, latent_dim=32):
+    def __init__(self, max_len=23, encoding='BL50LO', pad_scale=-12, aa_dim=20,
+                 use_v=True, use_j=True, v_dim=51, j_dim=13,
+                 activation=nn.SELU(), hidden_dim=128, latent_dim=32):
         super(FullFVAE, self).__init__()
         # Init params that will be needed at some point for reconstruction
         v_dim = v_dim if use_v else 0
         j_dim = j_dim if use_j else 0
         input_dim = (max_len * aa_dim) + v_dim + j_dim
+        self.encoding = encoding
+        if pad_scale is None:
+            self.pad_scale = -12 if encoding in ['BL50LO', 'BL62LO'] else 0
+        else:
+            self.pad_scale = pad_scale
+        MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
+        MATRIX_VALUES['X'] = np.array([pad_scale]).repeat(20)
+        self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values())))
         self.input_dim = input_dim
         self.max_len = max_len
         self.aa_dim = aa_dim
@@ -233,7 +244,7 @@ class FullFVAE(NetParent):
         # TODO: Maybe split the decoder into parts for seq, v, j and also update behaviour in forward etc.
         # Decoder: latent (z) -> hidden -> in // 2 -> in
         self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                     nn.Linear(hidden_dim, input_dim //2), nn.ReLU(),
+                                     nn.Linear(hidden_dim, input_dim //2), activation,
                                      nn.Linear(input_dim // 2, input_dim))
 
         # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
@@ -295,12 +306,12 @@ class FullFVAE(NetParent):
         z = torch.randn((n_samples, self.lat_dim)).to(device=self.encoder[0].weight.device)
         return z
 
-    def recover_indices(self, seq_tensor, MATRIX_VALUES):
+    def recover_indices(self, seq_tensor):
         # Sample data
         N, max_len = seq_tensor.shape[0], seq_tensor.shape[1]
 
         # Expand MATRIX_VALUES to have the same shape as x_seq for broadcasting
-        expanded_MATRIX_VALUES = MATRIX_VALUES.unsqueeze(0).expand(N, -1, -1, -1)
+        expanded_MATRIX_VALUES = self.MATRIX_VALUES.unsqueeze(0).expand(N, -1, -1, -1)
         # Compute the absolute differences
         abs_diff = torch.abs(seq_tensor.unsqueeze(2) - expanded_MATRIX_VALUES)
         # Sum along the last dimension (20) to get the absolute differences for each character
@@ -310,8 +321,13 @@ class FullFVAE(NetParent):
         argmin_indices = torch.argmin(abs_diff_sum, dim=-1)
         return argmin_indices
 
-    def recover_sequences_blosum(self, seq_tensor, MATRIX_VALUES, AA_KEYS):
-        return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor, MATRIX_VALUES)]
+    def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
+        return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor)]
+
+    def reconstruct_hat(self, x_hat):
+        seq, v, j = self.slice_x(x_hat)
+        seq_idx = self.recover_indices(seq)
+        return seq_idx, v, j
 
 class FullCVAE(NetParent):
     # TODO: DO CNN VAE

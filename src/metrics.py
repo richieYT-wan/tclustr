@@ -21,6 +21,7 @@ from sklearn.metrics import roc_curve, roc_auc_score, f1_score, accuracy_score, 
 class VAELoss(nn.Module):
     """
     No fucking annealing, just some basic stuff for now
+    TODO: re-do the tanh behaviour for the KLD loss
     """
 
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'),
@@ -89,6 +90,13 @@ class VAELoss(nn.Module):
 
     def reset_parameters(self):
         self.step = 0
+
+
+def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat):
+    seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1).mean(dim=0)).item()
+    v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
+    j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
+    return seq_accuracy, v_accuracy, j_accuracy
 
 
 def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:
