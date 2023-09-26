@@ -23,76 +23,6 @@ from sklearn.metrics import roc_auc_score, precision_score
 import argparse
 
 
-def parallel_wrapper(fold, args, df, unique_filename, model_params, optim_params, dataset_params, outdir):
-    dfname = args['file'].split('/')[-1].split('.')[0]
-    train_df = df.query('fold!=@fold')
-    valid_df = df.query('fold==@fold')
-    fold_filename = f'kcv_{dfname}_f{fold:02}_{unique_filename}'
-    checkpoint_filename = f'checkpoint_best_fold{fold:02}_{fold_filename}.pt'
-    # wandb stuff
-    config = copy.deepcopy(args)
-    config['fold'] = fold
-
-    # instantiate objects
-    torch.manual_seed(fold)
-    model = FullFVAE(**model_params)
-
-    pos_weight = torch.tensor([(train_df['target'] == 0).sum() / (train_df['target'] == 1).sum()], dtype=torch.float32) \
-        if args['weighted_loss'] else None
-    criterion = nn.BCEWithLogitsLoss(reduction='mean', pos_weight=pos_weight)
-    optimizer = optim.Adam(model.parameters(), **optim_params)
-    train_loader, train_dataset = get_mutwt_dataloader(train_df, sampler=RandomSampler, return_dataset=True,
-                                                       **dataset_params)
-    valid_loader, valid_dataset = get_mutwt_dataloader(valid_df, sampler=SequentialSampler, return_dataset=True,
-                                                       **dataset_params)
-    # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
-
-    if args['log_wandb']:
-        wandb.init(project=unique_filename, name=f'fold_{fold:02}', config=args)
-        wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
-
-    model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_auc = train_eval_loops(args['n_epochs'], args['tolerance'], model, criterion,
-                                                               optimizer, train_dataset, train_loader, valid_loader,
-                                                               checkpoint_filename, outdir)
-    # Saving text file for the run:
-    with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
-
-        file.write(f'Fold: {fold}')
-        file.write(f"Best valid epoch: {best_epoch}\n")
-        file.write(f"Best valid loss: {best_val_loss}\n")
-        file.write(f"Best valid auc: {best_val_auc}\n")
-
-    pkl_dump(train_losses, f'{outdir}/train_losses_{fold_filename}.pkl')
-    pkl_dump(valid_losses, f'{outdir}/valid_losses_{fold_filename}.pkl')
-    pkl_dump(train_metrics, f'{outdir}/train_metrics_{fold_filename}.pkl')
-    pkl_dump(valid_metrics, f'{outdir}/valid_metrics_{fold_filename}.pkl')
-    train_aucs = [x['auc'] for x in train_metrics]
-    valid_aucs = [x['auc'] for x in valid_metrics]
-    plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
-                   fold_filename, outdir, 300)
-    print('Reloading best model and returning validation predictions')
-    model = load_checkpoint(model, filename=checkpoint_filename,
-                            dir_path=outdir)
-    valid_preds = predict_model(model, valid_dataset, valid_loader)
-    valid_preds['fold'] = fold
-    print('Saving valid predictions from best model')
-    valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
-
-    if args['test_file'] is not None:
-        test_df = pd.read_csv(args['test_file'])
-        test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_loader, test_dataset = get_mutwt_dataloader(test_df, sampler=SequentialSampler, return_dataset=True,
-                                                         **dataset_params)
-        test_preds = predict_model(model, test_dataset, test_loader)
-        test_preds['fold'] = fold
-        test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
-    else:
-        test_preds = pd.DataFrame()
-
-    return valid_preds, test_preds
-
-
 def args_parser():
     parser = argparse.ArgumentParser(description='Script to train and evaluate a NNAlign model ')
     """
@@ -293,31 +223,40 @@ def main():
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
+    valid_seq_acc = valid_preds['seq_acc'].mean()
+    valid_v_acc = valid_preds['v_correct'].mean()
+    valid_j_acc = valid_preds['j_correct'].mean()
+    print(f'Final valid mean accuracies (seq, v, j): \t{valid_seq_acc:.3%}\t{valid_v_acc:.3%}\t{valid_j_acc:.3%}')
 
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
         test_dataset = CDR3BetaDataset(test_df, **dataset_params, v_map=train_dataset.v_map, j_map=train_dataset.j_map)
-        test_loader = test_dataset.get_dataloader(batch_size= 3 * args['batch_size'],
+        test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 
         test_preds = predict_model(model, test_dataset, test_loader)
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
+        test_seq_acc = test_preds['seq_acc'].mean()
+        test_v_acc = test_preds['v_correct'].mean()
+        test_j_acc = test_preds['j_correct'].mean()
+        print(f'Final valid mean accuracies (seq, v, j): \t{test_seq_acc:.3%}\t{test_v_acc:.3%}\t{test_j_acc:.3%}')
     else:
-        test_preds = pd.DataFrame()
+        test_seq_acc = None
+        test_v_acc = None
+        test_j_acc = None
 
-    valid_seq_acc = valid_preds['seq_acc'].mean()
-    valid_v_acc = valid_preds['v_acc'].mean()
-    valid_j_acc = valid_preds['j_acc'].mean()
+    with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
 
-    test_seq_acc = test_preds['seq_acc'].mean()
-    test_v_acc = test_preds['v_acc'].mean()
-    test_j_acc = test_preds['j_acc'].mean()
-    print(f'Final valid mean accuracies (seq, v, j): \t{valid_seq_acc:.3%}\t{valid_v_acc:.3%}\t{valid_j_acc:.3%}')
-    print(f'Final valid mean accuracies (seq, v, j): \t{test_seq_acc:.3%}\t{test_v_acc:.3%}\t{test_j_acc:.3%}')
-
-
+        file.write(f'Fold: {kf}')
+        file.write(f"Best valid seq acc: {valid_seq_acc}\n")
+        file.write(f"Best valid V acc: {valid_v_acc}\n")
+        file.write(f"Best valid J acc: {valid_j_acc}\n")
+        if args['test_file'] is not None:
+            file.write(f"Best test seq acc: {test_seq_acc}\n")
+            file.write(f"Best test V acc: {test_v_acc}\n")
+            file.write(f"Best test J acc: {test_j_acc}\n")
     end = dt.now()
     elapsed = divmod((end - start).seconds, 60)
     print(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
