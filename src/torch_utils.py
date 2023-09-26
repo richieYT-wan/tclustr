@@ -39,7 +39,8 @@ def set_device(models_list, device):
         model.to(device)
 
 
-def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './', verbose=False):
+def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './', verbose=False,
+                    best_dict: dict = None):
     """
     Saves a single torch model, with some sanity checks
     Args:
@@ -60,6 +61,9 @@ def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './'
     if not filename.endswith('.pt'):
         name = filename + '.pt'
     savepath = os.path.join(dir_path, filename)
+    checkpoint = model.state_dict()
+    if best_dict and type(best_dict)==dict:
+        checkpoint['best'] = best_dict
     torch.save(model.state_dict(), savepath)
     if verbose:
         print(f'Model saved at {os.path.abspath(savepath)}')
@@ -79,7 +83,13 @@ def load_checkpoint(model, filename: str, dir_path: str = None):
     if dir_path is not None:
         filename = os.path.join(dir_path, filename)
     try:
-        model.load_state_dict(torch.load(filename))
+        checkpoint = torch.load(filename)
+        if 'best' in checkpoint.keys():
+            best = checkpoint.pop('best')
+            print('Reloading best model:')
+            for k, v in best.items():
+                print(f'{k}: {v}')
+        model.load_state_dict(checkpoint)
     except:
         st = torch.load(filename)
         print(st.keys())

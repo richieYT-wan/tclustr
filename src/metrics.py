@@ -26,7 +26,7 @@ class VAELoss(nn.Module):
 
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'),
                  use_v=True, use_j=True, max_len=21, aa_dim=20, v_dim=51, j_dim=13,
-                 weight_seq=1, weight_v=.3, weight_j=.15, weight_kld=.5, debug=False):
+                 weight_seq=1, weight_v=.3, weight_j=.15, weight_kld=.5, debug=False, warm_up=True, n_batches=67):
         super(VAELoss, self).__init__()
         weight_v = weight_v if use_v else 0
         weight_j = weight_j if use_j else 0
@@ -45,6 +45,8 @@ class VAELoss(nn.Module):
         self.weight_kld = self.base_weight_kld
         self.step = 0
         self.debug = debug
+        self.warm_up = warm_up
+        self.n_batches = n_batches
         print(self.weight_seq, self.weight_v, self.weight_j, self.base_weight_kld)
 
     def slice_x(self, x):
@@ -55,6 +57,7 @@ class VAELoss(nn.Module):
         return sequence, v_gene, j_gene
 
     def forward(self, x_hat, x, mu, logvar):
+
         x_hat_seq, x_hat_v, x_hat_j = self.slice_x(x_hat)
         x_true_seq, x_true_v, x_true_j = self.slice_x(x)
         reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
@@ -72,11 +75,18 @@ class VAELoss(nn.Module):
                 print('j_loss', j_loss)
             reconstruction_loss += j_loss
 
-        if self.step <= 500:
+        if self.step <= 500 and not self.warm_up:
             self.weight_kld = self.step / 1000 * self.base_weight_kld
+        else:
+            if self.warm_up and self.step <= self.n_batches * 15:
+                self.weight_kld = 0
+
         kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
         self.step += 1
-        self.weight_kld = max(self.base_weight_kld - (self.base_weight_kld * (self.step / 1000)),
+        if self.step >= self.n_batches*15:
+            self.warm_up=False
+        if not self.warm_up:
+            self.weight_kld = max(self.base_weight_kld - (self.base_weight_kld * (self.step / 1000)),
                               self.base_weight_kld / 5)
         if self.debug:
             print('kld_weight', self.weight_kld)
@@ -92,10 +102,15 @@ class VAELoss(nn.Module):
         self.step = 0
 
 
-def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat):
-    seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1).mean(dim=0)).item()
-    v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
-    j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
+def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, return_per_element=False):
+    if return_per_element:
+        seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1)).detach().cpu().tolist()
+        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().bool().tolist()
+        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float()).detach().cpu().bool().tolist()
+    else:
+        seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1).mean(dim=0)).item()
+        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
+        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
     return seq_accuracy, v_accuracy, j_accuracy
 
 

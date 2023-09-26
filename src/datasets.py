@@ -12,7 +12,7 @@ class CDR3BetaDataset(Dataset):
     """
 
     def __init__(self, df, max_len=23, encoding='BL50LO', pad_scale=None, cdr3b_col='B3', use_v=False, use_j=False,
-                 v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13):
+                 v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=None, j_map=None):
         super(CDR3BetaDataset, self).__init__()
         self.max_len = max_len
         self.encoding = encoding
@@ -20,8 +20,8 @@ class CDR3BetaDataset(Dataset):
         self.pad_scale = pad_scale
         self.use_v = use_v
         self.use_j = use_j
-        self.v_map = None
-        self.j_map = None
+        self.v_map = v_map
+        self.j_map = j_map
         self.v_dim = v_dim
         self.j_dim = j_dim
         df['len'] = df[cdr3b_col].apply(len)
@@ -45,20 +45,13 @@ class CDR3BetaDataset(Dataset):
             x = torch.cat([x, x_j], dim=1)
             self.x_j = x_j
 
-        # print(x[0], x[0].shape)
-        # print('??\n')
-        # print('\n',x[0][:460])
-        # print('\n',x[0][460:460 + 51])
-        # print('\n',x[0][460+51:])
         self.x = x
 
     def __len__(self):
         return len(self.x)
 
     def __getitem__(self, idx):
-        # TODO : Here, I return x twice because I'm too lazy to change everything in train_eval.py
-        #        For the sake of memory and efficiency, this should be changed along with code in train_eval.py
-        return self.x[idx]#, self.x[idx]
+        return self.x[idx]
 
     def get_dataset(self):
         return self

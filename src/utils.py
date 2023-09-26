@@ -33,6 +33,43 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
     f.savefig(f'{outdir}{filename}.png', dpi=dpi, bbox_inches='tight')
 
 
+def plot_vae_loss_accs(losses_dict, accs_dict,
+                       filename, outdir, dpi=300, palette='gnuplot2_r'):
+    """
+
+    Args:
+        train_losses: list of dictionaries for train_loss
+        valid_losses: list of dictionaries for valid_loss
+        train_accs: list of dictionaries for train_acc
+        valid_accs: list of dictionaries for valid_acc
+        filename:
+        outdir:
+        dpi:
+        palette:
+
+    Returns:
+
+    """
+    f, a = plt.subplots(2,1, figsize=(14,10))
+    a = a.ravel()
+    sns.set_palette(get_palette(palette, n_colors=6))
+    # plotting each component of the loss.
+    # Should be 3 elements for each dict (total/recon/kld) and (seq/v/j)
+    # Reformatting the list of dicts into dicts of lists:
+    for k,v in losses_dict.items():
+        a[0].plot(v, label=f'train_{k}')
+    for k,v in accs_dict.items():
+        a[1].plot(v, label=f'train_{k}')
+    a[0].set_title('Losses')
+    a[1].set_title('Accuracies')
+    a[0].legend()
+    a[1].legend()
+    a[0].set_xlabel('epochs')
+    a[1].set_xlabel('epochs')
+    f.savefig(f'{outdir}{filename}.png', dpi=dpi, bbox_inches='tight')
+
+
+
 def get_datetime_string():
     return dt.now().strftime("%y%m%d_%H%M")
 

@@ -12,7 +12,8 @@ from torch import optim
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
-from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_loss_aucs
+from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, \
+    plot_loss_aucs, plot_vae_loss_accs
 from src.torch_utils import load_checkpoint
 from src.models import FullFVAE
 from src.train_eval import predict_model, train_eval_loops
@@ -100,7 +101,7 @@ def args_parser():
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
     parser.add_argument('-f', '--file', dest='file', required=True, type=str,
-                        default='../data/merged/230814_merged_nodup_hobohmfold.csv',
+                        default='../data/filtered/230921_nettcr_immrepnegs_noswap.csv',
                         help='filename of the input train file')
     parser.add_argument('-tf', '--test_file', dest='test_file', type=str,
                         default=None, help='External test set (None by default)')
@@ -109,10 +110,10 @@ def args_parser():
     parser.add_argument('-cdr3', '--cdr3_col', dest='cdr3_col', default='B3', type=str, required=False,
                         help='Name of the column containing CDR3b sequences (inputs)')
     parser.add_argument('-v', '--v_col', dest='v_col', default='TRBV_gene', type=str, required=False,
-                        help='Name of the column containing V genes (inputs).'\
+                        help='Name of the column containing V genes (inputs).' \
                              'Will be TRBV_gene by default. If "None", use_v will be deactivated.')
     parser.add_argument('-j', '--j_col', dest='j_col', default='TRBJ_gene', type=str, required=False,
-                        help='Name of the column containing J genes (inputs).'\
+                        help='Name of the column containing J genes (inputs).' \
                              'Will be TRBJ_gene by default. If "None", use_j will be deactivated.')
     parser.add_argument('-enc', '--encoding', dest='encoding', type=str, default='BL50LO', required=False,
                         help='Which encoding to use: onehot, BL50LO, BL62LO, BL62FREQ (default = BL50LO)')
@@ -121,40 +122,44 @@ def args_parser():
                              'Sequences longer than max_len will be removed from the datasets')
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
-                             'Default behaviour is 0 if onehot, -12 is BLOSUM')
+                             'Default behaviour is 0 if onehot, -20 is BLOSUM')
 
     """
     Models args 
     """
-    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim',
-                        type=int, default=256, help='Number of hidden units in the VAE. Default = 256')
+    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=256,
+                        help='Number of hidden units in the VAE. Default = 256')
     parser.add_argument('-ld', '--latent_dim', dest='latent_dim', type=int, default=128,
-                        help = 'Size of the latent dimension. Default = 128')
+                        help='Size of the latent dimension. Default = 128')
     parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
-                        help = 'Which activation to use. Will map the correct nn.Module for the following keys:'\
-                               '[selu, relu, leakyrelu, elu]')
+                        help='Which activation to use. Will map the correct nn.Module for the following keys:' \
+                             '[selu, relu, leakyrelu, elu]')
 
     """
     Training hyperparameters & args
     """
     parser.add_argument('-lr', '--learning_rate', dest='lr', type=float, default=5e-4, required=False,
-                        help='Learning rate for the optimizer')
-    parser.add_argument('-wd', '--weight_decay', dest='weight_decay', type=float, default=3.3e-3, required=False,
-                        help='Weight decay for the optimizer')
-    parser.add_argument('-bs', '--batch_size', dest='batch_size', type=int, default=512, required=False,
+                        help='Learning rate for the optimizer. Default = 5e-4')
+    parser.add_argument('-wd', '--weight_decay', dest='weight_decay', type=float, default=1e-4, required=False,
+                        help='Weight decay for the optimizer. Default = 1e-4')
+    parser.add_argument('-bs', '--batch_size', dest='batch_size', type=int, default=256, required=False,
                         help='Batch size for mini-batch optimization')
-    parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=1000, required=False,
+    parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=2000, required=False,
                         help='Number of epochs to train')
     parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=1e-5, required=False,
                         help='Tolerance for loss variation to log best model')
-    parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=1,
-                        help = 'Which beta to use for the seq reconstruction term in the loss')
-    parser.add_argument('-lwv', '--weight_v', dest='weight_v', type=float, default=0.3,
-                        help = 'Which weight to use for the V gene term in the loss')
-    parser.add_argument('-lwj', '--weight_j', dest='weight_j', type=float, default=0.125,
+    parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=3,
+                        help='Which beta to use for the seq reconstruction term in the loss')
+    parser.add_argument('-lwv', '--weight_v', dest='weight_v', type=float, default=2.5,
+                        help='Which weight to use for the V gene term in the loss')
+    parser.add_argument('-lwj', '--weight_j', dest='weight_j', type=float, default=2,
                         help='Which weight to use for the J gene term in the loss')
-    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=0.5,
+    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1,
                         help='Which weight to use for the KLD term in the loss')
+    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=str2bool, default=True,
+                        help='Whether to do a warm-up for the loss (without the KLD term). Default = False')
+    parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
+                        help='Whether to run in debug mode (False by default)')
 
     # TODO: TBD what to do with these!
     """
@@ -167,15 +172,10 @@ def args_parser():
     #                     default=5, help='How to split the train/test data (test size=1/X)')
     parser.add_argument('-kf', '--fold', dest='fold', required=False, type=int, default=None,
                         help='If added, will split the input file into the train/valid for kcv')
-    parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default= '',
+    parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default='',
                         help='Adding a random ID taken from a batchscript that will start all crossvalidation folds. Default = ""')
-    # parser.add_argument('-std', '--standardize', dest='standardize', type=str2bool, required=True,
-    #                     help='Whether to include standardization (True/False)')
-    # parser.add_argument('-bn', '--batchnorm_predictor', dest='batchnorm_predictor', type=str2bool, required=False,
-    #                     default=False, help='Whether to add BatchNorm to the model (True/False)')
-    # parser.add_argument('-do', '--dropout', dest='dropout', type=float, default=0.0, required=False,
-    #                     help='Whether to add DropOut to the model (p in float e[0,1], default = 0.0)')
-
+    parser.add_argument('-seed', '--seed', dest='seed', type=int, default=13,
+                        help='Torch manual seed. Default = 13')
     return parser.parse_args()
 
 
@@ -183,9 +183,10 @@ def main():
     start = dt.now()
     # I like dictionary for args :-)
     args = vars(args_parser())
+    torch.manual_seed(args['seed'])
     # Convert the activation string codes to their nn counterparts
-    args['activation'] = {'selu':nn.SELU(), 'relu':nn.ReLU(),
-                          'leakyrelu':nn.LeakyReLU(), 'elu':nn.ELU()}[args['activation']]
+    args['activation'] = {'selu': nn.SELU(), 'relu': nn.ReLU(),
+                          'leakyrelu': nn.LeakyReLU(), 'elu': nn.ELU()}[args['activation']]
 
     # Loading data and getting train/valid
     # TODO: Restore valid kcv behaviour // or not
@@ -204,12 +205,12 @@ def main():
         wandb.login()
     # File-saving stuff
     connector = '' if args["out"] == '' else '_'
-    unique_filename = f'{args["out"]}{connector}_KFold_{args["fold"]:02}_{get_datetime_string()}_{rid}'
+    kf = '-1' if args["fold"] is None else args['fold']
+    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
     outdir = os.path.join('../output/', unique_filename) + '/'
     mkdirs(outdir)
-    print(args)
 
     # Def params so it's tidy
 
@@ -226,26 +227,27 @@ def main():
 
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
-    loss_params = {k:args[k] for k in loss_keys}
+    loss_params = {k: args[k] for k in loss_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
 
-
-    train_dataset, valid_dataset = CDR3BetaDataset(train_df, **dataset_params), CDR3BetaDataset(valid_df, **dataset_params)
-    train_loader, valid_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler), valid_dataset.get_dataloader(batch_size=args["batch_size"], sampler=SequentialSampler)
+    train_dataset = CDR3BetaDataset(train_df, **dataset_params, v_map=None, j_map=None)
+    valid_dataset = CDR3BetaDataset(valid_df, **dataset_params, v_map=train_dataset.v_map, j_map=train_dataset.j_map)
+    # Random Sampler for Train; Sequential for Valid.
+    # Larger batch size for validation because we have enough memory
+    train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
+    valid_loader = valid_dataset.get_dataloader(batch_size=args["batch_size"] * 2, sampler=SequentialSampler)
 
     fold_filename = f'kcv_{dfname}_f{args["fold"]:02}_{unique_filename}'
     checkpoint_filename = f'checkpoint_best_fold{args["fold"]:02}_{fold_filename}.pt'
 
-
     # instantiate objects
     torch.manual_seed(args["fold"])
     model = FullFVAE(**model_params)
-
-    criterion =
+    criterion = VAELoss(**loss_params)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
@@ -255,25 +257,35 @@ def main():
         wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_auc = train_eval_loops(args['n_epochs'], args['tolerance'], model, criterion,
-                                                               optimizer, train_dataset, train_loader, valid_loader,
-                                                               checkpoint_filename, outdir)
+    best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
+                                                                   criterion,
+                                                                   optimizer, train_dataset, train_loader, valid_loader,
+                                                                   checkpoint_filename, outdir)
+
+    # Convert list of dicts to dicts of lists
+    train_losses_dict = {f'train_{key}': [d[key] for d in train_losses] for key in train_losses[0]}
+    valid_losses_dict = {f'valid_{key}': [d[key] for d in valid_losses] for key in valid_losses[0]}
+    train_metrics_dict = {f'train_{key}': [d[key] for d in train_metrics] for key in train_metrics[0]}
+    valid_metrics_dict = {f'valid_{key}': [d[key] for d in valid_metrics] for key in valid_metrics[0]}
+
+    losses_dict = {**train_losses_dict, **valid_losses_dict}
+    accs_dict = {**train_metrics_dict, **valid_metrics_dict}
+
     # Saving text file for the run:
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
-
         file.write(f'Fold: {args["fold"]}')
         file.write(f"Best valid epoch: {best_epoch}\n")
-        file.write(f"Best valid loss: {best_val_loss}\n")
-        file.write(f"Best valid auc: {best_val_auc}\n")
+        for k, v in best_val_loss.items():
+            file.write(f'{k}:\t{v}\n')
+        for k, v in best_val_metrics.items():
+            file.write(f'{k}:\t{v}\n')
 
-    pkl_dump(train_losses, f'{outdir}/train_losses_{fold_filename}.pkl')
-    pkl_dump(valid_losses, f'{outdir}/valid_losses_{fold_filename}.pkl')
-    pkl_dump(train_metrics, f'{outdir}/train_metrics_{fold_filename}.pkl')
-    pkl_dump(valid_metrics, f'{outdir}/valid_metrics_{fold_filename}.pkl')
-    train_aucs = [x['auc'] for x in train_metrics]
-    valid_aucs = [x['auc'] for x in valid_metrics]
-    plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
-                   fold_filename, outdir, 300)
+    pkl_dump(train_losses_dict, f'{outdir}/train_losses_{fold_filename}.pkl')
+    pkl_dump(valid_losses_dict, f'{outdir}/valid_losses_{fold_filename}.pkl')
+    pkl_dump(train_metrics_dict, f'{outdir}/train_metrics_{fold_filename}.pkl')
+    pkl_dump(valid_metrics_dict, f'{outdir}/valid_metrics_{fold_filename}.pkl')
+    plot_vae_loss_accs(losses_dict, accs_dict, unique_filename, outdir, dpi=300, palette='gnuplot2_r')
+
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
                             dir_path=outdir)
@@ -285,41 +297,26 @@ def main():
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_loader, test_dataset = get_mutwt_dataloader(test_df, sampler=SequentialSampler, return_dataset=True,
-                                                         **dataset_params)
+        test_dataset = CDR3BetaDataset(test_df, **dataset_params, v_map=train_dataset.v_map, j_map=train_dataset.j_map)
+        test_loader = test_dataset.get_dataloader(batch_size= 3 * args['batch_size'],
+                                                  sampler=SequentialSampler)
+
         test_preds = predict_model(model, test_dataset, test_loader)
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
     else:
         test_preds = pd.DataFrame()
 
+    valid_seq_acc = valid_preds['seq_acc'].mean()
+    valid_v_acc = valid_preds['v_acc'].mean()
+    valid_j_acc = valid_preds['j_acc'].mean()
 
+    test_seq_acc = test_preds['seq_acc'].mean()
+    test_v_acc = test_preds['v_acc'].mean()
+    test_j_acc = test_preds['j_acc'].mean()
+    print(f'Final valid mean accuracies (seq, v, j): \t{valid_seq_acc:.3%}\t{valid_v_acc:.3%}\t{valid_j_acc:.3%}')
+    print(f'Final valid mean accuracies (seq, v, j): \t{test_seq_acc:.3%}\t{test_v_acc:.3%}\t{test_j_acc:.3%}')
 
-    valid_preds.to_csv(f'{outdir}valid_preds_concat_{unique_filename}.csv', index=False)
-    val_auc = roc_auc_score(valid_preds[args['target_col']].astype(int), valid_preds['pred'])
-    val_auc01 = roc_auc_score(valid_preds[args['target_col']].astype(int), valid_preds['pred'], max_fpr=0.1)
-    valid_preds['pred_label'] = valid_preds['pred'].apply(lambda x: int(x > 0.5))
-    val_prec = precision_score(valid_preds[args['target_col']].astype(int), valid_preds['pred_label'])
-
-    print(f'Final concat valid AUC, AUC01, Prec: \t{val_auc:.3f}\t{val_auc01:.3f}\t{val_prec:.3f}')
-
-    if args['test_file'] is not None:
-        test_preds = pd.concat([x[1] for x in output])
-        test_auc = roc_auc_score(test_preds[args['target_col']].astype(int), test_preds['pred'])
-        test_auc01 = roc_auc_score(test_preds[args['target_col']].astype(int), test_preds['pred'], max_fpr=0.1)
-        test_preds['pred_label'] = test_preds['pred'].apply(lambda x: int(x > 0.5))
-        test_prec = precision_score(test_preds[args['target_col']].astype(int), test_preds['pred_label'])
-        print(f'Final concat test AUC, AUC01, Prec: \t{test_auc:.3f}\t{test_auc01:.3f}\t{test_prec:.3f}')
-        # Redo with mean preds
-        mean_test = test_preds.groupby([x for x in test_preds.columns if x != 'pred']).agg(
-            mean_pred=('pred', 'mean')).reset_index()
-        mean_test_auc = roc_auc_score(mean_test[args['target_col']].astype(int), mean_test['mean_pred'])
-        mean_test_auc01 = roc_auc_score(mean_test[args['target_col']].astype(int), mean_test['mean_pred'], max_fpr=0.1)
-        mean_test['pred_label'] = mean_test['mean_pred'].apply(lambda x: int(x > 0.5))
-        mean_test_prec = precision_score(mean_test[args['target_col']].astype(int), mean_test['pred_label'])
-        print(f'Final mean test AUC, AUC01, Prec: \t{mean_test_auc:.3f}\t{mean_test_auc01:.3f}\t{mean_test_prec:.3f}')
-
-        test_preds.to_csv(f'{outdir}test_preds_concat_{unique_filename}.csv', index=False)
 
     end = dt.now()
     elapsed = divmod((end - start).seconds, 60)

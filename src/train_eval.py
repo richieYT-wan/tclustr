@@ -119,8 +119,8 @@ def train_model_step(model, criterion, optimizer, train_loader):
     acum_total_loss /= len(train_loader.dataset)
     acum_recon_loss /= len(train_loader.dataset)
     acum_kld_loss /= len(train_loader.dataset)
-    train_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld':acum_kld_loss}
-    train_metrics = {'seq_accuracy':seq_accuracy, 'v_accuracy':v_accuracy, 'j_accuracy':j_accuracy}
+    train_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss}
+    train_metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
     return train_loss, train_metrics
 
 
@@ -161,27 +161,38 @@ def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.ut
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
     model.eval()
+
+    cols_to_keep = ['B3', 'TRBV_gene', 'TRBJ_gene', 'peptide']
     df = dataset.df.reset_index(drop=True).copy()
-    # indices = range(len(df))
-    # idx_batches = make_chunks(indices, batch_size)
-    predictions, best_indices, ys = [], [], []
-    # HERE, MUST ENSURE WE USE
+    df = df[[x for x in cols_to_keep if x in df.columns]]
+    x_reconstructed, x_true, z_latent = [], [], []
     with torch.no_grad():
         # Same workaround as above
-        for data in dataloader:
-            y = data.pop(-1)
-            preds = model.predict(*data)
+        for x in dataloader:
+            x_hat, _, _ = model(x)
+            z = model.embed(x)
+            x_reconstructed.append(x_hat)
+            x_true.append(x)
+            z_latent.append(z)
 
-            predictions.append(preds)
-            ys.append(y)
-    predictions = torch.cat(predictions).detach().cpu().numpy().flatten()
-    ys = torch.cat(ys).detach().cpu().numpy().flatten()
+    x_reconstructed = torch.cat(x_reconstructed)
+    x_true = torch.cat(x_true)
+    seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
+    seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+    seq_acc, v_acc, j_acc = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, return_per_element=True)
 
-    df['pred'] = predictions
-    # df['core_start_index'] = best_indices
-    df['label'] = ys
-    # seq_col, window_size = dataset.seq_col, dataset.window_size
-    # df['motif'] = df.apply(get_motif, seq_col=seq_col, window_size=window_size, axis=1)
+    x_seq_recon, _, _ = model.slice_x(x_reconstructed)
+    x_seq_true, _, _ = model.slice_x(x_true)
+
+    seq_hat_reconstructed = model.recover_sequences_blosum(x_seq_recon)
+    seq_true_reconstructed = model.recover_sequences_blosum(x_seq_true)
+    df['hat_reconstructed'] = seq_hat_reconstructed
+    df['true_reconstructed'] = seq_true_reconstructed
+    df['seq_acc'] = seq_acc
+    df['v_correct'] = v_acc
+    df['j_correct'] = j_acc
+    z_latent = torch.cat(z_latent).detach()
+    df[[f'z_{i}' for i in range(z_latent.shape[1])]] = z_latent
     return df
 
 
@@ -220,7 +231,8 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir)
     # Actual runs
     train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
-    best_val_loss, best_val_reconstruction, best_epoch = 1000, 0.7, 1
+    best_val_loss, best_val_reconstruction, best_epoch = 1000, 0., 1
+    best_val_losses, best_val_metrics = {}, {}
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_model_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_model_step(model, criterion, valid_loader)
@@ -228,28 +240,35 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         valid_metrics.append(valid_metric)
         train_losses.append(train_loss)
         valid_losses.append(valid_loss)
-        if n_epochs >= 10 and e % (n_epochs // 50) == 0:
+        if (n_epochs >= 10 and e % int(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs+1:
             tqdm.write(
                 f'\nEpoch {e}: train recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{train_loss["reconstruction"]:.4f},\t{train_loss["kld"]:.4f}\t{train_metric["seq_accuracy"]:.3f}, \t{train_metric["v_accuracy"]:.3f}, \t{train_metric["j_accuracy"]:.3f}')
             tqdm.write(
                 f'Epoch {e}: valid recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{valid_loss["reconstruction"]:.4f},\t{valid_loss["kld"]:.4f}\t{valid_metric["seq_accuracy"]:.3f}, \t{valid_metric["v_accuracy"]:.3f}, \t{valid_metric["j_accuracy"]:.3f}')
 
-        # Doesn't allow saving the very first model as sometimes it gets stuck in a random state that has good
-        # performance for whatever reasons
-        if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and valid_metric['seq_accuracy'] > best_val_reconstruction) \
-                      or valid_metric['seq_accuracy'] > best_val_reconstruction):
+        # Doesn't allow saving the very first model as sometimes it gets stuck in a random state that has good.
+        # Here, will take the best overall reconstruction (mean for seq, V, and J because V reconstruction somehow gets stuck at some low values
+        mean_accuracy = np.mean([valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']])
+        if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and mean_accuracy > best_val_reconstruction) \
+                      or mean_accuracy > best_val_reconstruction):
+            # Getting the individual components for asserts
             best_epoch = e
             best_val_loss = valid_loss['total']
-            best_val_reconstruction = valid_metric['seq_accuracy']
-            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir)
+            best_val_reconstruction = mean_accuracy
+            # Saving the actual dictionaries for logging purposes
+            best_val_losses = valid_loss
+            best_val_metrics = valid_metric
+
+            best_dict = {'Best epoch': best_epoch}
+            best_dict.update(valid_loss)
+            best_dict.update(valid_metric)
+            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
     print(f'End of training cycles')
-    print(f'Best train loss:\t{min([x["total"] for x in train_losses]):.3e}'\
-          f'best train AUC:\t{max([x["seq_accuracy"] for x in train_metrics])}')
+    print(f'Best train loss:\t{min([x["total"] for x in train_losses]):.3e}'
+          f'Best train AUC:\t{max([x["seq_accuracy"] for x in train_metrics])}')
     print(f'Best valid epoch: {best_epoch}')
-    print(f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC:\t{best_val_reconstruction}')
-    print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
+    print(f'Best valid loss :\t{best_val_loss:.3e}, best valid mean reconstruction acc:\t{best_val_reconstruction}')
+    # print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
     model = load_checkpoint(model, checkpoint_filename, outdir)
-    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_loss, best_val_reconstruction
-
-
+    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics

@@ -220,12 +220,12 @@ class FullFVAE(NetParent):
         input_dim = (max_len * aa_dim) + v_dim + j_dim
         self.encoding = encoding
         if pad_scale is None:
-            self.pad_scale = -12 if encoding in ['BL50LO', 'BL62LO'] else 0
+            self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
         else:
             self.pad_scale = pad_scale
         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
-        MATRIX_VALUES['X'] = np.array([pad_scale]).repeat(20)
-        self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values())))
+        MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
+        self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()),axis=0))
         self.input_dim = input_dim
         self.max_len = max_len
         self.aa_dim = aa_dim
@@ -243,19 +243,19 @@ class FullFVAE(NetParent):
         self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
         # TODO: Maybe split the decoder into parts for seq, v, j and also update behaviour in forward etc.
         # Decoder: latent (z) -> hidden -> in // 2 -> in
-        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                     nn.Linear(hidden_dim, input_dim //2), activation,
-                                     nn.Linear(input_dim // 2, input_dim))
-
         # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-        #                              nn.Linear(hidden_dim, hidden_dim), activation)
-        #                              # nn.Linear(input_dim // 2, input_dim))
-        #
-        # self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
-        #                                       nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
-        #
-        # self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else nn.Identity()
-        # self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else nn.Identity()
+        #                              nn.Linear(hidden_dim, input_dim //2), activation,
+        #                              nn.Linear(input_dim // 2, input_dim))
+
+        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+                                     nn.Linear(hidden_dim, hidden_dim), activation)
+                                     # nn.Linear(input_dim // 2, input_dim))
+
+        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
+                                              nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
+
+        self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else nn.Identity()
+        self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else nn.Identity()
 
     @staticmethod
     def reparameterise(mu, logvar):
@@ -272,10 +272,10 @@ class FullFVAE(NetParent):
 
     def decode(self, z):
         x_hat = self.decoder(z)
-        # seq = self.decoder_sequence(x_hat)
-        # v = self.decoder_v(x_hat)#, dim=1)
-        # j = self.decoder_j(x_hat)#, dim=1)
-        return x_hat #torch.cat([seq, v, j], dim=1)
+        seq = self.decoder_sequence(x_hat)
+        v = self.decoder_v(x_hat)
+        j = self.decoder_j(x_hat)
+        return torch.cat([seq, v, j], dim=1) # x_hat #
 
     def slice_x(self, x):
         sequence = x[:, 0:(self.max_len * self.aa_dim)].view(-1, self.max_len, self.aa_dim)
