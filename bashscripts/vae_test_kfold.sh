@@ -28,5 +28,5 @@ python3 ./vae_cdr3_vj.py -f /home/projects/vaccine/people/yatwan/tclustr/data/fi
 EOF
 )
                               # Write the script content to a file
-                              echo "$script_content" > "/home/projects/vaccine/people/yatwan/LSTMut/bashscripts/${filename}.sh"
+                              echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
 done
