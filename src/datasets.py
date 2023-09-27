@@ -2,8 +2,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
-from src.data_processing import encode_batch, encode_batch_weighted, ics_dict, get_positional_encoding, pad_tensor, \
-    get_ic_weights, V_MAP, J_MAP
+from src.data_processing import encode_batch, V_MAP, J_MAP
 
 
 class CDR3BetaDataset(Dataset):
@@ -11,7 +10,7 @@ class CDR3BetaDataset(Dataset):
     For now, only use CDR3b
     """
 
-    def __init__(self, df, max_len=23, encoding='BL50LO', pad_scale=None, cdr3b_col='B3', use_v=False, use_j=False,
+    def __init__(self, df, max_len=23, encoding='BL50LO', pad_scale=None, cdr3b_col='B3', use_v=True, use_j=True,
                  v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP):
         super(CDR3BetaDataset, self).__init__()
         self.max_len = max_len

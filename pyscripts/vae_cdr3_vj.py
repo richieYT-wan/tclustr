@@ -59,7 +59,7 @@ def args_parser():
     """
     parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=256,
                         help='Number of hidden units in the VAE. Default = 256')
-    parser.add_argument('-ld', '--latent_dim', dest='latent_dim', type=int, default=128,
+    parser.add_argument('-nl', '--latent_dim', dest='latent_dim', type=int, default=128,
                         help='Size of the latent dimension. Default = 128')
     parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
                         help='Which activation to use. Will map the correct nn.Module for the following keys:' \
@@ -215,7 +215,8 @@ def main():
     pkl_dump(valid_losses_dict, f'{outdir}/valid_losses_{fold_filename}.pkl')
     pkl_dump(train_metrics_dict, f'{outdir}/train_metrics_{fold_filename}.pkl')
     pkl_dump(valid_metrics_dict, f'{outdir}/valid_metrics_{fold_filename}.pkl')
-    plot_vae_loss_accs(losses_dict, accs_dict, unique_filename, outdir, dpi=300, palette='gnuplot2_r')
+    plot_vae_loss_accs(losses_dict, accs_dict, unique_filename, outdir,
+                       dpi=300, palette='gnuplot2_r', warm_up=10)
 
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
@@ -225,14 +226,14 @@ def main():
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
     valid_seq_acc = valid_preds['seq_acc'].mean()
-    valid_v_acc = valid_preds['v_correct'].mean()
-    valid_j_acc = valid_preds['j_correct'].mean()
+    valid_v_acc = valid_preds['v_correct'].mean() if args['use_v'] else 0
+    valid_j_acc = valid_preds['j_correct'].mean() if args['use_j'] else 0
     print(f'Final valid mean accuracies (seq, v, j): \t{valid_seq_acc:.3%}\t{valid_v_acc:.3%}\t{valid_j_acc:.3%}')
 
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_dataset = CDR3BetaDataset(test_df, **dataset_params, v_map=train_dataset.v_map, j_map=train_dataset.j_map)
+        test_dataset = CDR3BetaDataset(test_df, v_map=train_dataset.v_map, j_map=train_dataset.j_map, **dataset_params)
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 
@@ -240,8 +241,10 @@ def main():
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()
-        test_v_acc = test_preds['v_correct'].mean()
-        test_j_acc = test_preds['j_correct'].mean()
+
+        test_v_acc = test_preds['v_correct'].mean() if args['use_v'] else 0
+
+        test_j_acc = test_preds['j_correct'].mean() if args['use_j'] else 0
         print(f'Final valid mean accuracies (seq, v, j): \t{test_seq_acc:.3%}\t{test_v_acc:.3%}\t{test_j_acc:.3%}')
     else:
         test_seq_acc = None

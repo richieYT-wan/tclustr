@@ -252,10 +252,10 @@ class FullFVAE(NetParent):
                                      # nn.Linear(input_dim // 2, input_dim))
 
         self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
-                                              nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
+                                              nn.Linear(input_dim // 2, input_dim - self.v_dim - self.j_dim))
 
-        self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else nn.Identity()
-        self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else nn.Identity()
+        self.decoder_v = nn.Linear(hidden_dim, self.v_dim) if use_v else None
+        self.decoder_j = nn.Linear(hidden_dim, self.j_dim) if use_j else None
 
     @staticmethod
     def reparameterise(mu, logvar):
@@ -272,10 +272,14 @@ class FullFVAE(NetParent):
 
     def decode(self, z):
         x_hat = self.decoder(z)
-        seq = self.decoder_sequence(x_hat)
-        v = self.decoder_v(x_hat)
-        j = self.decoder_j(x_hat)
-        return torch.cat([seq, v, j], dim=1) # x_hat #
+        x_hat = self.decoder_sequence(x_hat)
+        if self.use_v:
+            v = self.decoder_v(x_hat)
+            x_hat = torch.cat([x_hat, v], dim=1)
+        if self.use_j:
+            j = self.decoder_j(x_hat)
+            x_hat = torch.cat([x_hat, j], dim=1)
+        return x_hat
 
     def slice_x(self, x):
         sequence = x[:, 0:(self.max_len * self.aa_dim)].view(-1, self.max_len, self.aa_dim)
@@ -328,72 +332,3 @@ class FullFVAE(NetParent):
         seq, v, j = self.slice_x(x_hat)
         seq_idx = self.recover_indices(seq)
         return seq_idx, v, j
-
-class FullCVAE(NetParent):
-    # TODO: DO CNN VAE
-    pass #raise NotImplementedError
-    # def __init__(self, max_len, aa_dim=21, use_v=True, use_j=True, v_dim=0, j_dim=0, act=nn.ReLU(), hidden_dim=128,
-    #              latent_dim=32):
-    #     super(CVAE, self).__init__()
-    #     input_dim = (max_len * aa_dim) + v_dim + j_dim
-    #     self.input_dim = input_dim
-    #     self.v_dim = v_dim
-    #     self.use_v = use_v
-    #     self.j_im = j_dim
-    #     self.use_j = use_j
-    #     self.hidden_dim = hidden_dim
-    #     self.latent_dim = latent_dim
-    #     # TODO: For now, just use a fixed set of layers.
-    #     # Encoder
-    #     self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), act,
-    #                                  nn.Linear(input_dim // 2, hidden_dim), act)
-    #     self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
-    #     self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
-    #     # Decoder
-    #     self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), act,
-    #                                  nn.Linear(hidden_dim, hidden_dim), act)
-    #
-    #     self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), act,
-    #                                           nn.Linear(input_dim // 2, input_dim - v_dim - j_dim))
-    #
-    #     self.decoder_v = nn.Linear(hidden_dim, v_dim) if use_v else None
-    #     self.decoder_j = nn.Linear(hidden_dim, j_dim) if use_j else None
-
-
-class PairedVAE(NetParent):
-    """
-    Just a class that combines a VAE for alpha and beta
-    """
-
-    def __init__(self, seq_len_a, seq_len_b, use_v_a, use_v_b, use_j_a, use_j_b, v_dim_a=0, j_dim_a=0, v_dim_b=0, j_dim_b=0,
-                 act=nn.ReLU(), aa_dim=20, hidden_dim=128, latent_dim=32, which='FVAE'):
-        super(PairedVAE, self).__init__()
-        constructor = {'FVAE': FullFVAE, 'CVAE': FullCVAE}
-        self.vae_alpha = constructor[which](seq_len=seq_len_a, aa_dim=aa_dim, use_v=use_v_a, use_j=use_j_a,
-                                            v_dim=v_dim_a, j_dim=j_dim_a, act=act, hidden_dim=hidden_dim, latent_dim=latent_dim)
-        self.vae_beta = constructor[which](seq_len=seq_len_b, aa_dim=aa_dim, use_v=use_v_b, use_j=use_j_b,
-                                           v_dim=v_dim_b, j_dim=j_dim_b, act=act, hidden_dim=hidden_dim, latent_dim=latent_dim)
-
-    def encode(self, x_a, x_b):
-        """
-        x should be a tuple or a concatenated version of (seq, v, j)
-        Args:
-            x_a:
-            x_b:
-
-        Returns:
-
-        """
-        mu_a, logvar_a = self.vae_alpha.encode(x_a)
-        mu_b, logvar_b = self.vae_beta.encode(x_b)
-
-        return mu_a, logvar_a, mu_b, logvar_b
-
-    def decode(self, z_a, z_b):
-        x_a, v_a, j_a = self.vae_alpha.decode(z_a)
-        x_b, v_b, j_b = self.vae_beta.decode(z_b)
-        return x_a, v_a, j_a, x_b, v_b, j_b
-
-    def forward(self, x_a, x_b):
-        seq_a, v_a, j_a, mu_a, logvar_a = self.vae_alpha(x_a)
-        seq_b, v_b, j_b, mu_b, logvar_b = self.vae_beta(x_b)

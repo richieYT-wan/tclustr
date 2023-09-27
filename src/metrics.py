@@ -126,12 +126,13 @@ def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad
     seq_accuracy = ((seq_true == seq_hat).float() * mask).sum(1) / true_lens
     if return_per_element:
         seq_accuracy = seq_accuracy.detach().cpu().tolist()
-        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
-        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
+        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().int().tolist() if v_hat is not None else 0
+        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float()).detach().cpu().int().tolist() if j_hat is not None else 0
     else:
         seq_accuracy = seq_accuracy.mean(dim=0).item()
-        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
-        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
+
+        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item() if v_hat is not None else 0
+        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item() if j_hat is not None else 0
     return seq_accuracy, v_accuracy, j_accuracy
 
 # # NOTE: OLD VERSION WITH THE PADDING IN SEQ_ACC

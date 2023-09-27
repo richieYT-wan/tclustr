@@ -3,6 +3,8 @@ import math
 from tqdm.auto import tqdm
 import numpy as np
 from torch.utils.data import DataLoader
+
+import src.datasets
 from src.torch_utils import save_checkpoint, load_checkpoint
 from src.metrics import reconstruction_accuracy
 
@@ -102,7 +104,8 @@ def train_model_step(model, criterion, optimizer, train_loader):
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
     seq_true, v_true, j_true = model.reconstruct_hat(x_true)
 
-    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad_index=20)
+    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
+                                                                   pad_index=20)
     # Normalizes to loss per batch
     acum_total_loss /= len(train_loader.dataset)
     acum_recon_loss /= len(train_loader.dataset)
@@ -145,16 +148,16 @@ def eval_model_step(model, criterion, valid_loader):
     return valid_loss, valid_metrics
 
 
-def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.utils.data.DataLoader):
+def predict_model(model, dataset: src.datasets.CDR3BetaDataset, dataloader: torch.utils.data.DataLoader):
     assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
     model.eval()
-
+    assert (model.use_v == dataset.use_v) and (model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
     cols_to_keep = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'binder', 'peptide',
-       'original_peptide', 'TRAV', 'TRAJ', 'TRBV', 'TRBJ', 'partition',
-       'Unnamed: 0', 'allele', 'origin', 'original_index', 'TRBV_gene',
-       'TRBJ_gene', 'len']
+                    'original_peptide', 'TRAV', 'TRAJ', 'TRBV', 'TRBJ', 'partition',
+                    'Unnamed: 0', 'allele', 'origin', 'original_index', 'TRBV_gene',
+                    'TRBJ_gene', 'len']
 
     df = dataset.df.reset_index(drop=True).copy()
     df = df[[x for x in cols_to_keep if x in df.columns]]
@@ -172,6 +175,12 @@ def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.ut
     x_true = torch.cat(x_true)
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
     seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+
+    if not model.use_v:
+        v_hat = None
+    if not model.use_j:
+        j_hat = None
+
     seq_acc, v_acc, j_acc = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
                                                     pad_index=20, return_per_element=True)
 
@@ -183,8 +192,11 @@ def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.ut
     df['hat_reconstructed'] = seq_hat_reconstructed
     df['true_reconstructed'] = seq_true_reconstructed
     df['seq_acc'] = seq_acc
-    df['v_correct'] = v_acc
-    df['j_correct'] = j_acc
+    if model.use_v:
+        df['v_correct'] = v_acc
+    if model.use_j:
+        df['j_correct'] = j_acc
+
     df['n_errors_seq'] = df.apply(
         lambda x: sum([c1 != c2 for c1, c2 in zip(x['hat_reconstructed'], x['true_reconstructed'])]), axis=1)
     z_latent = torch.cat(z_latent).detach()
