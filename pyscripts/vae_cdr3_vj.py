@@ -130,13 +130,12 @@ def main():
     args['use_j'] = False if args['j_col'] == "None" else True
     args['v_dim'] = 51
     args['j_dim'] = 13
-    rid = get_random_id(5) if args["random_id"] == '' else args["random_id"]
     if args['log_wandb']:
         wandb.login()
     # File-saving stuff
     connector = '' if args["out"] == '' else '_'
     kf = '-1' if args["fold"] is None else args['fold']
-    rid = f'_{rid}' if args['random_id'] is not None else get_random_id() if rid=='' else args['rid']
+    rid =  args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args['random_id'] == '' else args['random_id']
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'

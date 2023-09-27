@@ -151,7 +151,11 @@ def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.ut
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
     model.eval()
 
-    cols_to_keep = ['B3', 'TRBV_gene', 'TRBJ_gene', 'peptide']
+    cols_to_keep = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'binder', 'peptide',
+       'original_peptide', 'TRAV', 'TRAJ', 'TRBV', 'TRBJ', 'partition',
+       'Unnamed: 0', 'allele', 'origin', 'original_index', 'TRBV_gene',
+       'TRBJ_gene', 'len']
+
     df = dataset.df.reset_index(drop=True).copy()
     df = df[[x for x in cols_to_keep if x in df.columns]]
     x_reconstructed, x_true, z_latent = [], [], []
@@ -181,6 +185,8 @@ def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.ut
     df['seq_acc'] = seq_acc
     df['v_correct'] = v_acc
     df['j_correct'] = j_acc
+    df['n_errors_seq'] = df.apply(
+        lambda x: sum([c1 != c2 for c1, c2 in zip(x['hat_reconstructed'], x['true_reconstructed'])]), axis=1)
     z_latent = torch.cat(z_latent).detach()
     df[[f'z_{i}' for i in range(z_latent.shape[1])]] = z_latent
     return df

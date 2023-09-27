@@ -33,9 +33,7 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
     f.savefig(f'{outdir}{filename}.png', dpi=dpi, bbox_inches='tight')
 
 
-def plot_vae_loss_accs(losses_dict, accs_dict,
-                       filename, outdir,
-                       dpi=300, palette='gnuplot2_r', crop_start=True):
+def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palette='gnuplot2_r', warm_up=15):
     """
 
     Args:
@@ -54,16 +52,17 @@ def plot_vae_loss_accs(losses_dict, accs_dict,
     f, a = plt.subplots(2,1, figsize=(14,10))
     a = a.ravel()
     sns.set_palette(get_palette(palette, n_colors=6))
-    idx = 5 if crop_start else 0
+    # Corresponds to the warmup
+    warm_up=0 if warm_up is None else warm_up
     # plotting each component of the loss.
     # Should be 3 elements for each dict (total/recon/kld) and (seq/v/j)
     # Reformatting the list of dicts into dicts of lists:
     for k,v in losses_dict.items():
-        a[0].plot(v[idx:], label=f'train_{k}')
+        a[0].plot(v[warm_up:], label={k})
     for k,v in accs_dict.items():
-        a[1].plot(v[idx:], label=f'train_{k}')
+        a[1].plot(v[warm_up:], label={k})
     a[0].set_ylim([0, 1])
-    a[1].set_ylim([0.5, 1])
+    a[1].set_ylim([0.5, 1.1])
     a[0].set_title('Losses')
     a[1].set_title('Accuracies')
     a[0].legend()

@@ -119,7 +119,7 @@ def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad
     Returns:
 
     """
-    # Compute the mask and true lengths 
+    # Compute the mask and true lengths
     mask = (seq_true != pad_index).float()
     true_lens = mask.sum(dim=1)
     # difference here for per element is that we don't take the mean(dim=0) and have to detach() from graph to do tolist()
