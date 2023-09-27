@@ -22,8 +22,6 @@ class CDR3BetaDataset(Dataset):
         self.use_j = use_j
         self.v_map = {k: v for v, k in enumerate(sorted(df[v_col].unique()))} if v_map is None else v_map
         self.j_map = {k: v for v, k in enumerate(sorted(df[j_col].unique()))} if j_map is None else j_map
-        if v_map == V_MAP and j_map == J_MAP:
-            print('here debug')
 
         self.v_dim = v_dim
         self.j_dim = j_dim

@@ -34,7 +34,7 @@ EOF
                               # Write the script content to a file
                               echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
                               chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-#                              qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:ppn=5:thinnode,mem=36gb,walltime=02:30:00 "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-#                              rm "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
+                              qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:ppn=5:thinnode,mem=36gb,walltime=${1} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
+                              rm "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
 
 done
