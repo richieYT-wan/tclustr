@@ -80,12 +80,12 @@ def args_parser():
                         help='Tolerance for loss variation to log best model')
     parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=3,
                         help='Which beta to use for the seq reconstruction term in the loss')
+    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=2,
+                        help='Which weight to use for the KLD term in the loss')
     parser.add_argument('-lwv', '--weight_v', dest='weight_v', type=float, default=2.5,
                         help='Which weight to use for the V gene term in the loss')
-    parser.add_argument('-lwj', '--weight_j', dest='weight_j', type=float, default=2,
+    parser.add_argument('-lwj', '--weight_j', dest='weight_j', type=float, default=1.5,
                         help='Which weight to use for the J gene term in the loss')
-    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1,
-                        help='Which weight to use for the KLD term in the loss')
     parser.add_argument('-wu', '--warm_up', dest='warm_up', type=str2bool, default=True,
                         help='Whether to do a warm-up for the loss (without the KLD term). Default = False')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
@@ -128,8 +128,8 @@ def main():
     args['aa_dim'] = 20
     args['use_v'] = False if args['v_col'] == "None" else True
     args['use_j'] = False if args['j_col'] == "None" else True
-    args['v_dim'] = len(train_df[args['v_col']].unique())
-    args['j_dim'] = len(train_df[args['j_col']].unique())
+    args['v_dim'] = 51
+    args['j_dim'] = 13
     rid = get_random_id(5) if args["random_id"] == '' else args["random_id"]
     if args['log_wandb']:
         wandb.login()
@@ -164,8 +164,9 @@ def main():
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
 
-    train_dataset = CDR3BetaDataset(train_df, **dataset_params, v_map=None, j_map=None)
-    valid_dataset = CDR3BetaDataset(valid_df, **dataset_params, v_map=train_dataset.v_map, j_map=train_dataset.j_map)
+    # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
+    train_dataset = CDR3BetaDataset(train_df, **dataset_params)
+    valid_dataset = CDR3BetaDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
@@ -203,7 +204,7 @@ def main():
 
     # Saving text file for the run:
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
-        file.write(f'Fold: {args["fold"]}')
+        file.write(f'Fold: {args["fold"]}\n')
         file.write(f"Best valid epoch: {best_epoch}\n")
         for k, v in best_val_loss.items():
             file.write(f'{k}:\t{v}\n')

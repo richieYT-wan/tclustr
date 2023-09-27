@@ -103,6 +103,7 @@ class VAELoss(nn.Module):
 
 
 def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, return_per_element=False):
+    # todo: Do accuracy without
     if return_per_element:
         seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1)).detach().cpu().tolist()
         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
