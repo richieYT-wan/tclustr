@@ -102,17 +102,54 @@ class VAELoss(nn.Module):
         self.step = 0
 
 
-def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, return_per_element=False):
-    # todo: Do accuracy without
+# NOTE : Fixed version with the true acc
+def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad_index=20, return_per_element=False):
+    """
+
+    Args:
+        seq_true: ordinal vector of true sequence (Here, the number is to map back to an amino acid with AA_KEYS, with 20 = X)
+        seq_hat: Same but reconstructed
+        v_true: same but for true V
+        v_hat: same for recons V
+        j_true: ...
+        j_hat: ...
+        pad_index: This is the INDEX for the AA used for padding. 20 for default (which represents X)
+        return_per_element: Return a per-element acc instead of mean
+
+    Returns:
+
+    """
+    # Compute the mask and true lengths 
+    mask = (seq_true != pad_index).float()
+    true_lens = mask.sum(dim=1)
+    # difference here for per element is that we don't take the mean(dim=0) and have to detach() from graph to do tolist()
+    seq_accuracy = ((seq_true == seq_hat).float() * mask).sum(1) / true_lens
     if return_per_element:
-        seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1)).detach().cpu().tolist()
+        seq_accuracy = seq_accuracy.detach().cpu().tolist()
         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
         j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
     else:
-        seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1).mean(dim=0)).item()
+        seq_accuracy = seq_accuracy.mean(dim=0).item()
         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
         j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
     return seq_accuracy, v_accuracy, j_accuracy
+
+# # NOTE: OLD VERSION WITH THE PADDING IN SEQ_ACC
+# def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
+#                             return_per_element=False):
+#     # todo: Do accuracy with and without padding
+#     if return_per_element:
+#         seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1)).detach().cpu().tolist()
+#         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
+#         j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
+#     else:
+#         seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1).mean(dim=0)).item()
+#         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
+#         j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
+#     return seq_accuracy, v_accuracy, j_accuracy
+
+
+
 
 
 def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:

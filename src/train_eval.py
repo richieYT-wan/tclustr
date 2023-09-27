@@ -102,7 +102,7 @@ def train_model_step(model, criterion, optimizer, train_loader):
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
     seq_true, v_true, j_true = model.reconstruct_hat(x_true)
 
-    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat)
+    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad_index=20)
     # Normalizes to loss per batch
     acum_total_loss /= len(train_loader.dataset)
     acum_recon_loss /= len(train_loader.dataset)
@@ -134,7 +134,8 @@ def eval_model_step(model, criterion, valid_loader):
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
     seq_true, v_true, j_true = model.reconstruct_hat(x_true)
 
-    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat)
+    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
+                                                                   pad_index=20)
     # Normalizes to loss per batch
     acum_total_loss /= len(valid_loader.dataset)
     acum_recon_loss /= len(valid_loader.dataset)
@@ -167,7 +168,8 @@ def predict_model(model, dataset: torch.utils.data.Dataset, dataloader: torch.ut
     x_true = torch.cat(x_true)
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
     seq_true, v_true, j_true = model.reconstruct_hat(x_true)
-    seq_acc, v_acc, j_acc = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, return_per_element=True)
+    seq_acc, v_acc, j_acc = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
+                                                    pad_index=20, return_per_element=True)
 
     x_seq_recon, _, _ = model.slice_x(x_reconstructed)
     x_seq_true, _, _ = model.slice_x(x_true)
@@ -228,7 +230,7 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         valid_metrics.append(valid_metric)
         train_losses.append(train_loss)
         valid_losses.append(valid_loss)
-        if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs+1:
+        if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
             tqdm.write(
                 f'\nEpoch {e}: train recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{train_loss["reconstruction"]:.4f},\t{train_loss["kld"]:.4f}\t{train_metric["seq_accuracy"]:.3f}, \t{train_metric["v_accuracy"]:.3f}, \t{train_metric["j_accuracy"]:.3f}')
             tqdm.write(
