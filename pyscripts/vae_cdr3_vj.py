@@ -102,7 +102,7 @@ def args_parser():
     #                     default=5, help='How to split the train/test data (test size=1/X)')
     parser.add_argument('-kf', '--fold', dest='fold', required=False, type=int, default=None,
                         help='If added, will split the input file into the train/valid for kcv')
-    parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default='',
+    parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default=None,
                         help='Adding a random ID taken from a batchscript that will start all crossvalidation folds. Default = ""')
     parser.add_argument('-seed', '--seed', dest='seed', type=int, default=13,
                         help='Torch manual seed. Default = 13')
@@ -136,6 +136,7 @@ def main():
     # File-saving stuff
     connector = '' if args["out"] == '' else '_'
     kf = '-1' if args["fold"] is None else args['fold']
+    rid = f'_{rid}' if args['random_id'] is not None else get_random_id() if rid=='' else args['rid']
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
