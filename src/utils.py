@@ -63,8 +63,10 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palett
     # Should be 3 elements for each dict (total/recon/kld) and (seq/v/j)
     # Reformatting the list of dicts into dicts of lists:
     for k, v in losses_dict.items():
+        if len(v)==0 or all([val==0 for val in v]): continue
         a[0].plot(v[warm_up:], label=k)
     for k, v in accs_dict.items():
+        if len(v)==0 or all([val==0 for val in v]): continue
         a[1].plot(v[warm_up:], label=k)
     a[0].set_ylim([0, 1])
     a[1].set_ylim([0.5, 1.1])

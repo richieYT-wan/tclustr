@@ -153,14 +153,10 @@ def predict_model(model, dataset: src.datasets.CDR3BetaDataset, dataloader: torc
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
     model.eval()
-    assert (model.use_v == dataset.use_v) and (model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
-    cols_to_keep = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'binder', 'peptide',
-                    'original_peptide', 'TRAV', 'TRAJ', 'TRBV', 'TRBJ', 'partition',
-                    'Unnamed: 0', 'allele', 'origin', 'original_index', 'TRBV_gene',
-                    'TRBJ_gene', 'len']
+    assert (model.use_v == dataset.use_v) and (
+                model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
 
     df = dataset.df.reset_index(drop=True).copy()
-    df = df[[x for x in cols_to_keep if x in df.columns]]
     x_reconstructed, x_true, z_latent = [], [], []
     with torch.no_grad():
         # Same workaround as above
@@ -257,8 +253,9 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
 
         # Doesn't allow saving the very first model as sometimes it gets stuck in a random state that has good.
         # Here, will take the best overall reconstruction (mean for seq, V, and J because V reconstruction somehow gets stuck at some low values
-        divider = int(model.use_v)+int(model.use_j)+1
-        mean_accuracy = np.sum([valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']]) / divider
+        divider = int(model.use_v) + int(model.use_j) + 1
+        mean_accuracy = np.sum(
+            [valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']]) / divider
         if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and mean_accuracy > best_val_reconstruction) \
                       or mean_accuracy > best_val_reconstruction):
             # Getting the individual components for asserts
@@ -269,9 +266,10 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_val_losses = valid_loss
             best_val_metrics = valid_metric
 
-            best_dict = {'Best epoch': best_epoch}
+            best_dict = {'Best epoch': best_epoch, 'Valid loss':valid_loss}
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
+            print(best_dict)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
     print(f'End of training cycles')
@@ -281,4 +279,5 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     print(f'Best valid loss :\t{best_val_loss:.3e}, best valid mean reconstruction acc:\t{best_val_reconstruction}')
     # print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
     model = load_checkpoint(model, checkpoint_filename, outdir)
+    model.eval()
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics

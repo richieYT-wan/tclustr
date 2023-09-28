@@ -14,7 +14,7 @@ first_char="${characters:index:1}"
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_string="${first_char}${rest_chars}"
-outname="OnlyPositivesFullCDR3b_LowerDim_32_WD_1e-4"
+outname="OnlyPositivesFullCDR3b_LowerDim_32_WD_1e-5"
 
 
 for f in $(seq 0 4);
@@ -28,7 +28,7 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
 cd \${PYDIR}
-python3 ./vae_cdr3_vj.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ml 25 -ne 2000 -lwseq 2 -lwkld 1 -cdr3b "TRB_CDR3" -v "None" -j "None" -nl 32 -nh 64 -lr 5e-4 -wd 1e-4 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+python3 ./vae_cdr3_vj.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ml 25 -ne 10 -lwseq 2 -lwkld 1 -cdr3b "TRB_CDR3" -v "None" -j "None" -nl 12 -nh 24 -lr 5e-4 -wd 1e-4 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
 EOF
 )
                               # Write the script content to a file

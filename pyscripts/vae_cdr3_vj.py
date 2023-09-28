@@ -36,7 +36,7 @@ def args_parser():
                         default=None, help='External test set (None by default)')
     parser.add_argument('-o', '--out', dest='out', required=False,
                         type=str, default='', help='Additional output name')
-    parser.add_argument('-cdr3', '--cdr3_col', dest='cdr3_col', default='B3', type=str, required=False,
+    parser.add_argument('-cdr3b', '--cdr3b_col', dest='cdr3b_col', default='B3', type=str, required=False,
                         help='Name of the column containing CDR3b sequences (inputs)')
     parser.add_argument('-v', '--v_col', dest='v_col', default='TRBV_gene', type=str, required=False,
                         help='Name of the column containing V genes (inputs).' \
