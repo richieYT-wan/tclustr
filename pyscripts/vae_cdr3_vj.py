@@ -12,8 +12,7 @@ from torch import optim
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
-from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, \
-    plot_loss_aucs, plot_vae_loss_accs
+from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, get_dict_of_lists
 from src.torch_utils import load_checkpoint
 from src.models import FullFVAE
 from src.train_eval import predict_model, train_eval_loops
@@ -194,10 +193,10 @@ def main():
                                                                    checkpoint_filename, outdir)
 
     # Convert list of dicts to dicts of lists
-    train_losses_dict = {f'train_{key}': [d[key] for d in train_losses] for key in train_losses[0]}
-    valid_losses_dict = {f'valid_{key}': [d[key] for d in valid_losses] for key in valid_losses[0]}
-    train_metrics_dict = {f'train_{key}': [d[key] for d in train_metrics] for key in train_metrics[0]}
-    valid_metrics_dict = {f'valid_{key}': [d[key] for d in valid_metrics] for key in valid_metrics[0]}
+    train_losses_dict = get_dict_of_lists(train_losses, 'train')  #{f'train_{key}': [d[key] for d in train_losses] for key in train_losses[0]}
+    train_metrics_dict = get_dict_of_lists(train_metrics, 'train')  #{f'train_{key}': [d[key] for d in train_metrics] for key in train_metrics[0]}
+    valid_losses_dict = get_dict_of_lists(valid_losses, 'valid')  #{f'valid_{key}': [d[key] for d in valid_losses] for key in valid_losses[0]}
+    valid_metrics_dict = get_dict_of_lists(valid_metrics, 'valid')  #{f'valid_{key}': [d[key] for d in valid_metrics] for key in valid_metrics[0]}
 
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}

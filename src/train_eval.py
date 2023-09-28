@@ -232,7 +232,8 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         best_val_loss
         best_val_auc
     """
-
+    if not checkpoint_filename.endswith('.pt'):
+        checkpoint_filename = checkpoint_filename + '.pt'
     print(f'Starting {n_epochs} training cycles')
     # Pre-saving the model at the very start because some bugged partitions
     # would have terrible performance and never save for very short debug runs.
@@ -256,7 +257,8 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
 
         # Doesn't allow saving the very first model as sometimes it gets stuck in a random state that has good.
         # Here, will take the best overall reconstruction (mean for seq, V, and J because V reconstruction somehow gets stuck at some low values
-        mean_accuracy = np.mean([valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']])
+        divider = int(model.use_v)+int(model.use_j)+1
+        mean_accuracy = np.sum([valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']]) / divider
         if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and mean_accuracy > best_val_reconstruction) \
                       or mean_accuracy > best_val_reconstruction):
             # Getting the individual components for asserts
@@ -274,7 +276,7 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
 
     print(f'End of training cycles')
     print(f'Best train loss:\t{min([x["total"] for x in train_losses]):.3e}'
-          f'Best train AUC:\t{max([x["seq_accuracy"] for x in train_metrics])}')
+          f'Best train reconstruction Acc:\t{max([x["seq_accuracy"] for x in train_metrics])}')
     print(f'Best valid epoch: {best_epoch}')
     print(f'Best valid loss :\t{best_val_loss:.3e}, best valid mean reconstruction acc:\t{best_val_reconstruction}')
     # print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
