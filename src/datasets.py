@@ -19,8 +19,8 @@ class CDR3BetaDataset(Dataset):
         self.pad_scale = pad_scale
         self.use_v = use_v
         self.use_j = use_j
-        self.v_map = {k: v for v, k in enumerate(sorted(df[v_col].unique()))} if v_map is None else v_map
-        self.j_map = {k: v for v, k in enumerate(sorted(df[j_col].unique()))} if j_map is None else j_map
+        self.v_map = {k: v for v, k in enumerate(sorted(df[v_col].unique()))} if (v_map is None and use_v) else v_map
+        self.j_map = {k: v for v, k in enumerate(sorted(df[j_col].unique()))} if (j_map is None and use_j) else j_map
 
         self.v_dim = v_dim
         self.j_dim = j_dim

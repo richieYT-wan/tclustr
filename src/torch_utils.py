@@ -59,7 +59,7 @@ def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './'
         if verbose:
             print(f'Creating {dir_path}; The provided dir path {dir_path} did not exist!')
     if not filename.endswith('.pt'):
-        name = filename + '.pt'
+        filename = filename + '.pt'
     savepath = os.path.join(dir_path, filename)
     checkpoint = model.state_dict()
     if best_dict and type(best_dict)==dict:
