@@ -7,5 +7,5 @@ EOF
 )
 echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/TMP_tcr_sim.sh"
 chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/TMP_tcr_sim.sh"
-qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:ppn=5:thinnode,mem=36gb,walltime=${2} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/TMP_tcr_sim.sh"
+qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:ppn=40:thinnode,mem=36gb,walltime=${2} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/TMP_tcr_sim.sh"
 rm "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/TMP_tcr_sim.sh"
