@@ -11,11 +11,67 @@ class CDR3BetaDataset(Dataset):
     """
 
     def __init__(self, df, max_len=23, encoding='BL50LO', pad_scale=None, cdr3b_col='B3', use_v=True, use_j=True,
-                 v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP):
+                 v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP, add_pep=False, pep_len=12):
         super(CDR3BetaDataset, self).__init__()
         self.max_len = max_len
         self.encoding = encoding
 
+        self.pad_scale = pad_scale
+        self.use_v = use_v
+        self.use_j = use_j
+        self.v_map = {k: v for v, k in enumerate(sorted(df[v_col].unique()))} if (v_map is None and use_v) else v_map
+        self.j_map = {k: v for v, k in enumerate(sorted(df[j_col].unique()))} if (j_map is None and use_j) else j_map
+
+        self.v_dim = v_dim
+        self.j_dim = j_dim
+        self.df = df
+        # Only get sequences, no target because unsupervised learning, flattened to concat to classes
+        df['len'] = df[cdr3b_col].apply(len)
+        df = df.query('len<=@max_len')
+        x = encode_batch(df[cdr3b_col], max_len, encoding, pad_scale).flatten(start_dim=1)
+        if add_pep:
+            x_pep = encode_batch(df['peptide'], pep_len, encoding, pad_scale).flatten(start_dim=1)
+            x = torch.cat([x,x_pep], dim=1)
+        if use_v:
+            # get the mapping to a class
+            df['v_class'] = df[v_col].map(self.v_map).astype(int)
+            x_v = F.one_hot(torch.from_numpy(df['v_class'].values), num_classes=v_dim).float()
+            x = torch.cat([x, x_v], dim=1)
+            self.x_v = x_v
+
+        if use_j:
+            # get the mapping to a class
+            df['j_class'] = df[j_col].map(self.j_map).astype(int)
+            x_j = F.one_hot(torch.from_numpy(df['j_class'].values), num_classes=j_dim).float()
+            x = torch.cat([x, x_j], dim=1)
+            self.x_j = x_j
+
+        self.x = x
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        return self.x[idx]
+
+    def get_dataset(self):
+        return self
+
+    def get_dataloader(self, batch_size, sampler):
+        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self))
+        return dataloader
+
+
+class PairedDataset(Dataset):
+    """
+    For now, only use CDR3b
+    """
+
+    def __init__(self, df, max_len=23, encoding='BL50LO', pad_scale=None, cdr3b_col='B3', use_v=True, use_j=True,
+                 v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP):
+        super(PairedDataset, self).__init__()
+        self.max_len = max_len
+        self.encoding = encoding
         self.pad_scale = pad_scale
         self.use_v = use_v
         self.use_j = use_j

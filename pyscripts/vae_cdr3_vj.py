@@ -14,7 +14,7 @@ from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, get_dict_of_lists
 from src.torch_utils import load_checkpoint
-from src.models import FullFVAE
+from src.models import CDR3bVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import CDR3BetaDataset
 from src.metrics import VAELoss, get_metrics
@@ -144,8 +144,8 @@ def main():
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_init_code = FullFVAE.__init__.__code__
-    model_init_code = FullFVAE.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
+    model_init_code = CDR3bVAE.__init__.__code__
+    model_init_code = CDR3bVAE.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
     model_keys = [x for x in args.keys() if x in model_init_code]
     dataset_init_code = CDR3BetaDataset.__init__.__code__
     dataset_init_code = CDR3BetaDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
@@ -176,7 +176,7 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = FullFVAE(**model_params)
+    model = CDR3bVAE(**model_params)
     criterion = VAELoss(**loss_params)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
