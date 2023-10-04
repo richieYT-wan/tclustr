@@ -83,11 +83,119 @@ class VAELoss(nn.Module):
 
         kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
         self.step += 1
-        if self.step >= self.n_batches*15:
-            self.warm_up=False
+        if self.step >= self.n_batches * 15:
+            self.warm_up = False
         if not self.warm_up:
             self.weight_kld = max(self.base_weight_kld - (self.base_weight_kld * (self.step / 1000)),
-                              self.base_weight_kld / 5)
+                                  self.base_weight_kld / 5)
+        if self.debug:
+            print('kld_weight', self.weight_kld)
+            print('kld_loss', kld, '\n')
+
+        # Return them separately and sum later so that I can debug each component
+        return reconstruction_loss, kld
+
+    def set_debug(self, debug):
+        self.debug = debug
+
+    def reset_parameters(self):
+        self.step = 0
+
+
+class PairedVAELoss(nn.Module):
+    """
+    No fucking annealing, just some basic stuff for now
+    TODO: re-do the tanh behaviour for the KLD loss
+    """
+
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_b=True, use_a=True, use_pep=False,
+                 use_v=True, use_j=True, max_len_b=23, max_len_a=20, max_len_pep=12, aa_dim=20, v_dim=51, j_dim=13,
+                 weight_beta=2, weight_alpha=2, weight_pep=1.5, weight_v=1, weight_j=.75, weight_kld=1, debug=False,
+                 warm_up=True, n_batches=67):
+        super(PairedVAELoss, self).__init__()
+        weight_beta = weight_beta if use_b else 0
+        weight_alpha = weight_alpha if use_a else 0
+        weight_pep = weight_pep if use_pep else 0
+        weight_v = weight_v if use_v else 0
+        weight_j = weight_j if use_j else 0
+        self.norm_factor = weight_beta + weight_alpha + weight_pep + weight_v + weight_j + weight_kld
+        self.sequence_criterion = sequence_criterion
+        self.max_len = max_len_b
+        self.aa_dim = aa_dim
+        self.use_b = use_b
+        self.use_a = use_a
+        self.use_pep = use_pep
+        self.use_v = use_v
+        self.use_j = use_j
+        self.v_dim = v_dim if use_v else 0
+        self.j_dim = j_dim if use_j else 0
+
+        self.weight_beta = weight_beta / self.norm_factor
+        self.weight_v = weight_v / self.norm_factor
+        self.weight_j = weight_j / self.norm_factor
+        self.base_weight_kld = weight_kld / self.norm_factor
+        self.weight_kld = self.base_weight_kld
+        self.step = 0
+        self.debug = debug
+        self.warm_up = warm_up
+        self.n_batches = n_batches
+
+        print(self.weight_beta, self.weight_v, self.weight_j, self.base_weight_kld)
+
+    def slice_x(self, x):
+        # Slices the vector values for the sequences and reconstructs (view) as 3 (Nx2D) tensors
+        sequence = x[:, 0:self.seq_dim]
+        seq_b = sequence[:, :self.beta_dim] \
+            .view(-1, self.max_len_b, self.aa_dim) if self.use_b else None
+
+        seq_a = sequence[:, self.beta_dim:(self.beta_dim + self.alpha_dim)] \
+            .view(-1, self.max_len_a, self.aa_dim) if self.use_a else None
+
+        seq_pep = sequence[:, (self.beta_dim + self.alpha_dim):(self.alpha_dim + self.beta_dim + self.pep_dim)] \
+            .view(-1, self.max_len_pep, self.aa_dim) if self.use_pep else None
+
+        # Reconstructs the v/j gene as one hot vectors
+        v_gene = x[:, self.seq_dim:(self.seq_dim + self.v_dim)] if self.use_v else None
+        j_gene = x[:, (self.seq_dim + self.v_dim):] if self.use_j else None
+        # Here, returns the entire concatenated sequence ; Maybe it should be
+        return seq_b, seq_a, seq_pep, v_gene, j_gene
+
+    def forward(self, x_hat, x, mu, logvar):
+        # TODO:
+        #     Here need to define slicing for x_hat into x_beta, x_alpha, x_pep
+        #     Or should I just take the entire concatenated sequence vector ?
+        #     Maybe not since I feel pep should have lower weight than alpha-beta chains
+        x_hat_seq, x_hat_v, x_hat_j = self.slice_x(x_hat)
+        x_true_seq, x_true_v, x_true_j = self.slice_x(x)
+
+        reconstruction_loss = self.weight_beta * self.sequence_criterion(x_hat_seq, x_true_seq)
+        if self.debug:
+            print('seq_loss', reconstruction_loss)
+        if self.use_v:
+            # Something wrong here with_loss, it explodes to minus infinity for some reasons
+            v_loss = self.weight_v * F.cross_entropy(x_hat_v, x_true_v.argmax(dim=1), reduction='mean')
+            if self.debug:
+                print('v_loss', v_loss)
+            reconstruction_loss += v_loss
+        if self.use_j:
+            j_loss = self.weight_j * F.cross_entropy(x_hat_j, x_true_j.argmax(dim=1), reduction='mean')
+            if self.debug:
+                print('j_loss', j_loss)
+            reconstruction_loss += j_loss
+
+        if self.step <= 500 and not self.warm_up:
+            self.weight_kld = self.step / 1000 * self.base_weight_kld
+        else:
+            if self.warm_up and self.step <= self.n_batches * 15:
+                self.weight_kld = 0
+
+        kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
+        self.step += 1
+        if self.step >= self.n_batches * 15:
+            self.warm_up = False
+        if not self.warm_up:
+            self.weight_kld = max(self.base_weight_kld - (self.base_weight_kld * (self.step / 1000)),
+                                  self.base_weight_kld / 5)
         if self.debug:
             print('kld_weight', self.weight_kld)
             print('kld_loss', kld, '\n')
@@ -126,14 +234,19 @@ def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad
     seq_accuracy = ((seq_true == seq_hat).float() * mask).sum(1) / true_lens
     if return_per_element:
         seq_accuracy = seq_accuracy.detach().cpu().tolist()
-        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().int().tolist() if v_hat is not None else 0
-        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float()).detach().cpu().int().tolist() if j_hat is not None else 0
+        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(
+            dim=1)).float()).detach().cpu().int().tolist() if v_hat is not None else 0
+        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(
+            dim=1)).float()).detach().cpu().int().tolist() if j_hat is not None else 0
     else:
         seq_accuracy = seq_accuracy.mean(dim=0).item()
 
-        v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item() if v_hat is not None else 0
-        j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item() if j_hat is not None else 0
+        v_accuracy = (
+            (v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item() if v_hat is not None else 0
+        j_accuracy = (
+            (j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item() if j_hat is not None else 0
     return seq_accuracy, v_accuracy, j_accuracy
+
 
 # # NOTE: OLD VERSION WITH THE PADDING IN SEQ_ACC
 # def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
@@ -148,9 +261,6 @@ def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad
 #         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
 #         j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
 #     return seq_accuracy, v_accuracy, j_accuracy
-
-
-
 
 
 def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:

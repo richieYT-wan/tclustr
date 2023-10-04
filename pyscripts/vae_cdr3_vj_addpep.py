@@ -94,11 +94,6 @@ def args_parser():
     """
     TODO: Misc. 
     """
-    # These two arguments are to be phased out or re-used, in the case of fold.
-    # For now, for the exercise, I will do KCV and try to see if there is any robustsness across folds in the VAE
-    # later on, it makes no sense to concatenate the latent dimensions so we need to figure something else out.
-    # parser.add_argument('-s', '--split', dest='split', required=False, type=int,
-    #                     default=5, help='How to split the train/test data (test size=1/X)')
     parser.add_argument('-kf', '--fold', dest='fold', required=False, type=int, default=None,
                         help='If added, will split the input file into the train/valid for kcv')
     parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default=None,
@@ -133,7 +128,7 @@ def main():
     args['use_v'] = False if args['v_col'] == "None" else True
     args['use_j'] = False if args['j_col'] == "None" else True
     args['add_pep'] = True
-    args['pep_len'] = 12
+    args['max_len_pep'] = 12
     args['v_dim'] = 51
     args['j_dim'] = 13
     if args['log_wandb']:
@@ -141,7 +136,7 @@ def main():
     # File-saving stuff
     connector = '' if args["out"] == '' else '_'
     kf = '-1' if args["fold"] is None else args['fold']
-    rid =  args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args['random_id'] == '' else args['random_id']
+    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args['random_id'] == '' else args['random_id']
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
