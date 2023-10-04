@@ -108,11 +108,12 @@ class PairedVAELoss(nn.Module):
     TODO: re-do the tanh behaviour for the KLD loss
     """
 
-    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_b=True, use_a=True, use_pep=False,
-                 use_v=True, use_j=True, max_len_b=23, max_len_a=20, max_len_pep=12, aa_dim=20, v_dim=51, j_dim=13,
-                 weight_beta=2, weight_alpha=2, weight_pep=1.5, weight_v=1, weight_j=.75, weight_kld=1, debug=False,
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_b=True, use_a=True, use_pep=True,
+                 use_v=False, use_j=False, max_len_b=25, max_len_a=24, max_len_pep=12, aa_dim=20, v_dim=51, j_dim=13,
+                 weight_beta=2, weight_alpha=2, weight_pep=1, weight_v=1, weight_j=.75, weight_kld=1, debug=False,
                  warm_up=True, n_batches=67):
         super(PairedVAELoss, self).__init__()
+        # Weights stuff
         weight_beta = weight_beta if use_b else 0
         weight_alpha = weight_alpha if use_a else 0
         weight_pep = weight_pep if use_pep else 0
@@ -120,18 +121,6 @@ class PairedVAELoss(nn.Module):
         weight_j = weight_j if use_j else 0
         self.norm_factor = weight_beta + weight_alpha + weight_pep + weight_v + weight_j + weight_kld
         self.sequence_criterion = sequence_criterion
-        self.max_len_b = max_len_b
-        self.max_len_a = max_len_a
-        self.max_len_pep = max_len_pep
-        self.aa_dim = aa_dim
-        self.use_b = use_b
-        self.use_a = use_a
-        self.use_pep = use_pep
-        self.use_v = use_v
-        self.use_j = use_j
-        self.v_dim = v_dim if use_v else 0
-        self.j_dim = j_dim if use_j else 0
-
         self.weight_beta = weight_beta / self.norm_factor
         self.weight_alpha = weight_alpha / self.norm_factor
         self.weight_pep = weight_pep / self.norm_factor
@@ -139,6 +128,30 @@ class PairedVAELoss(nn.Module):
         self.weight_j = weight_j / self.norm_factor
         self.base_weight_kld = weight_kld / self.norm_factor
         self.weight_kld = self.base_weight_kld
+        # Dimensions stuff
+        v_dim = v_dim if use_v else 0
+        j_dim = j_dim if use_j else 0
+        b_dim = max_len_b * aa_dim if use_b else 0
+        a_dim = max_len_a * aa_dim if use_a else 0
+        pep_dim = max_len_pep * aa_dim if use_pep else 0
+        input_dim = b_dim + a_dim + pep_dim + v_dim + j_dim
+        self.seq_dim = b_dim + a_dim + pep_dim
+        self.input_dim = input_dim
+        self.max_len_b = max_len_b if use_b else 0
+        self.use_b = use_b
+        self.max_len_a = max_len_a if use_a else 0
+        self.use_a = use_a
+        self.max_len_pep = max_len_pep if use_pep else 0
+        self.use_pep = use_pep
+        self.alpha_dim = a_dim
+        self.beta_dim = b_dim
+        self.pep_dim = pep_dim
+        self.aa_dim = aa_dim
+        self.v_dim = v_dim if use_v else 0
+        self.use_v = use_v
+        self.j_dim = j_dim if use_j else 0
+        self.use_j = use_j
+        # Iterations stuff
         self.step = 0
         self.debug = debug
         self.warm_up = warm_up
@@ -149,7 +162,7 @@ class PairedVAELoss(nn.Module):
     def slice_x(self, x):
         # Slices the vector values for the sequences and reconstructs (view) as 3 (Nx2D) tensors
         sequence = x[:, 0:self.seq_dim]
-        seq_b = sequence[:, :self.beta_dim] \
+        seq_b = sequence[:, :self.beta_dim]\
             .view(-1, self.max_len_b, self.aa_dim) if self.use_b else None
 
         seq_a = sequence[:, self.beta_dim:(self.beta_dim + self.alpha_dim)] \
@@ -162,17 +175,20 @@ class PairedVAELoss(nn.Module):
         v_gene = x[:, self.seq_dim:(self.seq_dim + self.v_dim)] if self.use_v else None
         j_gene = x[:, (self.seq_dim + self.v_dim):] if self.use_j else None
         # Here, returns the entire concatenated sequence ; Maybe it should be
-        return seq_b, seq_a, seq_pep, v_gene, j_gene
+        return (seq_b, seq_a, seq_pep), v_gene, j_gene
 
     def forward(self, x_hat, x, mu, logvar):
         # TODO:
         #     Here need to define slicing for x_hat into x_beta, x_alpha, x_pep
         #     Or should I just take the entire concatenated sequence vector ?
         #     Maybe not since I feel pep should have lower weight than alpha-beta chains
-        x_hat_seq, x_hat_v, x_hat_j = self.slice_x(x_hat)
-        x_true_seq, x_true_v, x_true_j = self.slice_x(x)
+        (x_hat_b, x_hat_a, x_hat_pep), x_hat_v, x_hat_j = self.slice_x(x_hat)
+        (x_true_b, x_true_a, x_true_pep), x_true_v, x_true_j = self.slice_x(x)
 
-        reconstruction_loss = self.weight_beta * self.sequence_criterion(x_hat_seq, x_true_seq)
+        loss_b = self.weight_beta * self.sequence_criterion(x_hat_b, x_true_b) if self.use_b else torch.empty([len(x),])
+        loss_a = self.weight_alpha * self.sequence_criterion(x_hat_a, x_true_a) if self.use_a else torch.empty([len(x),])
+        loss_pep = self.weight_pep * self.sequence_criterion(x_hat_pep, x_true_pep) if self.use_pep else torch.empty([len(x),])
+        reconstruction_loss = loss_a + loss_b + loss_pep
         if self.debug:
             print('seq_loss', reconstruction_loss)
         if self.use_v:
@@ -215,7 +231,8 @@ class PairedVAELoss(nn.Module):
 
 
 # NOTE : Fixed version with the true acc
-def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad_index=20, return_per_element=False):
+def reconstruction_accuracy(seq_true, seq_hat, v_true=None, v_hat=None,
+                            j_true=None, j_hat=None, pad_index=20, return_per_element=False):
     """
 
     Args:
@@ -250,21 +267,6 @@ def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat, pad
         j_accuracy = (
             (j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item() if j_hat is not None else 0
     return seq_accuracy, v_accuracy, j_accuracy
-
-
-# # NOTE: OLD VERSION WITH THE PADDING IN SEQ_ACC
-# def reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
-#                             return_per_element=False):
-#     # todo: Do accuracy with and without padding
-#     if return_per_element:
-#         seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1)).detach().cpu().tolist()
-#         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
-#         j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float()).detach().cpu().int().tolist()
-#     else:
-#         seq_accuracy = ((seq_true == seq_hat).float().mean(dim=1).mean(dim=0)).item()
-#         v_accuracy = ((v_true.argmax(dim=1) == v_hat.argmax(dim=1)).float().mean(dim=0)).item()
-#         j_accuracy = ((j_true.argmax(dim=1) == j_hat.argmax(dim=1)).float().mean(dim=0)).item()
-#     return seq_accuracy, v_accuracy, j_accuracy
 
 
 def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:

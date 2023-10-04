@@ -112,13 +112,13 @@ class CDR3bVAE(NetParent):
         return mu, logvar
 
     def decode(self, z):
-        x_hat = self.decoder(z)
-        x_hat = self.decoder_sequence(x_hat)
+        z = self.decoder(z)
+        x_hat = self.decoder_sequence(z)
         if self.use_v:
-            v = self.decoder_v(x_hat)
+            v = self.decoder_v(z)
             x_hat = torch.cat([x_hat, v], dim=1)
         if self.use_j:
-            j = self.decoder_j(x_hat)
+            j = self.decoder_j(z)
             x_hat = torch.cat([x_hat, j], dim=1)
         return x_hat
 
@@ -177,17 +177,34 @@ class CDR3bVAE(NetParent):
 
 class PairedFVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
-    def __init__(self, max_len_b=25, max_len_a=25, max_len_pep=12, encoding='BL50LO', pad_scale=-20, use_b=True,
-                 use_a=True, use_pep=False, use_v=True, use_j=True, aa_dim=20, v_dim=51, j_dim=13, activation=nn.SELU(),
-                 hidden_dim=128, latent_dim=32):
+    def __init__(self, max_len_b=23, max_len_a=24, max_len_pep=12, encoding='BL50LO', pad_scale=-20,
+                 use_b=True, use_a=True, use_pep=False, use_v=False, use_j=False,
+                 aa_dim=20, v_dim=51, j_dim=13,
+                 activation=nn.SELU(), hidden_dim=128, latent_dim=64):
         super(PairedFVAE, self).__init__()
-        # Init params that will be needed at some point for reconstruction
+        # Init dimensions
         v_dim = v_dim if use_v else 0
         j_dim = j_dim if use_j else 0
         b_dim = max_len_b * aa_dim if use_b else 0
         a_dim = max_len_a * aa_dim if use_a else 0
         pep_dim = max_len_pep * aa_dim if use_pep else 0
         input_dim = b_dim + a_dim + pep_dim + v_dim + j_dim
+        self.seq_dim = b_dim + a_dim + pep_dim
+        self.input_dim = input_dim
+        self.max_len_b = max_len_b if use_b else 0
+        self.use_b = use_b
+        self.max_len_a = max_len_a if use_a else 0
+        self.use_a = use_a
+        self.max_len_pep = max_len_pep if use_pep else 0
+        self.use_pep = use_pep
+        self.alpha_dim = a_dim
+        self.beta_dim = b_dim
+        self.pep_dim = pep_dim
+        self.aa_dim = aa_dim
+        self.v_dim = v_dim if use_v else 0
+        self.use_v = use_v
+        self.j_dim = j_dim if use_j else 0
+        self.use_j = use_j
         self.encoding = encoding
         if pad_scale is None:
             self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
@@ -196,22 +213,7 @@ class PairedFVAE(NetParent):
         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
         MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
         self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
-        self.seq_dim = b_dim + a_dim + pep_dim
-        self.input_dim = input_dim
-        self.max_len_b = max_len_b
-        self.use_b = use_b
-        self.max_len_a = max_len_a
-        self.use_a = use_a
-        self.max_len_pep = max_len_pep if use_pep else 0
-        self.use_pep = use_pep
-        self.alpha_dim = max_len_a * aa_dim if use_a else 0
-        self.beta_dim = max_len_b * aa_dim if use_b else 0
-        self.pep_dim = max_len_pep * aa_dim if use_pep else 0
-        self.aa_dim = aa_dim
-        self.v_dim = v_dim if use_v else 0
-        self.use_v = use_v
-        self.j_dim = j_dim if use_j else 0
-        self.use_j = use_j
+
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
         # TODO: For now, just use a fixed set of layers.
@@ -276,13 +278,13 @@ class PairedFVAE(NetParent):
         v_gene = x[:, self.seq_dim:(self.seq_dim + self.v_dim)] if self.use_v else None
         j_gene = x[:, (self.seq_dim + self.v_dim):] if self.use_j else None
         # Here, returns the entire concatenated sequence ; Maybe it should be
-        return seq_b, seq_a, seq_pep, v_gene, j_gene
+        return (seq_b, seq_a, seq_pep), v_gene, j_gene
 
     def reconstruct(self, z):
         with torch.no_grad():
             x_hat = self.decode(z)
             # Reconstruct and unflattens the sequence
-            seq_b, seq_a, seq_pep, v_gene, j_gene = self.slice_x(x_hat)
+            (seq_b, seq_a, seq_pep), v_gene, j_gene = self.slice_x(x_hat)
             return seq_b, seq_a, seq_pep, v_gene, j_gene
 
     def forward(self, x):
@@ -319,11 +321,12 @@ class PairedFVAE(NetParent):
         return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor)]
 
     def reconstruct_hat(self, x_hat):
-        seq_b, seq_a, seq_pep, v, j = self.slice_x(x_hat)
+        (seq_b, seq_a, seq_pep), v, j = self.slice_x(x_hat)
         seq_idx_b = self.recover_indices(seq_b) if self.use_b else torch.empty([len(x_hat),0])
         seq_idx_a = self.recover_indices(seq_a) if self.use_a else torch.empty([len(x_hat),0])
         seq_idx_pep = self.recover_indices(seq_pep) if self.use_pep else torch.empty([len(x_hat),0])
-        return seq_idx_b, seq_idx_a, seq_idx_pep, v, j
+        seq = torch.cat([seq_idx_b, seq_idx_a, seq_idx_pep], dim=1)
+        return seq, v, j
 
 
 # STANDARDIZERS

@@ -98,20 +98,20 @@ def train_model_step(model, criterion, optimizer, train_loader):
         acum_total_loss += loss.item() * x.shape[0]
         acum_recon_loss += recon_loss.item() * x.shape[0]
         acum_kld_loss += kld_loss.item() * x.shape[0]
-
-    # Concatenate the y_pred & y_true tensors and compute metrics
-    x_reconstructed, x_true = torch.cat(x_reconstructed), torch.cat(x_true)
-    seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
-    seq_true, v_true, j_true = model.reconstruct_hat(x_true)
-
-    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
-                                                                   pad_index=20)
     # Normalizes to loss per batch
     acum_total_loss /= len(train_loader.dataset)
     acum_recon_loss /= len(train_loader.dataset)
     acum_kld_loss /= len(train_loader.dataset)
+    # Concatenate the y_pred & y_true tensors and compute metrics
+    x_reconstructed, x_true = torch.cat(x_reconstructed), torch.cat(x_true)
+    # seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
+    # seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+    #
+    # seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
+    #                                                                pad_index=20)
+
     train_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss}
-    train_metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
+    train_metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False)
     return train_loss, train_metrics
 
 
@@ -131,30 +131,74 @@ def eval_model_step(model, criterion, valid_loader):
             acum_total_loss += loss.item() * x.shape[0]
             acum_recon_loss += recon_loss.item() * x.shape[0]
             acum_kld_loss += kld_loss.item() * x.shape[0]
-    # Concatenate the y_pred & y_true tensors and compute metrics
-    x_reconstructed, x_true = torch.cat(x_reconstructed), torch.cat(x_true)
-
-    seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
-    seq_true, v_true, j_true = model.reconstruct_hat(x_true)
-
-    seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
-                                                                   pad_index=20)
     # Normalizes to loss per batch
     acum_total_loss /= len(valid_loader.dataset)
     acum_recon_loss /= len(valid_loader.dataset)
     acum_kld_loss /= len(valid_loader.dataset)
+    # Concatenate the y_pred & y_true tensors and compute metrics
+    x_reconstructed, x_true = torch.cat(x_reconstructed), torch.cat(x_true)
+    # seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
+    # seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+    #
+    # seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
+    #                                                                pad_index=20)
+    # valid_metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
+
     valid_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss}
-    valid_metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
+    valid_metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False)
     return valid_loss, valid_metrics
 
 
-def predict_model(model, dataset: src.datasets.CDR3BetaDataset, dataloader: torch.utils.data.DataLoader):
+def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False):
+    x_reconstructed = torch.cat(x_reconstructed) if type(x_reconstructed) == list else x_reconstructed
+    x_true = torch.cat(x_true) if type(x_true) == list else x_true
+    seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
+    seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+    if not model.use_v:
+        v_hat, v_true = None, None
+    if not model.use_j:
+        j_hat, j_true = None, None
+
+    if all([hasattr(model, 'use_a'), hasattr(model, 'use_b'), hasattr(model, 'use_pep')]):
+        metrics = {}
+        mlb, mla, mlp = model.max_len_b, model.max_len_a, model.max_len_pep
+        b_hat, a_hat, pep_hat = seq_hat[:, :mlb], seq_hat[:, mlb:mlb + mla], seq_hat[:, mlb + mla:]
+        b_true, a_true, pep_true = seq_true[:, :mlb], seq_true[:, mlb:mlb + mla], seq_true[:, mlb + mla:]
+        v_accuracy, j_accuracy = 0, 0  # Pre-instantiate to 0
+        if model.use_a:
+            a_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(a_true, a_hat, v_true, v_hat, j_true, j_hat,
+                                                                         pad_index=20,
+                                                                         return_per_element=return_per_element)
+            metrics['a_accuracy'] = a_accuracy
+        if model.use_b:
+            b_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(b_true, b_hat, v_true, v_hat, j_true, j_hat,
+                                                                         pad_index=20,
+                                                                         return_per_element=return_per_element)
+            metrics['b_accuracy'] = b_accuracy
+        if model.use_pep:
+            pep_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(pep_true, pep_hat, v_true, v_hat, j_true,
+                                                                           j_hat,
+                                                                           pad_index=20,
+                                                                           return_per_element=return_per_element)
+            metrics['pep_accuracy'] = pep_accuracy
+        metrics['v_accuracy'] = v_accuracy
+        metrics['j_accuracy'] = j_accuracy
+
+    else:
+        seq_accuracy, v_accuracy, j_accuracy = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
+                                                                       pad_index=20,
+                                                                       return_per_element=return_per_element)
+        metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
+    return metrics
+
+
+def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.datasets.PairedDataset]), dataloader: torch.utils.data.DataLoader):
     assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
     model.eval()
     assert (model.use_v == dataset.use_v) and (
-                model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
+            model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
 
     df = dataset.df.reset_index(drop=True).copy()
     x_reconstructed, x_true, z_latent = [], [], []
@@ -169,32 +213,52 @@ def predict_model(model, dataset: src.datasets.CDR3BetaDataset, dataloader: torc
 
     x_reconstructed = torch.cat(x_reconstructed)
     x_true = torch.cat(x_true)
-    seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
-    seq_true, v_true, j_true = model.reconstruct_hat(x_true)
+    metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=True)
 
-    if not model.use_v:
-        v_hat = None
-    if not model.use_j:
-        j_hat = None
-
-    seq_acc, v_acc, j_acc = reconstruction_accuracy(seq_true, seq_hat, v_true, v_hat, j_true, j_hat,
-                                                    pad_index=20, return_per_element=True)
-
+    # slice_x for PairedFVAE now returns a tuple for the sequence (beta, alpha, pep)
     x_seq_recon, _, _ = model.slice_x(x_reconstructed)
     x_seq_true, _, _ = model.slice_x(x_true)
+    # TODO: think of a better way to do this...
+    if all([hasattr(model, 'use_a'), hasattr(model, 'use_b'), hasattr(model, 'use_pep')]):
+        x_b_recon, x_a_recon, x_pep_recon = x_seq_recon
+        x_b_true, x_a_true, x_pep_true = x_seq_true
+        if model.use_b:
+            df['b_acc'] = metrics['b_accuracy']
+            df['b_hat_reconstructed'] = model.recover_sequences_blosum(x_b_recon)
+            df['b_true_reconstructed'] = model.recover_sequences_blosum(x_b_true)
+            df['n_errors_b'] = df.apply(
+                lambda x: sum([c1 != c2 for c1, c2 in zip(x['b_hat_reconstructed'], x['b_true_reconstructed'])]),
+                axis=1)
+        if model.use_a:
+            df['a_acc'] = metrics['a_accuracy']
+            df['a_hat_reconstructed'] = model.recover_sequences_blosum(x_a_recon)
+            df['a_true_reconstructed'] = model.recover_sequences_blosum(x_a_true)
+            df['n_errors_a'] = df.apply(
+                lambda x: sum([c1 != c2 for c1, c2 in zip(x['a_hat_reconstructed'], x['a_true_reconstructed'])]),
+                axis=1)
+        if model.use_pep:
+            df['pep_acc'] = metrics['pep_accuracy']
+            df['pep_hat_reconstructed'] = model.recover_sequences_blosum(x_pep_recon)
+            df['pep_true_reconstructed'] = model.recover_sequences_blosum(x_pep_true)
+            df['n_errors_pep'] = df.apply(
+                lambda x: sum([c1 != c2 for c1, c2 in zip(x['pep_hat_reconstructed'], x['pep_true_reconstructed'])]),
+                axis=1)
 
-    seq_hat_reconstructed = model.recover_sequences_blosum(x_seq_recon)
-    seq_true_reconstructed = model.recover_sequences_blosum(x_seq_true)
-    df['hat_reconstructed'] = seq_hat_reconstructed
-    df['true_reconstructed'] = seq_true_reconstructed
-    df['seq_acc'] = seq_acc
+
+    else:
+        df['seq_acc'] = metrics['seq_accuracy']
+        seq_hat_reconstructed = model.recover_sequences_blosum(x_seq_recon)
+        seq_true_reconstructed = model.recover_sequences_blosum(x_seq_true)
+        df['hat_reconstructed'] = seq_hat_reconstructed
+        df['true_reconstructed'] = seq_true_reconstructed
+        df['n_errors_seq'] = df.apply(
+            lambda x: sum([c1 != c2 for c1, c2 in zip(x['hat_reconstructed'], x['true_reconstructed'])]), axis=1)
+
     if model.use_v:
-        df['v_correct'] = v_acc
+        df['v_correct'] = metrics['v_accuracy']
     if model.use_j:
-        df['j_correct'] = j_acc
+        df['j_correct'] = metrics['j_accuracy']
 
-    df['n_errors_seq'] = df.apply(
-        lambda x: sum([c1 != c2 for c1, c2 in zip(x['hat_reconstructed'], x['true_reconstructed'])]), axis=1)
     z_latent = torch.cat(z_latent).detach()
     df[[f'z_{i}' for i in range(z_latent.shape[1])]] = z_latent
     return df
@@ -238,6 +302,13 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
     best_val_loss, best_val_reconstruction, best_epoch = 1000, 0., 1
     best_val_losses, best_val_metrics = {}, {}
+    # To normalize the mean accuracy thing depending on the amount of different metrics we are using
+    divider = int(model.use_v) + int(model.use_j)
+    if all([hasattr(model, 'use_a'), hasattr(model, 'use_b'), hasattr(model, 'use_pep')]):
+        divider += (int(model.use_b) + int(model.use_a) + int(model.use_pep))
+    else:
+        divider += 1
+
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_model_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_model_step(model, criterion, valid_loader)
@@ -246,18 +317,29 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         train_losses.append(train_loss)
         valid_losses.append(valid_loss)
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
-            tqdm.write(
-                f'\nEpoch {e}: train recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{train_loss["reconstruction"]:.4f},\t{train_loss["kld"]:.4f}\t{train_metric["seq_accuracy"]:.3f}, \t{train_metric["v_accuracy"]:.3f}, \t{train_metric["j_accuracy"]:.3f}')
-            tqdm.write(
-                f'Epoch {e}: valid recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{valid_loss["reconstruction"]:.4f},\t{valid_loss["kld"]:.4f}\t{valid_metric["seq_accuracy"]:.3f}, \t{valid_metric["v_accuracy"]:.3f}, \t{valid_metric["j_accuracy"]:.3f}')
+            train_loss_text = f'Train: Epoch {e}\nLoss:\tReconstruction: {train_loss["reconstruction"]:.4f}\tKLD: {train_loss["kld"]:.4f}'
+            train_metrics_text = 'Accs:\t' + ',\t'.join(
+                [f"{k.replace('accuracy', 'acc')}:{v:.2%}" for k, v in train_metric.items()])
+            train_text = '\n'.join([train_loss_text, train_metrics_text])
+            valid_loss_text = f'Valid: Epoch {e}\nLoss:\tReconstruction: {valid_loss["reconstruction"]:.4f}\tKLD: {valid_loss["kld"]:.4f}'
+            valid_metrics_text = 'Accs:\t' + ',\t'.join(
+                [f"{k.replace('accuracy', 'acc')}:{v:.2%}" for k, v in valid_metric.items()])
+            valid_text = '\n'.join([valid_loss_text, valid_metrics_text])
+            tqdm.write(train_text)
+            tqdm.write(valid_text)
+            # tqdm.write(
+            #     f'\nEpoch {e}: train recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{train_loss["reconstruction"]:.4f},\t{train_loss["kld"]:.4f}'
+            #     f'\t{train_metric["seq_accuracy"]:.3f}, \t{train_metric["v_accuracy"]:.3f}, \t{train_metric["j_accuracy"]:.3f}')
+            # tqdm.write(
+            #     f'Epoch {e}: valid recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{valid_loss["reconstruction"]:.4f},\t{valid_loss["kld"]:.4f}\t{valid_metric["seq_accuracy"]:.3f}, \t{valid_metric["v_accuracy"]:.3f}, \t{valid_metric["j_accuracy"]:.3f}')
 
         # Doesn't allow saving the very first model as sometimes it gets stuck in a random state that has good.
         # Here, will take the best overall reconstruction (mean for seq, V, and J because V reconstruction somehow gets stuck at some low values
-        divider = int(model.use_v) + int(model.use_j) + 1
-        mean_accuracy = np.sum(
-            [valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']]) / divider
-        if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and mean_accuracy > best_val_reconstruction) \
-                      or mean_accuracy > best_val_reconstruction):
+
+        # mean_accuracy = np.sum([valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']]) / divider
+        mean_accuracy = np.sum([x for x in valid_metric.values()]) / divider
+
+        if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and mean_accuracy > best_val_reconstruction) or mean_accuracy > best_val_reconstruction):
             # Getting the individual components for asserts
             best_epoch = e
             best_val_loss = valid_loss['total']
@@ -266,17 +348,20 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_val_losses = valid_loss
             best_val_metrics = valid_metric
 
-            best_dict = {'Best epoch': best_epoch, 'Valid loss':valid_loss}
+            best_dict = {'Best epoch': best_epoch, 'Valid loss': valid_loss}
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
             print(best_dict)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
     print(f'End of training cycles')
+    best_train_reconstruction = max([np.sum([x for x in z.values()]) / divider for z in train_metrics])
+
     print(f'Best train loss:\t{min([x["total"] for x in train_losses]):.3e}'
-          f'Best train reconstruction Acc:\t{max([x["seq_accuracy"] for x in train_metrics])}')
+          # f'Best train reconstruction Acc:\t{max([x["seq_accuracy"] for x in train_metrics])}')
+          f'Best train reconstruction Acc:\t{best_train_reconstruction:.3%}')
     print(f'Best valid epoch: {best_epoch}')
-    print(f'Best valid loss :\t{best_val_loss:.3e}, best valid mean reconstruction acc:\t{best_val_reconstruction}')
+    print(f'Best valid loss :\t{best_val_loss:.3e}, best valid mean reconstruction acc:\t{best_val_reconstruction:.3%}')
     # print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
     model = load_checkpoint(model, checkpoint_filename, outdir)
     model.eval()

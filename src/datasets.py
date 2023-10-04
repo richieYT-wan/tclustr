@@ -69,7 +69,7 @@ class PairedDataset(Dataset):
     """
 
     def __init__(self, df, max_len_b=23, max_len_a=24, max_len_pep=12, encoding='BL50LO', pad_scale=None,
-                 cdr3b_col='B3', cdr3a_col='A3', use_b=True, use_a=True, use_pep=True, use_v=False, use_j=False,
+                 cdr3b_col='TRB_CDR3', cdr3a_col='TRA_CDR3', pep_col='peptide', use_b=True, use_a=True, use_pep=True, use_v=False, use_j=False,
                  v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP):
         super(PairedDataset, self).__init__()
         self.max_len_b = max_len_b
@@ -87,16 +87,17 @@ class PairedDataset(Dataset):
 
         self.v_dim = v_dim
         self.j_dim = j_dim
-        df['len_b'] = df[cdr3b_col].apply(len)
-        df['len_a'] = df[cdr3a_col].apply(len)
-        df = df.query('len_b<=@max_len_b and len_a<=@max_len_a')
+        df['len_b'] = df[cdr3b_col].apply(len) if use_b else 0
+        df['len_a'] = df[cdr3a_col].apply(len) if use_a else 0
+        df['len_pep'] = df[pep_col].apply(len) if use_pep else 0
+        df = df.query('len_b<=@max_len_b and len_a<=@max_len_a and len_pep<=@max_len_pep')
         self.df = df
         # Only get sequences, no target because unsupervised learning, flattened to concat to classes
         x_b = encode_batch(df[cdr3b_col], max_len_b, encoding, pad_scale).flatten(start_dim=1) if use_b \
               else torch.empty([len(df), 0])
         x_a = encode_batch(df[cdr3a_col], max_len_a, encoding, pad_scale).flatten(start_dim=1) if use_a \
               else torch.empty([len(df), 0])
-        x_pep = encode_batch(df['peptide'], max_len_pep, encoding, pad_scale).flatten(start_dim=1) if use_pep \
+        x_pep = encode_batch(df[pep_col], max_len_pep, encoding, pad_scale).flatten(start_dim=1) if use_pep \
                 else torch.empty([len(df), 0])
         x = torch.cat([x_b, x_a, x_pep], dim=1)
         if use_v:
