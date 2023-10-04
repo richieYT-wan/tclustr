@@ -120,7 +120,9 @@ class PairedVAELoss(nn.Module):
         weight_j = weight_j if use_j else 0
         self.norm_factor = weight_beta + weight_alpha + weight_pep + weight_v + weight_j + weight_kld
         self.sequence_criterion = sequence_criterion
-        self.max_len = max_len_b
+        self.max_len_b = max_len_b
+        self.max_len_a = max_len_a
+        self.max_len_pep = max_len_pep
         self.aa_dim = aa_dim
         self.use_b = use_b
         self.use_a = use_a
@@ -131,6 +133,8 @@ class PairedVAELoss(nn.Module):
         self.j_dim = j_dim if use_j else 0
 
         self.weight_beta = weight_beta / self.norm_factor
+        self.weight_alpha = weight_alpha / self.norm_factor
+        self.weight_pep = weight_pep / self.norm_factor
         self.weight_v = weight_v / self.norm_factor
         self.weight_j = weight_j / self.norm_factor
         self.base_weight_kld = weight_kld / self.norm_factor
