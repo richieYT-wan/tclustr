@@ -185,9 +185,9 @@ class PairedVAELoss(nn.Module):
         (x_hat_b, x_hat_a, x_hat_pep), x_hat_v, x_hat_j = self.slice_x(x_hat)
         (x_true_b, x_true_a, x_true_pep), x_true_v, x_true_j = self.slice_x(x)
 
-        loss_b = self.weight_beta * self.sequence_criterion(x_hat_b, x_true_b) if self.use_b else torch.empty([len(x),])
-        loss_a = self.weight_alpha * self.sequence_criterion(x_hat_a, x_true_a) if self.use_a else torch.empty([len(x),])
-        loss_pep = self.weight_pep * self.sequence_criterion(x_hat_pep, x_true_pep) if self.use_pep else torch.empty([len(x),])
+        loss_b = self.weight_beta * self.sequence_criterion(x_hat_b, x_true_b) if self.use_b else 0
+        loss_a = self.weight_alpha * self.sequence_criterion(x_hat_a, x_true_a) if self.use_a else 0
+        loss_pep = self.weight_pep * self.sequence_criterion(x_hat_pep, x_true_pep) if self.use_pep else 0
         reconstruction_loss = loss_a + loss_b + loss_pep
         if self.debug:
             print('seq_loss', reconstruction_loss)
