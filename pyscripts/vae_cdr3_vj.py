@@ -129,6 +129,8 @@ def main():
     args['use_j'] = False if args['j_col'] == "None" else True
     args['v_dim'] = 51
     args['j_dim'] = 13
+    args['add_pep'] = False
+    args['max_pep_len'] = 0
     if args['log_wandb']:
         wandb.login()
     # File-saving stuff
