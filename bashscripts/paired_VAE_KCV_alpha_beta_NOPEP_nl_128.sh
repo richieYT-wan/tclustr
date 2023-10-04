@@ -14,7 +14,7 @@ first_char="${characters:index:1}"
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_string="${first_char}${rest_chars}"
-outname="AlphaBetaPep_NL100_WD1e-4"
+outname="AlphaBeta_NOPEP_NL128_WD1e-4"
 
 
 for f in $(seq 0 4);
@@ -28,7 +28,7 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
 cd \${PYDIR}
-python3 ./paired_vae_cdr3_vj_pep.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -mlb 25 -mla 24 -mlp 12 -ne 10000 -lwb 2 -lwa 2 -lwp 1 -lwkld 1.5 -cdr3b "TRB_CDR3" -cdr3a "TRA_CDR3" -pep "peptide" -v "None" -j "None" -nl 100 -nh 200 -lr 7.5e-4 -wd 1e-4 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+python3 ./paired_vae_cdr3_vj_pep.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -mlb 25 -mla 24 -mlp 12 -ne 20000 -lwb 2 -lwa 2 -lwp 0 -lwkld 1.5 -cdr3b "TRB_CDR3" -cdr3a "TRA_CDR3" -pep "None" -v "None" -j "None" -nl 128 -nh 256 -lr 7.5e-4 -wd 1e-4 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
 EOF
 )
                               # Write the script content to a file
