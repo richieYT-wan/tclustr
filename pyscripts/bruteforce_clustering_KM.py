@@ -75,26 +75,6 @@ def bruteforce(n_clusters, ODIR, z_train_30k, z_valid_30k, z_gil_30k, train_pred
     gil_summary.to_csv(f'{ODIR}gil_summary_{name}.csv')
     gil_df.to_csv(f'{ODIR}gil_df_{name}.csv')
 
-    for kernel in tqdm(['rbf', 'laplacian', 'cosine'], desc='sc kernel', position=1, leave=False):
-        sc = SpectralClustering(n_clusters, affinity=kernel, n_init=30, random_state=13, n_jobs=1)
-        clusters = sc.fit_predict(np.concatenate([z_train_30k, z_valid_30k, z_gil_30k], axis=0))
-        train_clusters = clusters[:len(z_train_30k)]
-        valid_clusters = clusters[len(z_train_30k): len(z_train_30k) + len(z_valid_30k)]
-        gil_clusters = clusters[len(z_train_30k) + len(z_valid_30k):]
-        name = f'SC_{kernel}_n{n_clusters:02}'
-        train_preds_30k[name] = train_clusters
-        valid_preds_30k[name] = valid_clusters
-        gil_preds_30k[name] = gil_clusters
-        train_summary, train_df = get_cluster_stats(train_preds_30k, name, 'peptide', 'z_1', kf=False)
-        valid_summary, valid_df = get_cluster_stats(valid_preds_30k, name, 'peptide', 'z_1', kf=False)
-        gil_summary, gil_df = get_cluster_stats(gil_preds_30k, name, 'peptide', 'z_1', kf=False)
-        train_summary.to_csv(f'{ODIR}train_summary_{name}.csv')
-        train_df.to_csv(f'{ODIR}train_df_{name}.csv')
-        valid_summary.to_csv(f'{ODIR}valid_summary_{name}.csv')
-        valid_df.to_csv(f'{ODIR}valid_df_{name}.csv')
-        gil_summary.to_csv(f'{ODIR}gil_summary_{name}.csv')
-        gil_df.to_csv(f'{ODIR}gil_df_{name}.csv')
-
 start =dt.now()
 train_preds_30k = pd.read_csv('/home/projects/vaccine/people/yatwan/tclustr/data/preds_30k/train_preds_30k.csv')
 valid_preds_30k = pd.read_csv('/home/projects/vaccine/people/yatwan/tclustr/data/preds_30k/valid_preds_30k.csv')

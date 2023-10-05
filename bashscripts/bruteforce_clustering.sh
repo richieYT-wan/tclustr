@@ -4,4 +4,5 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
 cd ${PYDIR}
 
-python3 bruteforce_clustering.py
+python3 bruteforce_clustering_KM.py
+python3 bruteforce_clustering_SC.py
