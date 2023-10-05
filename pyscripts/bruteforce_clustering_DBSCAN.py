@@ -69,6 +69,19 @@ def bruteforce(eps, metric, ODIR, z_train_30k, z_valid_30k, z_gil_30k, train_pre
     train_summary, train_df = get_cluster_stats(train_preds_30k, name, 'peptide', 'z_1', kf=False)
     valid_summary, valid_df = get_cluster_stats(valid_preds_30k, name, 'peptide', 'z_1', kf=False)
     gil_summary, gil_df = get_cluster_stats(gil_preds_30k, name, 'peptide', 'z_1', kf=False)
+
+    train_summary['metric'] = f'DBSCAN{metric}'
+    train_summary['hp'] = eps
+    train_df['metric'] = f'DBSCAN{metric}'
+    train_df['hp'] = eps
+    valid_summary['metric'] = f'DBSCAN{metric}'
+    valid_summary['hp'] = eps
+    valid_df['metric'] = f'DBSCAN{metric}'
+    valid_df['hp'] = eps
+    gil_summary['metric'] = f'DBSCAN{metric}'
+    gil_summary['hp'] = eps
+    gil_df['metric'] = f'DBSCAN{metric}'
+    gil_df['hp'] = eps
     train_summary.to_csv(f'{ODIR}train_summary_{name}.csv')
     train_df.to_csv(f'{ODIR}train_df_{name}.csv')
     valid_summary.to_csv(f'{ODIR}valid_summary_{name}.csv')

@@ -70,6 +70,18 @@ def bruteforce(n_clusters, ODIR, z_train_30k, z_valid_30k, z_gil_30k, train_pred
         train_summary, train_df = get_cluster_stats(train_preds_30k, name, 'peptide', 'z_1', kf=False)
         valid_summary, valid_df = get_cluster_stats(valid_preds_30k, name, 'peptide', 'z_1', kf=False)
         gil_summary, gil_df = get_cluster_stats(gil_preds_30k, name, 'peptide', 'z_1', kf=False)
+        train_summary['metric'] = f'SC_{kernel}'
+        train_summary["hp"]=n_clusters
+        train_df['metric'] = f'SC_{kernel}'
+        train_df["hp"]=n_clusters
+        valid_summary['metric'] = f'SC_{kernel}'
+        valid_summary["hp"]=n_clusters
+        valid_df['metric'] = f'SC_{kernel}'
+        valid_df["hp"]=n_clusters
+        gil_summary['metric'] = f'SC_{kernel}'
+        gil_summary["hp"]=n_clusters
+        gil_df['metric'] = f'SC_{kernel}'
+        gil_df["hp"]=n_clusters
         train_summary.to_csv(f'{ODIR}train_summary_{name}.csv')
         train_df.to_csv(f'{ODIR}train_df_{name}.csv')
         valid_summary.to_csv(f'{ODIR}valid_summary_{name}.csv')
