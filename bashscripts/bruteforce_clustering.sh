@@ -5,4 +5,6 @@ PYDIR=${HOMEDIR}pyscripts/
 cd ${PYDIR}
 
 python3 bruteforce_clustering_KM.py
+python3 bruteforce_clustering_DBSCAN.py
+
 python3 bruteforce_clustering_SC.py
