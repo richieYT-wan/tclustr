@@ -196,7 +196,7 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
     assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
-    model.eval()
+    # model.eval()
     assert (model.use_v == dataset.use_v) and (
             model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
 

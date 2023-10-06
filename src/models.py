@@ -98,12 +98,15 @@ class CDR3bVAE(NetParent):
         self.decoder_v = nn.Linear(hidden_dim, self.v_dim) if use_v else None
         self.decoder_j = nn.Linear(hidden_dim, self.j_dim) if use_j else None
 
-    @staticmethod
-    def reparameterise(mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
-        z = (epsilon * std) + mu
-        return z
+    def reparameterise(self, mu, logvar):
+        # During training, the reparameterisation leads to z = mu + std * eps
+        # During evaluation, the trick is disabled and z = mu
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+            return (epsilon * std) + mu
+        else:
+            return mu
 
     def encode(self, x):
         mu_logvar = self.encoder(x.flatten(start_dim=1))
