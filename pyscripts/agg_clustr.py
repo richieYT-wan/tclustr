@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.cluster import AgglomerativeClustering, HDBSCAN
+from sklearn.cluster import AgglomerativeClustering
 import os, sys, pickle
 from joblib import Parallel, delayed
 from functools import partial
