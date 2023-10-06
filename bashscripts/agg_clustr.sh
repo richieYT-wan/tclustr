@@ -1,0 +1,8 @@
+#! /usr/bin/bash
+
+source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+source activate pynn
+
+HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
+PYDIR=${HOMEDIR}pyscripts/
+python3 agg_clustr.py

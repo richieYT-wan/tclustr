@@ -7,7 +7,6 @@ from functools import partial
 from tqdm.auto import tqdm
 from sklearn.manifold import TSNE
 from sklearn.cluster import *
-from src.train_eval import predict_model
 
 
 def get_cluster_stats(input_df, cluster='KMeans_Cluster', label='GroundTruth', feature='TSNE_1', kf=True):
