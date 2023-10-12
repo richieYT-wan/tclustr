@@ -184,9 +184,7 @@ def main():
                     ag = AgglomerativeClustering(metric='precomputed', linkage=linkage, n_clusters=n_clusters,
                                                  distance_threshold=None, compute_distances=True)
                     pred_clusters = ag.fit_predict(dist_matrix.drop(columns=['labels', 'ids', 'set']))
-                    labels = cat['labels'].values
-                    ids = cat['ids'].values
-                    sets = cat['set'].values
+
                     ag_df = pd.DataFrame(np.stack([dist_matrix.index, pred_clusters, labels, ids, sets], axis=1),
                                          columns=['TRB_CDR3', 'pred_cluster', 'labels', 'ids', 'set'])
                     ag_df = pd.merge(cat.rename(columns={'seq_id': 'ids'}), ag_df,
