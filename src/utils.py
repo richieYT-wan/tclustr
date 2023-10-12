@@ -17,7 +17,6 @@ def get_dict_of_lists(list_of_dicts, name):
     return {f'{name}_{key}': [d[key] for d in list_of_dicts] for key in list_of_dicts[0]}
 
 
-
 def get_motif(row, seq_col, window_size):
     return row[seq_col][int(row['core_start_index']):int(row['core_start_index']) + window_size]
 
@@ -62,13 +61,23 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palett
     # plotting each component of the loss.
     # Should be 3 elements for each dict (total/recon/kld) and (seq/v/j)
     # Reformatting the list of dicts into dicts of lists:
+    best_val_loss_epoch = -1
+    best_val_accs_epoch = -1
     for k, v in losses_dict.items():
-        if len(v)==0 or all([val==0 for val in v]): continue
+        if len(v) == 0 or all([val == 0 for val in v]): continue
         a[0].plot(v[warm_up:], label=k)
+        if k == 'valid_total':
+            best_val_loss_epoch = v[k].index(min(v[k]))
     for k, v in accs_dict.items():
-        if len(v)==0 or all([val==0 for val in v]): continue
+        if len(v) == 0 or all([val == 0 for val in v]): continue
         a[1].plot(v[warm_up:], label=k)
+        if k == 'valid_seq_accuracy' or k == 'valid_b_accuracy':
+            best_val_accs_epoch = v[k].index(min(v[k]))
     a[0].set_ylim([0, 1])
+    a[0].axvline(x=best_val_loss_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
+                 c='k', label=f'Best loss epoch {best_val_loss_epoch}')
+    a[1].axvline(x=best_val_accs_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
+                 c='k', label=f'Best loss epoch {best_val_accs_epoch}')
     a[1].set_ylim([0.5, 1.1])
     a[0].set_title('Losses')
     a[1].set_title('Accuracies')

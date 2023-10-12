@@ -70,6 +70,7 @@ files = [f'{DATADIR}{x}' for x in os.listdir(DATADIR)]
 os.makedirs(OUTDIR, exist_ok=True)
 
 
+
 for linkage in ['average', 'complete', 'single']:
     for file in files:
         latent_kind = file.split('cat_')[1].split('.csv')[0]
@@ -83,7 +84,8 @@ for linkage in ['average', 'complete', 'single']:
         sets = df['set'].values        
         ag = AgglomerativeClustering(metric='precomputed', linkage=linkage, n_clusters=n_clusters, distance_threshold=None, compute_distances=True)
         pred_clusters = ag.fit_predict(input_matrix)
-        ag_df = pd.DataFrame(np.stack([input_matrix.index, pred_clusters, labels, ids, sets], axis=1), columns = ['TRB_CDR3', 'pred_cluster', 'labels', 'ids', 'set'])
+        ag_df = pd.DataFrame(np.stack([input_matrix.index, pred_clusters, labels, ids, sets], axis=1),
+                             columns = ['TRB_CDR3', 'pred_cluster', 'labels', 'ids', 'set'])
         ag_df = pd.merge(base_df.rename(columns={'seq_id':'ids'}), ag_df, left_on=['TRB_CDR3', 'labels', 'ids', 'set'], right_on = ['TRB_CDR3', 'labels', 'ids', 'set'])
         summary = get_cluster_stats(ag_df, cluster='pred_cluster', label='labels', feature='TRB_CDR3', kf=False)[0]
         pkl_dump(f'{OUTDIR}{savename}_model.pkl')

@@ -5,4 +5,5 @@ source activate pynn
 
 HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
-python3 agg_clustr.py
+cd ${PYDIR}
+python3 ./agg_clustr.py
