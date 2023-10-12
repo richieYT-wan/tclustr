@@ -184,8 +184,8 @@ def main():
                     ag = AgglomerativeClustering(metric='precomputed', linkage=linkage, n_clusters=n_clusters,
                                                  distance_threshold=None, compute_distances=True)
                     pred_clusters = ag.fit_predict(dist_matrix.drop(columns=['labels', 'ids', 'set']))
-
-                    ag_df = pd.DataFrame(np.stack([dist_matrix.index, pred_clusters, labels, ids, sets], axis=1),
+                    pred_clusters = np.expand_dims(pred_clusters, 1)
+                    ag_df = pd.DataFrame(np.stack([np.expand_dims(dist_matrix.index,1), pred_clusters, labels, ids, sets], axis=1).squeeze(2),
                                          columns=['TRB_CDR3', 'pred_cluster', 'labels', 'ids', 'set'])
                     ag_df = pd.merge(cat.rename(columns={'seq_id': 'ids'}), ag_df,
                                      left_on=['TRB_CDR3', 'labels', 'ids', 'set'],
@@ -196,11 +196,11 @@ def main():
                     summary['linkage'] = linkage
                     summary['nc'] = n_clusters
                     summary['basename'] = basename
-                    gs_df = get_good_clusters(summary, percent=75, size=4).dropna() \
+                    gs_df = get_good_summary(summary, purity_threshold=75, size_threshold=4).dropna() \
                         .sort_values(['n_total_tcrs', 'mean_purity'], ascending=False).reset_index()
                     gs_df['nc'] = n_clusters
                     gs_df['retention'] = gs_df['n_total_tcrs'] / len(cat)
-                    gs_df['agg_metric'] = .5 * (gs_df['retention'] + gs_df['mean_purity'])
+                    gs_df['agg_metric'] = .5 * (gs_df['retention'] + gs_df['mean_purity']/100)
                     if gs_df['agg_metric'].item() > best_metric:
                         best_df = ag_df
                         best_summ = summary
