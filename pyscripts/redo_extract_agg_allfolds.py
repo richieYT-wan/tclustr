@@ -228,7 +228,8 @@ def main():
 
         a[0].set_title('Train : Predicted clusters', fontsize=24, fontweight='semibold')
         a[1].set_title('Train : Ground Truth', fontsize=24, fontweight='semibold')
-
+        a[0].legend('', frameon=False)
+        a[1].legend(bbox_to_anchor=(1.2, 1))
         f.suptitle(f'TRAIN: fold={i}t-SNE Visualization with K-Means Clusters on Latent (d=64) ; Only TRB_CDR3\n'
                    f'using {best_gs.index}',
                    fontsize=26, fontweight='semibold')
@@ -249,7 +250,8 @@ def main():
 
         a[0].set_title('Train : Predicted clusters', fontsize=24, fontweight='semibold')
         a[1].set_title('Train : Ground Truth', fontsize=24, fontweight='semibold')
-
+        a[0].legend('', frameon=False)
+        a[1].legend(bbox_to_anchor=(1.2, 1))
         f.suptitle(f'VALID: fold={i}\nt-SNE Visualization with K-Means Clusters on Latent (d=64) ; Only TRB_CDR3\n'
                    f'using {best_gs.index}',
                    fontsize=26, fontweight='semibold')
