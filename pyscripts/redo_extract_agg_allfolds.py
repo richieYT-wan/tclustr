@@ -40,12 +40,12 @@ def args_parser():
     """
     parser.add_argument('-d', '--dir', dest='dir', required=False,
                         default='/home/projects/vaccine/people/yatwan/tclustr/output/30K_epochs_OnlyPositivesFullCDR3b_LowerDim_64_WD_1e-4_EDHpH/',
-                        type=str2bool, help='directory containing all 5 folds sub-directories')
+                        type=str, help='directory containing all 5 folds sub-directories')
     parser.add_argument('-f', '--file', dest='file', required=False,
                         default='/home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv',
-                        type=str2bool, help='train file')
+                        type=str, help='train file')
     parser.add_argument('-o', '--outdir', dest='outdir', required=False,
-                        default='/home/projects/vaccine/people/yatwan/tclustr/output/231012_redo_clusters/')
+                        type=str, default='/home/projects/vaccine/people/yatwan/tclustr/output/231012_redo_clusters/')
 
     return parser.parse_args()
 
@@ -154,10 +154,10 @@ def main():
         model = CDR3bVAE(max_len, encoding, pad_scale, aa_dim, use_v, use_j, v_dim, j_dim, activation, hidden_dim,
                          latent_dim, max_len_pep)
         model = load_checkpoint(model, checkpoint)
-        train_dataset = CDR3BetaDataset(train, max_len, encoding, pad_scale, 'CDR3b', use_v, use_j, None, None,
+        train_dataset = CDR3BetaDataset(train, max_len, encoding, pad_scale, 'TRB_CDR3', use_v, use_j, None, None,
                                         v_dim, j_dim, None, None, False, max_len_pep)
         train_loader = train_dataset.get_dataloader(1024, SequentialSampler)
-        valid_dataset = CDR3BetaDataset(valid, max_len, encoding, pad_scale, 'CDR3b', use_v, use_j, None, None,
+        valid_dataset = CDR3BetaDataset(valid, max_len, encoding, pad_scale, 'TRB_CDR3', use_v, use_j, None, None,
                                         v_dim, j_dim, None, None, False, max_len_pep)
         valid_loader = valid_dataset.get_dataloader(1024, SequentialSampler)
         train_preds = predict_model(model, train_dataset, train_loader).assign(set='train')
@@ -270,5 +270,6 @@ def main():
 
 
 
-
+if __name__=='__main__':
+    main()
 
