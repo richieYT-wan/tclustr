@@ -82,16 +82,8 @@ class CDR3bVAE(NetParent):
                                      nn.Linear(input_dim // 2, hidden_dim), activation)
         self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
         self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
-        # TODO: Maybe split the decoder into parts for seq, v, j and also update behaviour in forward etc.
-        # Decoder: latent (z) -> hidden -> in // 2 -> in
-        # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-        #                              nn.Linear(hidden_dim, input_dim //2), activation,
-        #                              nn.Linear(input_dim // 2, input_dim))
-
         self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
                                      nn.Linear(hidden_dim, hidden_dim), activation)
-        # nn.Linear(input_dim // 2, input_dim))
-
         self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
                                               nn.Linear(input_dim // 2, input_dim - self.v_dim - self.j_dim))
 
@@ -125,6 +117,12 @@ class CDR3bVAE(NetParent):
             x_hat = torch.cat([x_hat, j], dim=1)
         return x_hat
 
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        x_hat = self.decode(z)
+        return x_hat, mu, logvar
+
     def slice_x(self, x):
         sequence = x[:, 0:(self.max_len * self.aa_dim)].view(-1, self.max_len, self.aa_dim)
         # Reconstructs the v/j gene as one hot vectors
@@ -138,13 +136,6 @@ class CDR3bVAE(NetParent):
             # Reconstruct and unflattens the sequence
             sequence, v_gene, j_gene = self.slice_x(x_hat)
             return sequence, v_gene, j_gene
-
-    def forward(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterise(mu, logvar)
-        x_hat = self.decode(z)
-        return x_hat, mu, logvar
-
     def embed(self, x):
         mu, logvar = self.encode(x)
         z = self.reparameterise(mu, logvar)

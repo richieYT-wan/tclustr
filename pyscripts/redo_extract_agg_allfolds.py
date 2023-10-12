@@ -10,24 +10,14 @@ module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import argparse
-import copy
-import torch
-from torch import optim
 from torch import nn
-from torch.utils.data import RandomSampler, SequentialSampler
-from datetime import datetime as dt
-from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
-    get_dict_of_lists
+from torch.utils.data import SequentialSampler
 from src.torch_utils import load_checkpoint
 from src.models import CDR3bVAE
-from src.train_eval import predict_model, train_eval_loops
+from src.train_eval import predict_model
 from src.datasets import CDR3BetaDataset
-from src.metrics import VAELoss, get_metrics
-from sklearn.metrics import roc_auc_score, precision_score
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.manifold import TSNE
-import colorcet as cc
-from src.utils import get_palette
 from matplotlib import pyplot as plt
 import seaborn as sns
 
@@ -147,8 +137,8 @@ def main():
     max_len_pep = 0
     aa_dim = 20
     for i, fd in enumerate(fold_dirs):
-        basename = os.path.basename(fd)
         checkpoint = f"{fd}{next(filter(lambda x: 'checkpoint' in x and x.endswith('.pt'), os.listdir(fd)))}"
+        basename = fd.split('/')[-1].replace('/','')
         train = df.query('partition!=@i')
         valid = df.query('partition==@i')
         model = CDR3bVAE(max_len, encoding, pad_scale, aa_dim, use_v, use_j, v_dim, j_dim, activation, hidden_dim,
@@ -205,9 +195,9 @@ def main():
                         best_df = ag_df
                         best_summ = summary
                         best_gs = gs_df
-                    ag_df.to_csv(f'{fd}{basename}_ag_df.csv')
-                    summary.to_csv(f'{fd}{basename}_summary_df.csv')
-                    gs_df.to_csv(f'{fd}{basename}_good_df.csv')
+                    ag_df.to_csv(f'{fd}{basename}_{distance}_{linkage}_{n_clusters:04}_ag_df.csv')
+                    summary.to_csv(f'{fd}{basename}_{distance}_{linkage}_{n_clusters:04}_summary_df.csv')
+                    gs_df.to_csv(f'{fd}{basename}_{distance}_{linkage}_{n_clusters:04}_good_df.csv')
                     gs_dfs.append(gs_df)
         best_agdf = pd.merge(best_df, best_summ.rename(columns={'labels': 'cluster_label'})[
             ['pred_cluster', 'cluster_label', 'purity_percent', 'cluster_size']],
