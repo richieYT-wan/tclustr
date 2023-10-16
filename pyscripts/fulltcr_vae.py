@@ -49,22 +49,22 @@ def args_parser():
     parser.add_argument('-b3', '--b3_col', dest='b3_col', default='B3', type=str, required=False,
                         help='Name of the column containing B3 sequences (inputs)')
 
-    parser.add_argument('-mla1', '--max_len_a1', dest='max_len_a1', type=int, required=True, default=7,
+    parser.add_argument('-mla1', '--max_len_a1', dest='max_len_a1', type=int, default=7,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
-    parser.add_argument('-mla2', '--max_len_a2', dest='max_len_a2', type=int, required=True, default=8,
+    parser.add_argument('-mla2', '--max_len_a2', dest='max_len_a2', type=int, default=8,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
-    parser.add_argument('-mla3', '--max_len_a3', dest='max_len_a3', type=int, required=True, default=22,
+    parser.add_argument('-mla3', '--max_len_a3', dest='max_len_a3', type=int, default=22,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
-    parser.add_argument('-mlb1', '--max_len_b1', dest='max_len_b1', type=int, required=True, default=6,
+    parser.add_argument('-mlb1', '--max_len_b1', dest='max_len_b1', type=int, default=6,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
-    parser.add_argument('-mlb2', '--max_len_b2', dest='max_len_b2', type=int, required=True, default=7,
+    parser.add_argument('-mlb2', '--max_len_b2', dest='max_len_b2', type=int, default=7,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
-    parser.add_argument('-mlb3', '--max_len_b3', dest='max_len_b3', type=int, required=True, default=23,
+    parser.add_argument('-mlb3', '--max_len_b3', dest='max_len_b3', type=int, default=23,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
     parser.add_argument('-enc', '--encoding', dest='encoding', type=str, default='BL50LO', required=False,
@@ -97,7 +97,7 @@ def args_parser():
                         help='Number of epochs to train')
     parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=1e-5, required=False,
                         help='Tolerance for loss variation to log best model')
-    parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=4,
+    parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=3,
                         help='Which beta to use for the seq reconstruction term in the loss')
     parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1,
                         help='Which weight to use for the KLD term in the loss')
