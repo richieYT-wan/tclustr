@@ -60,7 +60,7 @@ def main():
         with open(f'{args["outdir"]}tcrbase_results.txt', 'a') as f:
             f.write('#'*30)
             f.write('\n')
-            f.write(f'{fdir.replace(maindir["dir"],"")}\n')
+            f.write(f'{fdir.replace(maindir,"")}\n')
             f.write('#'*30)
             f.write('\n')
 
