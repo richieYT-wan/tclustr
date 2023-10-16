@@ -5,7 +5,30 @@ from torch.utils.data import DataLoader, Dataset
 from src.data_processing import encode_batch, V_MAP, J_MAP
 
 
-class CDR3BetaDataset(Dataset):
+class VAEDataset(Dataset):
+    """
+    Parent class so I don't have to re-declare the same bound methods
+    """
+
+    def __init__(self, x=torch.empty([100, 1])):
+        super(VAEDataset, self).__init__()
+        self.x = x
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        return self.x[idx]
+
+    def get_dataset(self):
+        return self
+
+    def get_dataloader(self, batch_size, sampler):
+        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self))
+        return dataloader
+
+
+class CDR3BetaDataset(VAEDataset):
     """
     For now, only use CDR3b
     """
@@ -49,26 +72,50 @@ class CDR3BetaDataset(Dataset):
 
         self.x = x
 
-    def __len__(self):
-        return len(self.x)
 
-    def __getitem__(self, idx):
-        return self.x[idx]
+class FullTCRDataset(VAEDataset):
 
-    def get_dataset(self):
-        return self
+    def __init__(self,
+                 df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
+                 encoding='BL50LO', pad_scale=None,
+                 a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3'):
+        super(FullTCRDataset, self).__init__()
+        # TODO : Current behaviour If max_len_x = 0, then don't use that chain...
+        #        Is that the most elegant way to do this ?
+        assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
+                                         max_len_b1, max_len_b2, max_len_b3]]), \
+            'All loops max_len are 0! No chains will be added'
 
-    def get_dataloader(self, batch_size, sampler):
-        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self))
-        return dataloader
+        x_seq = []
+        self.max_len_a1 = max_len_a1
+        self.max_len_a2 = max_len_a2
+        self.max_len_a3 = max_len_a3
+        self.max_len_b1 = max_len_b1
+        self.max_len_b2 = max_len_b2
+        self.max_len_b3 = max_len_b3
+        self.use_a1 = not (max_len_a1 == 0)
+        self.use_a2 = not (max_len_a2 == 0)
+        self.use_a3 = not (max_len_a3 == 0)
+        self.use_b1 = not (max_len_b1 == 0)
+        self.use_b2 = not (max_len_b2 == 0)
+        self.use_b3 = not (max_len_b3 == 0)
+
+        # bad double loop because brain slow
+        for max_len, seq_col in zip([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3],
+                                    [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col]):
+            if max_len != 0:
+                df['len_q'] = df[seq_col].apply(len)
+                df = df.query('len_q <= @max_len')
+        for max_len, seq_col in zip([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3],
+                                    [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col]):
+            if max_len != 0:
+                x_seq.append(encode_batch(df[seq_col], max_len, encoding, pad_scale).flatten(start_dim=1))
+
+        self.df = df.drop(columns=['len_q']).reset_index(drop=True)
+        self.x = torch.cat(x_seq, dim=1)
 
 
-class FullTCRDataset(Dataset):
-    def __init__(self):
-        pass
-
-
-class PairedDataset(Dataset):
+class PairedDataset(VAEDataset):
     """
     For now, only use CDR3b
     """
@@ -121,16 +168,3 @@ class PairedDataset(Dataset):
             self.x_j = x_j
 
         self.x = x
-
-    def __len__(self):
-        return len(self.x)
-
-    def __getitem__(self, idx):
-        return self.x[idx]
-
-    def get_dataset(self):
-        return self
-
-    def get_dataloader(self, batch_size, sampler):
-        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self))
-        return dataloader

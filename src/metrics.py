@@ -24,9 +24,9 @@ class VAELoss(nn.Module):
     TODO: re-do the tanh behaviour for the KLD loss
     """
 
-    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'),
-                 use_v=True, use_j=True, max_len=21, aa_dim=20, v_dim=51, j_dim=13,
-                 weight_seq=1, weight_v=.3, weight_j=.15, weight_kld=.5, debug=False, warm_up=True, n_batches=67):
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_v=False, use_j=False, max_len=21, aa_dim=20,
+                 v_dim=51, j_dim=13, weight_seq=1, weight_v=.3, weight_j=.15, weight_kld=.5, debug=False, warm_up=0,
+                 n_batches=20):
         super(VAELoss, self).__init__()
         weight_v = weight_v if use_v else 0
         weight_j = weight_j if use_j else 0
@@ -45,6 +45,7 @@ class VAELoss(nn.Module):
         self.weight_kld = self.base_weight_kld
         self.step = 0
         self.debug = debug
+        self.warm_up_flag = warm_up!=0
         self.warm_up = warm_up
         self.n_batches = n_batches
         print(self.weight_seq, self.weight_v, self.weight_j, self.base_weight_kld)
@@ -78,14 +79,14 @@ class VAELoss(nn.Module):
         if self.step <= 500 and not self.warm_up:
             self.weight_kld = self.step / 1000 * self.base_weight_kld
         else:
-            if self.warm_up and self.step <= self.n_batches * 15:
+            if self.warm_up_flag and self.step <= self.n_batches * self.warm_up:
                 self.weight_kld = 0
 
         kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
         self.step += 1
-        if self.step >= self.n_batches * 15:
-            self.warm_up = False
-        if not self.warm_up:
+        if self.step >= self.n_batches * self.warm_up:
+            self.warm_up_flag = False
+        if not self.warm_up_flag:
             self.weight_kld = max(self.base_weight_kld - (self.base_weight_kld * (self.step / 1000)),
                                   self.base_weight_kld / 5)
         if self.debug:
@@ -154,6 +155,7 @@ class PairedVAELoss(nn.Module):
         # Iterations stuff
         self.step = 0
         self.debug = debug
+        self.warm_up_flag = warm_up!=0
         self.warm_up = warm_up
         self.n_batches = n_batches
 
@@ -203,17 +205,17 @@ class PairedVAELoss(nn.Module):
                 print('j_loss', j_loss)
             reconstruction_loss += j_loss
 
-        if self.step <= 500 and not self.warm_up:
+        if self.step <= 500 and not self.warm_up_flag:
             self.weight_kld = self.step / 1000 * self.base_weight_kld
         else:
-            if self.warm_up and self.step <= self.n_batches * 15:
+            if self.warm_up_flag and self.step <= self.n_batches * self.warm_up:
                 self.weight_kld = 0
 
         kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
         self.step += 1
-        if self.step >= self.n_batches * 15:
-            self.warm_up = False
-        if not self.warm_up:
+        if self.step >= self.n_batches * self.warm_up:
+            self.warm_up_flag = False
+        if not self.warm_up_flag:
             self.weight_kld = max(self.base_weight_kld - (self.base_weight_kld * (self.step / 1000)),
                                   self.base_weight_kld / 5)
         if self.debug:

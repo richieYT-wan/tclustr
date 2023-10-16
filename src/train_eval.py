@@ -3,7 +3,6 @@ import math
 from tqdm.auto import tqdm
 import numpy as np
 from torch.utils.data import DataLoader
-
 import src.datasets
 from src.torch_utils import save_checkpoint, load_checkpoint
 from src.metrics import reconstruction_accuracy
@@ -150,6 +149,7 @@ def eval_model_step(model, criterion, valid_loader):
 
 
 def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False):
+    # Here concat the list in case we are given a list of tensors (as done in the train/valid batching system)
     x_reconstructed = torch.cat(x_reconstructed) if type(x_reconstructed) == list else x_reconstructed
     x_true = torch.cat(x_true) if type(x_true) == list else x_true
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
@@ -197,8 +197,9 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
     # model.eval()
-    assert (model.use_v == dataset.use_v) and (
-            model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
+    if hasattr(model, 'use_v') and hasattr(dataset, 'use_v'):
+        assert (model.use_v == dataset.use_v) and (
+                model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
 
     df = dataset.df.reset_index(drop=True).copy()
     x_reconstructed, x_true, z_latent = [], [], []
@@ -243,7 +244,6 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
             df['n_errors_pep'] = df.apply(
                 lambda x: sum([c1 != c2 for c1, c2 in zip(x['pep_hat_reconstructed'], x['pep_true_reconstructed'])]),
                 axis=1)
-
 
     else:
         df['seq_acc'] = metrics['seq_accuracy']

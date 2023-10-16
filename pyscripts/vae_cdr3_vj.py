@@ -6,7 +6,7 @@ module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import wandb
-import copy
+import math
 import torch
 from torch import optim
 from torch import nn
@@ -17,8 +17,7 @@ from src.torch_utils import load_checkpoint
 from src.models import CDR3bVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import CDR3BetaDataset
-from src.metrics import VAELoss, get_metrics
-from sklearn.metrics import roc_auc_score, precision_score
+from src.metrics import VAELoss
 import argparse
 
 
@@ -85,8 +84,9 @@ def args_parser():
                         help='Which weight to use for the V gene term in the loss')
     parser.add_argument('-lwj', '--weight_j', dest='weight_j', type=float, default=1.5,
                         help='Which weight to use for the J gene term in the loss')
-    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=str2bool, default=True,
-                        help='Whether to do a warm-up for the loss (without the KLD term). Default = False')
+    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
+                        help='Whether to do a warm-up period for the loss (without the KLD term). ' \
+                             'Default = 10. Set to 0 if you want this disabled')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
 
@@ -123,6 +123,7 @@ def main():
     dfname = args['file'].split('/')[-1].split('.')[0]
     train_df = df.query('partition!=@args["fold"]')
     valid_df = df.query('partition==@args["fold"]')
+    args['n_batches'] = math.ceil(len(train_df) / args['batch_size'])
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     args['use_v'] = False if args['v_col'] == "None" else True

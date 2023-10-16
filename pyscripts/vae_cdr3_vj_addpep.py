@@ -6,7 +6,7 @@ module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import wandb
-import copy
+import math
 import torch
 from torch import optim
 from torch import nn
@@ -85,8 +85,9 @@ def args_parser():
                         help='Which weight to use for the V gene term in the loss')
     parser.add_argument('-lwj', '--weight_j', dest='weight_j', type=float, default=1.5,
                         help='Which weight to use for the J gene term in the loss')
-    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=str2bool, default=True,
-                        help='Whether to do a warm-up for the loss (without the KLD term). Default = False')
+    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
+                        help='Whether to do a warm-up period for the loss (without the KLD term). '\
+                             'Default = 10. Set to 0 if you want this disabled')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
 
@@ -123,6 +124,7 @@ def main():
     else:
         train_df = df
         valid_df = df.query('partition==0')
+    args['n_batches'] = math.ceil(len(train_df) / args['batch_size'])
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     args['use_v'] = False if args['v_col'] == "None" else True
@@ -158,6 +160,7 @@ def main():
 
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
+    args['max_len'] = args['max_len']+args['max_len_pep']
     loss_params = {k: args[k] for k in loss_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
@@ -218,7 +221,7 @@ def main():
     pkl_dump(train_metrics_dict, f'{outdir}/train_metrics_{fold_filename}.pkl')
     pkl_dump(valid_metrics_dict, f'{outdir}/valid_metrics_{fold_filename}.pkl')
     plot_vae_loss_accs(losses_dict, accs_dict, unique_filename, outdir,
-                       dpi=300, palette='gnuplot2_r', warm_up=10)
+                       dpi=300, palette='gnuplot2_r', warm_up=args['warm_up'])
 
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,

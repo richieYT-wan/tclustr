@@ -37,7 +37,7 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
     f.savefig(f'{outdir}{filename}.png', dpi=dpi, bbox_inches='tight')
 
 
-def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palette='gnuplot2_r', warm_up=15):
+def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palette='gnuplot2_r', warm_up=10):
     """
 
     Args:
@@ -67,12 +67,12 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palett
         if len(v) == 0 or all([val == 0 for val in v]): continue
         a[0].plot(v[warm_up:], label=k)
         if k == 'valid_total':
-            best_val_loss_epoch = v[k].index(min(v[k]))
+            best_val_loss_epoch = v.index(min(v))
     for k, v in accs_dict.items():
         if len(v) == 0 or all([val == 0 for val in v]): continue
         a[1].plot(v[warm_up:], label=k)
         if k == 'valid_seq_accuracy' or k == 'valid_b_accuracy':
-            best_val_accs_epoch = v[k].index(min(v[k]))
+            best_val_accs_epoch = v.index(min(v))
     a[0].set_ylim([0, 1])
     a[0].axvline(x=best_val_loss_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
                  c='k', label=f'Best loss epoch {best_val_loss_epoch}')

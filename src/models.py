@@ -50,7 +50,7 @@ class NetParent(nn.Module):
 
 class CDR3bVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
-    def __init__(self, max_len=23, encoding='BL50LO', pad_scale=-12, aa_dim=20, use_v=True, use_j=True, v_dim=51,
+    def __init__(self, max_len=23, encoding='BL50LO', pad_scale=-20, aa_dim=20, use_v=True, use_j=True, v_dim=51,
                  j_dim=13, activation=nn.SELU(), hidden_dim=128, latent_dim=32, max_len_pep=0):
         super(CDR3bVAE, self).__init__()
         # Init params that will be needed at some point for reconstruction
@@ -68,7 +68,6 @@ class CDR3bVAE(NetParent):
         self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
         self.input_dim = input_dim
         self.max_len = max_len
-        print(self.max_len)
         self.aa_dim = aa_dim
         self.v_dim = v_dim if use_v else 0
         self.use_v = use_v
@@ -136,6 +135,129 @@ class CDR3bVAE(NetParent):
             # Reconstruct and unflattens the sequence
             sequence, v_gene, j_gene = self.slice_x(x_hat)
             return sequence, v_gene, j_gene
+
+    def embed(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        return z
+
+    def sample_latent(self, n_samples):
+        z = torch.randn((n_samples, self.latent_dim)).to(device=self.encoder[0].weight.device)
+        return z
+
+    def recover_indices(self, seq_tensor):
+        # Sample data
+        N, max_len = seq_tensor.shape[0], seq_tensor.shape[1]
+
+        # Expand MATRIX_VALUES to have the same shape as x_seq for broadcasting
+        expanded_MATRIX_VALUES = self.MATRIX_VALUES.unsqueeze(0).expand(N, -1, -1, -1)
+        # Compute the absolute differences
+        abs_diff = torch.abs(seq_tensor.unsqueeze(2) - expanded_MATRIX_VALUES)
+        # Sum along the last dimension (20) to get the absolute differences for each character
+        abs_diff_sum = abs_diff.sum(dim=-1)
+
+        # Find the argmin along the character dimension (21)
+        argmin_indices = torch.argmin(abs_diff_sum, dim=-1)
+        return argmin_indices
+
+    def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
+        return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor)]
+
+    def reconstruct_hat(self, x_hat):
+        seq, v, j = self.slice_x(x_hat)
+        seq_idx = self.recover_indices(seq)
+        return seq_idx, v, j
+
+
+class FullTCRVAE(NetParent):
+    # Define the input dimension as some combination of sequence length, AA dim,
+    def __init__(self,
+                 max_len_a1=7, max_len_a2=8, max_len_a3=22,
+                 max_len_b1=6, max_len_b2=7, max_len_b3=23,
+                 encoding='BL50LO', pad_scale=-20, aa_dim=20, activation=nn.SELU(), hidden_dim=128, latent_dim=64):
+        super(FullTCRVAE, self).__init__()
+        # Init params that will be needed at some point for reconstruction
+        max_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
+        input_dim = max_len * aa_dim
+        self.encoding = encoding
+        if pad_scale is None:
+            self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
+        else:
+            self.pad_scale = pad_scale
+        MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
+        MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
+        self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
+        self.input_dim = input_dim
+        # Exists for compatibility issues
+        self.use_v = False
+        self.use_j = False
+        self.max_len = max_len
+        self.aa_dim = aa_dim
+        self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+        # TODO: For now, just use a fixed set of layers.
+        #       Might need more layers because we are compressing more information
+
+        # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
+        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
+                                     nn.Linear(input_dim // 2, hidden_dim), activation)
+        self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+        self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+                                     nn.Linear(hidden_dim, hidden_dim), activation)
+        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
+                                              nn.Linear(input_dim // 2, input_dim))
+
+    def reparameterise(self, mu, logvar):
+        # During training, the reparameterisation leads to z = mu + std * eps
+        # During evaluation, the trick is disabled and z = mu
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+            return (epsilon * std) + mu
+        else:
+            return mu
+
+    def encode(self, x):
+        mu_logvar = self.encoder(x.flatten(start_dim=1))
+        mu = self.encoder_mu(mu_logvar)
+        logvar = self.encoder_logvar(mu_logvar)
+        return mu, logvar
+
+    def decode(self, z):
+        z = self.decoder(z)
+        x_hat = self.decoder_sequence(z)
+        return x_hat
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        x_hat = self.decode(z)
+        return x_hat, mu, logvar
+
+    def slice_x(self, x):
+        """
+        We don't use V/J genes in this model but this exists for compatibility issues
+        So that I don't have to rewrite most of my code in train_eval.py
+        Args:
+            x:
+
+        Returns:
+
+        """
+        sequence = x[:, 0:(self.max_len * self.aa_dim)].view(-1, self.max_len, self.aa_dim)
+        # Reconstructs the v/j gene as one hot vectors
+        v_gene = None
+        j_gene = None
+        return sequence, v_gene, j_gene
+
+    def reconstruct(self, z):
+        with torch.no_grad():
+            x_hat = self.decode(z)
+            # Reconstruct and unflattens the sequence
+            sequence, v_gene, j_gene = self.slice_x(x_hat)
+            return sequence, v_gene, j_gene
+
     def embed(self, x):
         mu, logvar = self.encode(x)
         z = self.reparameterise(mu, logvar)
@@ -259,7 +381,7 @@ class PairedFVAE(NetParent):
     def slice_x(self, x):
         # Slices the vector values for the sequences and reconstructs (view) as 3 (Nx2D) tensors
         sequence = x[:, 0:self.seq_dim]
-        seq_b = sequence[:, :self.beta_dim]\
+        seq_b = sequence[:, :self.beta_dim] \
             .view(-1, self.max_len_b, self.aa_dim) if self.use_b else None
 
         seq_a = sequence[:, self.beta_dim:(self.beta_dim + self.alpha_dim)] \
@@ -316,9 +438,9 @@ class PairedFVAE(NetParent):
 
     def reconstruct_hat(self, x_hat):
         (seq_b, seq_a, seq_pep), v, j = self.slice_x(x_hat)
-        seq_idx_b = self.recover_indices(seq_b) if self.use_b else torch.empty([len(x_hat),0])
-        seq_idx_a = self.recover_indices(seq_a) if self.use_a else torch.empty([len(x_hat),0])
-        seq_idx_pep = self.recover_indices(seq_pep) if self.use_pep else torch.empty([len(x_hat),0])
+        seq_idx_b = self.recover_indices(seq_b) if self.use_b else torch.empty([len(x_hat), 0])
+        seq_idx_a = self.recover_indices(seq_a) if self.use_a else torch.empty([len(x_hat), 0])
+        seq_idx_pep = self.recover_indices(seq_pep) if self.use_pep else torch.empty([len(x_hat), 0])
         seq = torch.cat([seq_idx_b, seq_idx_a, seq_idx_pep], dim=1)
         return seq, v, j
 
