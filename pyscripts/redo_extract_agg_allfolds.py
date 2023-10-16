@@ -16,6 +16,7 @@ from src.torch_utils import load_checkpoint
 from src.models import CDR3bVAE
 from src.train_eval import predict_model
 from src.datasets import CDR3BetaDataset
+from sklearn.metrics import roc_auc_score
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
@@ -110,6 +111,15 @@ def get_good_summary(summary, purity_threshold=60, size_threshold=3):
                         columns=['n_clusters', 'n_total_tcrs', 'mean_cluster_size', 'mean_purity'])
 
 
+def get_tcrbase_method(tcr, ref):
+    # here take the top1 instead of percent
+    best = ref[tcr].sort_values().head(1)
+    best_name = best.index[0]
+    best_sim = best.item()
+    label = ref.loc[best_name]['labels']
+    return label, best_name, best_sim
+
+
 def main():
     args = vars(args_parser())
     maindir = args['dir']
@@ -138,7 +148,7 @@ def main():
     aa_dim = 20
     for i, fd in enumerate(fold_dirs):
         checkpoint = f"{fd}{next(filter(lambda x: 'checkpoint' in x and x.endswith('.pt'), os.listdir(fd)))}"
-        basename = fd.split('/')[-1].replace('/','')
+        basename = fd.split('/')[-1].replace('/', '')
         train = df.query('partition!=@i')
         valid = df.query('partition==@i')
         model = CDR3bVAE(max_len, encoding, pad_scale, aa_dim, use_v, use_j, v_dim, j_dim, activation, hidden_dim,
@@ -161,7 +171,7 @@ def main():
         sets = np.expand_dims(cat.set.values, 1)
         distance_matrices = {}
         best_metric = 0
-        best_df, best_summ, best_gs = None, None, None
+        best_dist, best_df, best_summ, best_gs = None, None, None, None
         gs_dfs = []
         for distance in ['manhattan', 'euclidean', 'cosine', 'correlation']:
             out_dist = pairwise_distances(X=z_values, metric=distance)
@@ -175,13 +185,16 @@ def main():
                                                  distance_threshold=None, compute_distances=True)
                     pred_clusters = ag.fit_predict(dist_matrix.drop(columns=['labels', 'ids', 'set']))
                     pred_clusters = np.expand_dims(pred_clusters, 1)
-                    ag_df = pd.DataFrame(np.stack([np.expand_dims(dist_matrix.index,1), pred_clusters, labels, ids, sets], axis=1).squeeze(2),
-                                         columns=['TRB_CDR3', 'pred_cluster', 'labels', 'ids', 'set'])
+                    ag_df = pd.DataFrame(
+                        np.stack([np.expand_dims(dist_matrix.index, 1), pred_clusters, labels, ids, sets],
+                                 axis=1).squeeze(2),
+                        columns=['TRB_CDR3', 'pred_cluster', 'labels', 'ids', 'set'])
                     ag_df = pd.merge(cat.rename(columns={'seq_id': 'ids'}), ag_df,
                                      left_on=['TRB_CDR3', 'labels', 'ids', 'set'],
                                      right_on=['TRB_CDR3', 'labels', 'ids', 'set'])
                     summary = \
-                    get_cluster_stats(ag_df, cluster='pred_cluster', label='labels', feature='TRB_CDR3', kf=False)[0]
+                        get_cluster_stats(ag_df, cluster='pred_cluster', label='labels', feature='TRB_CDR3', kf=False)[
+                            0]
                     summary['metric'] = distance
                     summary['linkage'] = linkage
                     summary['nc'] = n_clusters
@@ -190,8 +203,9 @@ def main():
                         .sort_values(['n_total_tcrs', 'mean_purity'], ascending=False).reset_index()
                     gs_df['nc'] = n_clusters
                     gs_df['retention'] = gs_df['n_total_tcrs'] / len(cat)
-                    gs_df['agg_metric'] = .5 * (gs_df['retention'] + gs_df['mean_purity']/100)
+                    gs_df['agg_metric'] = .5 * (gs_df['retention'] + gs_df['mean_purity'] / 100)
                     if gs_df['agg_metric'].item() > best_metric:
+                        best_dist = dist_matrix
                         best_df = ag_df
                         best_summ = summary
                         best_gs = gs_df
@@ -201,8 +215,26 @@ def main():
                     gs_dfs.append(gs_df)
         best_agdf = pd.merge(best_df, best_summ.rename(columns={'labels': 'cluster_label'})[
             ['pred_cluster', 'cluster_label', 'purity_percent', 'cluster_size']],
-                                    left_on=['pred_cluster'], right_on=['pred_cluster'])
+                             left_on=['pred_cluster'], right_on=['pred_cluster'])
 
+        # TCR base stuff
+        train_ref = best_dist.query('set=="train" and labels == "GILGFVFTL"')
+        valid_query = best_dist.query('set=="valid"')
+        valid_query = valid_query.drop(
+            columns=[x for x in valid_query.columns if x != 'labels']).copy().reset_index().rename(
+            columns={'index': 'CDR3b', 'labels': 'true_label'})
+        valid_query[['similar_label', 'best_name', 'best_sim']] = valid_query.apply(
+            lambda x: get_tcrbase_method(x['CDR3b'], ref=train_ref), axis=1, result_type='expand')
+        valid_query['y_true'] = (valid_query['true_label'] == "GILGFVFTL").astype(int)
+
+        auc = roc_auc_score(valid_query['y_true'], 1 - valid_query('best_sim'))
+        auc01 = roc_auc_score(valid_query['y_true'], 1 - valid_query('best_sim'), max_fpr=0.1)
+
+        with open(f'{fd}tcrbase_method_auc.txt', 'w') as f:
+            f.write(f'AUC: {auc}\n')
+            f.write(f'AUC01: {auc01}\n')
+
+        # Plotting stuff
         best_train = best_agdf.query('set=="train"')
         best_valid = best_agdf.query('set=="valid"')
         z_train = best_train[zcols].values
@@ -214,8 +246,9 @@ def main():
         latent_tsne = tsne.fit_transform(np.concatenate([z_train, z_valid], axis=0))
         tsne_train, tsne_valid = latent_tsne[:len(z_train)], latent_tsne[len(z_train):]
         best_train[['TSNE_1', 'TSNE_2']] = tsne_train
-        best_train['pred_label'] = best_train.apply(lambda x: x['cluster_label'] if x['purity_percent'] >= 70 else 'trash',
-                                          axis=1)
+        best_train['pred_label'] = best_train.apply(
+            lambda x: x['cluster_label'] if x['purity_percent'] >= 70 else 'trash',
+            axis=1)
         f, a = plt.subplots(1, 2, figsize=(25, 12))
         a = a.ravel()
 
@@ -236,8 +269,9 @@ def main():
         f.tight_layout()
         f.savefig(f'{fd}tsne_plot_train.png', bbox_inches='tight', dpi=300)
         best_valid[['TSNE_1', 'TSNE_2']] = tsne_valid
-        best_valid['pred_label'] = best_valid.apply(lambda x: x['cluster_label'] if x['purity_percent'] >= 70 else 'trash',
-                                          axis=1)
+        best_valid['pred_label'] = best_valid.apply(
+            lambda x: x['cluster_label'] if x['purity_percent'] >= 70 else 'trash',
+            axis=1)
         f, a = plt.subplots(1, 2, figsize=(25, 12))
         a = a.ravel()
 
@@ -259,7 +293,5 @@ def main():
         f.savefig(f'{fd}tsne_plot_valid.png', bbox_inches='tight', dpi=300)
 
 
-
-if __name__=='__main__':
+if __name__ == '__main__':
     main()
-

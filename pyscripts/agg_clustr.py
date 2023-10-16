@@ -70,7 +70,7 @@ files = [f'{DATADIR}{x}' for x in os.listdir(DATADIR)]
 os.makedirs(OUTDIR, exist_ok=True)
 
 
-
+n_clusters = 635
 for linkage in ['average', 'complete', 'single']:
     for file in files:
         latent_kind = file.split('cat_')[1].split('.csv')[0]
