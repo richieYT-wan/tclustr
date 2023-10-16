@@ -227,8 +227,8 @@ def main():
             lambda x: get_tcrbase_method(x['CDR3b'], ref=train_ref), axis=1, result_type='expand')
         valid_query['y_true'] = (valid_query['true_label'] == "GILGFVFTL").astype(int)
 
-        auc = roc_auc_score(valid_query['y_true'], 1 - valid_query('best_sim'))
-        auc01 = roc_auc_score(valid_query['y_true'], 1 - valid_query('best_sim'), max_fpr=0.1)
+        auc = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'])
+        auc01 = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'], max_fpr=0.1)
 
         with open(f'{fd}tcrbase_method_auc.txt', 'w') as f:
             f.write(f'AUC: {auc}\n')
