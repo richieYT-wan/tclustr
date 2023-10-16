@@ -55,16 +55,18 @@ def main():
     maindir = args['dir']
     fold_dirs = sorted([f'{maindir}{subdir}/' for subdir in os.listdir(maindir)])
     for fdir in fold_dirs:
-        distances = [f'{fdir}{x}' for x in os.listdir(fdir) if x.startswith('_') \
-                     and x.endswith('csv') and 'dist' in x]
-        assert len(distances)>0, 'ntr'
+
         print(fdir)
         with open(f'{args["outdir"]}tcrbase_results.txt', 'a') as f:
             f.write('#'*30)
             f.write('\n')
-            f.write(f'{fdir}\n')
+            f.write(f'{fdir.replace(maindir["dir"],"")}\n')
             f.write('#'*30)
             f.write('\n')
+
+        distances = [f'{fdir}{x}' for x in os.listdir(fdir) if x.startswith('_') \
+                         and x.endswith('csv') and 'dist' in x]
+        assert len(distances) > 0, 'ntr'
         for d in distances:
             best_dist = pd.read_csv(d, index_col=0)
             train_ref = best_dist.query('set=="train" and labels == "GILGFVFTL"')
@@ -80,7 +82,7 @@ def main():
             auc01 = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'], max_fpr=0.1)
             print(f'{d}: {auc:.2%}, {auc01:.2%}')
             with open(f'{args["outdir"]}tcrbase_results.txt', 'a') as f:
-                f.write(f'{d}: {auc:.2%}, {auc01:.2%}')
+                f.write(f'{os.path.basename(d)}: {auc:.2%}, {auc01:.2%}\n')
 
 
 

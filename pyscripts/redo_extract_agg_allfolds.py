@@ -173,6 +173,12 @@ def main():
         best_metric = 0
         best_dist, best_df, best_summ, best_gs = None, None, None, None
         gs_dfs = []
+        with open(f'{args["outdir"]}tcrbase_results.txt', 'a') as f:
+            f.write('#'*30)
+            f.write('\n')
+            f.write(f'{fd}\n')
+            f.write('#'*30)
+            f.write('\n')
         for distance in ['manhattan', 'euclidean', 'cosine', 'correlation']:
             out_dist = pairwise_distances(X=z_values, metric=distance)
             dist_matrix = pd.DataFrame(np.concatenate([out_dist, labels, ids, sets], axis=1),
@@ -218,21 +224,28 @@ def main():
                              left_on=['pred_cluster'], right_on=['pred_cluster'])
 
         # TCR base stuff
-        train_ref = best_dist.query('set=="train" and labels == "GILGFVFTL"')
-        valid_query = best_dist.query('set=="valid"')
-        valid_query = valid_query.drop(
-            columns=[x for x in valid_query.columns if x != 'labels']).copy().reset_index().rename(
-            columns={'index': 'CDR3b', 'labels': 'true_label'})
-        valid_query[['similar_label', 'best_name', 'best_sim']] = valid_query.apply(
-            lambda x: get_tcrbase_method(x['CDR3b'], ref=train_ref), axis=1, result_type='expand')
-        valid_query['y_true'] = (valid_query['true_label'] == "GILGFVFTL").astype(int)
+        distances = [f'{fd}{x}' for x in os.listdir(fd) if x.startswith('_') \
+                     and x.endswith('csv') and 'dist' in x]
+        assert len(distances) > 0, 'ntr'
+        for d in distances:
+            best_dist = pd.read_csv(d, index_col=0)
+            train_ref = best_dist.query('set=="train" and labels == "GILGFVFTL"')
+            valid_query = best_dist.query('set=="valid"')
+            valid_query = valid_query.drop(
+                columns=[x for x in valid_query.columns if x != 'labels']).copy().reset_index().rename(
+                columns={'index': 'CDR3b', 'labels': 'true_label'})
+            valid_query[['similar_label', 'best_name', 'best_sim']] = valid_query.apply(
+                lambda x: get_tcrbase_method(x['CDR3b'], ref=train_ref), axis=1, result_type='expand')
+            valid_query['y_true'] = (valid_query['true_label'] == "GILGFVFTL").astype(int)
 
-        auc = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'])
-        auc01 = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'], max_fpr=0.1)
-        print(f'{d}: {auc:.2%}, {auc01:.2%}')
-        with open(f'{fd}tcrbase_method_auc.txt', 'w') as f:
-            f.write(f'AUC: {auc}\n')
-            f.write(f'AUC01: {auc01}\n')
+            auc = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'])
+            auc01 = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'], max_fpr=0.1)
+            print(f'{d}: {auc:.2%}, {auc01:.2%}\n')
+            with open(f'{args["outdir"]}tcrbase_results.txt', 'a') as f:
+                f.write(f'{os.path.basename(d)}: {auc:.2%}, {auc01:.2%}')
+            with open(f'{fd}tcrbase_method_auc.txt', 'w') as f:
+                f.write(f'AUC: {auc}\n')
+                f.write(f'AUC01: {auc01}\n')
 
         # Plotting stuff
         best_train = best_agdf.query('set=="train"')
