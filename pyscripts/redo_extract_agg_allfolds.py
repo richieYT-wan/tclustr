@@ -229,7 +229,7 @@ def main():
 
         auc = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'])
         auc01 = roc_auc_score(valid_query['y_true'], 1 - valid_query['best_sim'], max_fpr=0.1)
-
+        print(f'{d}: {auc:.2%}, {auc01:.2%}')
         with open(f'{fd}tcrbase_method_auc.txt', 'w') as f:
             f.write(f'AUC: {auc}\n')
             f.write(f'AUC01: {auc01}\n')
