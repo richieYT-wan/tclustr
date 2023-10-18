@@ -233,7 +233,7 @@ class PairedVAELoss(nn.Module):
 
 
 class TripleVAELoss(VAELoss):
-    raise NotImplementedError
+    pass
 
 # NOTE : Fixed version with the true acc
 def reconstruction_accuracy(seq_true, seq_hat, v_true=None, v_hat=None,
