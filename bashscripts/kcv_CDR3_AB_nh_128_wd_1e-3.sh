@@ -28,7 +28,7 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
 cd \${PYDIR}
-python3 ./fulltcr_vae.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -enc BL50LO-ne 25000 -lwseq 3 -lwkld 1 -nl 64 -nh 128 -lr 5e-4 -wd 1e-3 -wu 15 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+python3 ./fulltcr_vae.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -enc BL50LO -ne 25000 -lwseq 3 -lwkld 1 -nl 64 -nh 128 -lr 5e-4 -wd 1e-3 -wu 15 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
 EOF
 )
                               # Write the script content to a file
