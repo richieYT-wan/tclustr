@@ -58,22 +58,23 @@ def main():
 
         print(fdir)
         with open(f'{args["outdir"]}tcrbase_results.txt', 'a') as f:
-            f.write('#'*30)
+            f.write('#' * 30)
             f.write('\n')
-            f.write(f'{fdir.replace(maindir,"")}\n')
-            f.write('#'*30)
+            f.write(f'{fdir.replace(maindir, "")}\n')
+            f.write('#' * 30)
             f.write('\n')
 
         distances = [f'{fdir}{x}' for x in os.listdir(fdir) if x.startswith('_') \
-                         and x.endswith('csv') and 'dist' in x]
+                     and x.endswith('csv') and 'dist' in x]
         assert len(distances) > 0, 'ntr'
         for d in distances:
             best_dist = pd.read_csv(d, index_col=0)
             train_ref = best_dist.query('set=="train" and labels == "GILGFVFTL"')
             valid_query = best_dist.query('set=="valid"')
             valid_query = valid_query.drop(
-                columns=[x for x in valid_query.columns if x != 'labels']).copy().reset_index().rename(
-                columns={'index': 'CDR3b', 'labels': 'true_label'})
+                columns=[x for x in valid_query.columns if x != 'labels']) \
+                .copy().reset_index() \
+                .rename(columns={'index': 'CDR3b', 'labels': 'true_label'})
             valid_query[['similar_label', 'best_name', 'best_sim']] = valid_query.apply(
                 lambda x: get_tcrbase_method(x['CDR3b'], ref=train_ref), axis=1, result_type='expand')
             valid_query['y_true'] = (valid_query['true_label'] == "GILGFVFTL").astype(int)
@@ -83,7 +84,6 @@ def main():
             print(f'{d}: {auc:.2%}, {auc01:.2%}')
             with open(f'{args["outdir"]}tcrbase_results.txt', 'a') as f:
                 f.write(f'{os.path.basename(d)}: {auc:.2%}, {auc01:.2%}\n')
-
 
 
 if __name__ == '__main__':
