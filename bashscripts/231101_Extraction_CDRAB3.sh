@@ -6,6 +6,7 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
 cd ${PYDIR}
 
-for f in 'FullTCR_nh_128_wd_1e-3_weights_3to1_8NoCI' 'FullTCR_nh_128_wd_1e-4_weights_3to1_YTsp8' 'FullTCR_nh_256_wd_1e-4_weights_3to1_0UeYG'
+for f in 'CDR3_AB_nh_128_wd_1e-3_weights_3to1_i1RsR' 'CDR3_AB_nh_128_wd_1e-4_weights_3to1_LlWGn'
 do
-  python3 redo_extract_agg_allfolds.py
+  python3 redo_extract_agg_allfolds_CDR3AB.py -d ${f} -nh 128 -nl 64
+done
