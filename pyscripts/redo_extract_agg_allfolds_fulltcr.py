@@ -149,7 +149,7 @@ def main():
     aa_dim = 20
     for i, fd in enumerate(fold_dirs):
         checkpoint = f"{fd}{next(filter(lambda x: 'checkpoint' in x and x.endswith('.pt'), os.listdir(fd)))}"
-        basename = fd.split('/')[-1].replace('/', '')
+        basename = fd.split('/')[-2].replace('/', '')
         train = df.query('partition!=@i')
         valid = df.query('partition==@i')
         # TODO HERE CHANGE FULLTCRVAE CALL

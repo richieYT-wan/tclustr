@@ -148,7 +148,7 @@ def main():
     aa_dim = 20
     for i, fd in enumerate(fold_dirs):
         checkpoint = f"{fd}{next(filter(lambda x: 'checkpoint' in x and x.endswith('.pt'), os.listdir(fd)))}"
-        basename = fd.split('/')[-1].replace('/', '')
+        basename = fd.split('/')[-2].replace('/', '')
         train = df.query('partition!=@i')
         valid = df.query('partition==@i')
         model = CDR3bVAE(max_len, encoding, pad_scale, aa_dim, use_v, use_j, v_dim, j_dim, activation, hidden_dim,
