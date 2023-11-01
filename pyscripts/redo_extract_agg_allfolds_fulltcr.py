@@ -225,7 +225,7 @@ def main():
                              left_on=['pred_cluster'], right_on=['pred_cluster'])
 
         # TCR base stuff
-        distances = [f'{fd}{x}' for x in os.listdir(fd) if x.startswith('_') \
+        distances = [f'{fd}{x}' for x in os.listdir(fd) if x.startswith(f'{basename}') \
                      and x.endswith('csv') and 'dist' in x]
         assert len(distances) > 0, 'ntr'
         for d in distances:
