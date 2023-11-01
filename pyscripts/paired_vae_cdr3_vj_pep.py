@@ -211,8 +211,7 @@ def main():
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
     best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                   criterion,
-                                                                   optimizer, train_dataset, train_loader, valid_loader,
+                                                                   criterion, optimizer, train_loader, valid_loader,
                                                                    checkpoint_filename, outdir)
 
     # Convert list of dicts to dicts of lists

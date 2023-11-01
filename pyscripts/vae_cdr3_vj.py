@@ -191,16 +191,14 @@ def main():
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
     best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                   criterion,
-                                                                   optimizer, train_dataset, train_loader, valid_loader,
+                                                                   criterion, optimizer, train_loader, valid_loader,
                                                                    checkpoint_filename, outdir)
 
-    # Convert list of dicts to dicts of lists
+    # Convert list of dicts to dicts of lists ; TODO: Maybe this here should be in trian_eval_loops instead
     train_losses_dict = get_dict_of_lists(train_losses, 'train')  #{f'train_{key}': [d[key] for d in train_losses] for key in train_losses[0]}
     train_metrics_dict = get_dict_of_lists(train_metrics, 'train')  #{f'train_{key}': [d[key] for d in train_metrics] for key in train_metrics[0]}
     valid_losses_dict = get_dict_of_lists(valid_losses, 'valid')  #{f'valid_{key}': [d[key] for d in valid_losses] for key in valid_losses[0]}
     valid_metrics_dict = get_dict_of_lists(valid_metrics, 'valid')  #{f'valid_{key}': [d[key] for d in valid_metrics] for key in valid_metrics[0]}
-
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}
 

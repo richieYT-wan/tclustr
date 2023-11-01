@@ -65,10 +65,7 @@ def invoke(early_stopping, loss, model, implement=False):
         return False
 
 
-# TODO : HERE CHANGE ALL THE CODE TO ACCOMODATE FOR VAE AND THE SPLIT OPTIMIZER AS WELL AS SPLIT LOSSES WITH THE CUSTOM LOSS!!1
-# TODO: STOP BEING A LAZY FUCK AND JUST FIX THIS JFC
-# Maybe no need to do the split optimizer because the loss behaviour seemed to come from the weight decay and not the split LR
-
+# noinspection PyUnboundLocalVariable
 def train_model_step(model, criterion, optimizer, train_loader):
     """
     Args:
@@ -82,13 +79,23 @@ def train_model_step(model, criterion, optimizer, train_loader):
     """
     assert type(train_loader.sampler) == torch.utils.data.RandomSampler, 'TrainLoader should use RandomSampler!'
     model.train()
-    acum_total_loss, acum_recon_loss, acum_kld_loss = 0, 0, 0
+    acum_total_loss, acum_recon_loss, acum_kld_loss, acum_triplet_loss = 0, 0, 0, 0
     x_reconstructed, x_true = [], []
-
     for x in train_loader:
-        x_hat, mu, logvar = model(x)
-        recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
-        loss = recon_loss + kld_loss
+        if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss')) and train_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
+            x, labels = x.pop(0), x.pop(-1)
+            x_hat, mu, logvar = model(x)
+            # TODO: CHECK THIS Set to eval mode for the extraction of the latent (? maybe not, need to try?)
+            model.eval()
+            z_batch = model.embed(x)
+            recon_loss, kld_loss, triplet_loss = criterion(x_hat, x, mu, logvar, z_batch, labels)
+            loss = recon_loss + kld_loss + triplet_loss
+            acum_triplet_loss += triplet_loss.item() * x.shape[0]
+            model.train()
+        else:
+            x_hat, mu, logvar = model(x)
+            recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
+            loss = recon_loss + kld_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -97,10 +104,12 @@ def train_model_step(model, criterion, optimizer, train_loader):
         acum_total_loss += loss.item() * x.shape[0]
         acum_recon_loss += recon_loss.item() * x.shape[0]
         acum_kld_loss += kld_loss.item() * x.shape[0]
+
     # Normalizes to loss per batch
     acum_total_loss /= len(train_loader.dataset)
     acum_recon_loss /= len(train_loader.dataset)
     acum_kld_loss /= len(train_loader.dataset)
+
     # Concatenate the y_pred & y_true tensors and compute metrics
     x_reconstructed, x_true = torch.cat(x_reconstructed), torch.cat(x_true)
     # seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
@@ -110,21 +119,35 @@ def train_model_step(model, criterion, optimizer, train_loader):
     #                                                                pad_index=20)
 
     train_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss}
+    if criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss'):
+        acum_triplet_loss /= len(train_loader.dataset)
+        train_loss['triplet'] = acum_triplet_loss
+
     train_metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False)
     return train_loss, train_metrics
 
 
+# noinspection PyUnboundLocalVariable
 def eval_model_step(model, criterion, valid_loader):
     model.eval()
     # disables gradient logging
-    acum_total_loss, acum_recon_loss, acum_kld_loss = 0, 0, 0
+    acum_total_loss, acum_recon_loss, acum_kld_loss, acum_triplet_loss = 0, 0, 0, 0
     x_reconstructed, x_true = [], []
     with torch.no_grad():
         # Same workaround as above
         for x in valid_loader:
-            x_hat, mu, logvar = model(x)
-            recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
-            loss = recon_loss + kld_loss
+            if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss')) and valid_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
+                x, labels = x.pop(0), x.pop(-1)
+                x_hat, mu, logvar = model(x)
+                # Model is already in eval mode here
+                z_batch = model.embed(x)
+                recon_loss, kld_loss, triplet_loss = criterion(x_hat, x, mu, logvar, z_batch, labels)
+                loss = recon_loss + kld_loss + triplet_loss
+                acum_triplet_loss += triplet_loss.item() * x.shape[0]
+            else:
+                x_hat, mu, logvar = model(x)
+                recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
+                loss = recon_loss + kld_loss
             x_reconstructed.append(x_hat)
             x_true.append(x)
             acum_total_loss += loss.item() * x.shape[0]
@@ -144,6 +167,11 @@ def eval_model_step(model, criterion, valid_loader):
     # valid_metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
 
     valid_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss}
+
+    # Only save and normalize the triplet loss if the criterion has that attribute
+    if criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss'):
+        acum_triplet_loss /= len(valid_loader.dataset)
+        valid_loss['triplet'] = acum_triplet_loss
     valid_metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False)
     return valid_loss, valid_metrics
 
@@ -265,10 +293,8 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
 
 
 def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
-                     train_dataset, train_loader, valid_loader,
-                     checkpoint_filename, outdir):
+                     train_loader, valid_loader, checkpoint_filename, outdir):
     """ Trains and validates a model over n_epochs, then reloads the best checkpoint
-
 
     Args:
         n_epochs:
@@ -276,7 +302,6 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         model:
         criterion:
         optimizer:
-        train_dataset: Torch Dataset, is here so we can do standardize & burn-in periods
         train_loader:
         valid_loader:
         checkpoint_filename:
@@ -318,10 +343,14 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         valid_losses.append(valid_loss)
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
             train_loss_text = f'Train: Epoch {e}\nLoss:\tReconstruction: {train_loss["reconstruction"]:.4f}\tKLD: {train_loss["kld"]:.4f}'
+            if 'triplet' in train_loss.keys():
+                train_loss_text = train_loss_text + f'\tTriplet: {train_loss["triplet"]:.4f}'
             train_metrics_text = 'Accs:\t' + ',\t'.join(
                 [f"{k.replace('accuracy', 'acc')}:{v:.2%}" for k, v in train_metric.items()])
             train_text = '\n'.join([train_loss_text, train_metrics_text])
             valid_loss_text = f'Valid: Epoch {e}\nLoss:\tReconstruction: {valid_loss["reconstruction"]:.4f}\tKLD: {valid_loss["kld"]:.4f}'
+            if 'triplet' in valid_loss.keys():
+                valid_loss_text = valid_loss_text + f'\tTriplet: {valid_loss["triplet"]:.4f}'
             valid_metrics_text = 'Accs:\t' + ',\t'.join(
                 [f"{k.replace('accuracy', 'acc')}:{v:.2%}" for k, v in valid_metric.items()])
             valid_text = '\n'.join([valid_loss_text, valid_metrics_text])

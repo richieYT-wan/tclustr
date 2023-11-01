@@ -45,7 +45,7 @@ class VAELoss(nn.Module):
         self.weight_kld = self.base_weight_kld
         self.step = 0
         self.debug = debug
-        self.warm_up_flag = warm_up!=0
+        self.warm_up_flag = warm_up != 0
         self.warm_up = warm_up
         self.n_batches = n_batches
         print(self.weight_seq, self.weight_v, self.weight_j, self.base_weight_kld)
@@ -155,7 +155,7 @@ class PairedVAELoss(nn.Module):
         # Iterations stuff
         self.step = 0
         self.debug = debug
-        self.warm_up_flag = warm_up!=0
+        self.warm_up_flag = warm_up != 0
         self.warm_up = warm_up
         self.n_batches = n_batches
 
@@ -164,7 +164,7 @@ class PairedVAELoss(nn.Module):
     def slice_x(self, x):
         # Slices the vector values for the sequences and reconstructs (view) as 3 (Nx2D) tensors
         sequence = x[:, 0:self.seq_dim]
-        seq_b = sequence[:, :self.beta_dim]\
+        seq_b = sequence[:, :self.beta_dim] \
             .view(-1, self.max_len_b, self.aa_dim) if self.use_b else None
 
         seq_a = sequence[:, self.beta_dim:(self.beta_dim + self.alpha_dim)] \
@@ -232,8 +232,49 @@ class PairedVAELoss(nn.Module):
         self.step = 0
 
 
-class TripleVAELoss(VAELoss):
-    pass
+class TripletLoss(nn.Module):
+    def __init__(self, margin=1.0):
+        super(TripletLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, z, labels):
+        pairwise_distances = torch.cdist(z, z)
+        mask_positive = torch.eq(labels.unsqueeze(0), labels.unsqueeze(1)).float()
+        mask_negative = 1 - mask_positive
+        # Get the distances for each of the masks
+        positive_distances = mask_positive * pairwise_distances
+        negative_distances = mask_negative * pairwise_distances
+        # Take the relu to encourage error above margin (i.e. threshold)
+        loss = torch.nn.functional.relu(positive_distances - negative_distances + self.margin)
+        loss = loss.mean()
+        return loss
+
+
+class CombinedVAELoss(nn.Module):
+
+    # V & J weights are still here for compatibility issues but should not be used in theory
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_v=False, use_j=False, max_len=(7+8+22+6+7+23), aa_dim=20,
+                 v_dim=51, j_dim=13, weight_seq=3, weight_v=0, weight_j=0, weight_kld=1, debug=False, warm_up=0,
+                 n_batches=20, weight_vae=2, weight_triplet=1, triplet_loss_margin=1.5):
+        super(CombinedVAELoss, self).__init__()
+        # TODO: Here, maybe change the additional term from triplet loss to something else (Center Loss or Contrastive loss?)
+        self.vae_loss = VAELoss(sequence_criterion, use_v, use_j, max_len, aa_dim, v_dim, j_dim,
+                               weight_seq, weight_v, weight_j, weight_kld, debug, warm_up, n_batches)
+        self.triplet_loss = TripletLoss(triplet_loss_margin)
+        self.weight_triplet = weight_triplet
+        self.weight_vae = weight_vae
+        self.norm_factor = (self.weight_triplet + self.weight_vae)
+
+    # Maybe this normalisation factor thing is not needed
+    def forward(self, x_hat, x, mu, logvar, z, labels):
+
+        # Both the vaeloss and triplet loss are mean reduced already ; Just need to adjust weights for each term (?)
+        recon_loss, kld_loss = self.vae_loss(x_hat, x, mu, logvar)
+        recon_loss = self.weight_vae * recon_loss / self.norm_factor
+        kld_loss = self.weight_vae * kld_loss / self.norm_factor
+        triplet_loss = self.weight_triplet * self.triplet_loss(z, labels) / self.norm_factor
+        return recon_loss, kld_loss, triplet_loss
+
 
 # NOTE : Fixed version with the true acc
 def reconstruction_accuracy(seq_true, seq_hat, v_true=None, v_hat=None,
