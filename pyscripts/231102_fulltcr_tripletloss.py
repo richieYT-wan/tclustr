@@ -191,8 +191,8 @@ def main():
             file.write(f"{key}: {value}\n")
 
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
-    train_dataset = FullTCRDataset(train_df, **dataset_params)
-    valid_dataset = FullTCRDataset(valid_df, **dataset_params)
+    train_dataset = TCRSpecificDataset(train_df, **dataset_params)
+    valid_dataset = TCRSpecificDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
