@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, Dataset
 from src.data_processing import encode_batch, V_MAP, J_MAP, PEP_MAP
 from overrides import override
 
+
 class VAEDataset(Dataset):
     """
     Parent class so I don't have to re-declare the same bound methods
@@ -157,11 +158,9 @@ class TCRSpecificDataset(VAEDataset):
         self.x = torch.cat(x_seq, dim=1)
         self.labels = torch.from_numpy(df['peptide'].map(PEP_MAP).values)
 
-
     @override
     def __getitem__(self, idx):
         return self.x[idx], self.labels[idx]
-
 
 
 class PairedDataset(VAEDataset):

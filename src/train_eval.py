@@ -88,10 +88,10 @@ def train_model_step(model, criterion, optimizer, train_loader):
             # TODO: CHECK THIS Set to eval mode for the extraction of the latent (? maybe not, need to try?)
             model.eval()
             z_batch = model.embed(x)
+            model.train()
             recon_loss, kld_loss, triplet_loss = criterion(x_hat, x, mu, logvar, z_batch, labels)
             loss = recon_loss + kld_loss + triplet_loss
             acum_triplet_loss += triplet_loss.item() * x.shape[0]
-            model.train()
         else:
             x_hat, mu, logvar = model(x)
             recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)

@@ -233,12 +233,18 @@ class PairedVAELoss(nn.Module):
 
 
 class TripletLoss(nn.Module):
-    def __init__(self, margin=1.0):
+    def __init__(self, dist_type='cosine', margin=None):
         super(TripletLoss, self).__init__()
+        assert dist_type in ['cosine', 'l1',
+                             'l2'], f'Distance type must be in ["l1", "l2", "cosine"]! Got {dist_type} instead.'
+        self.distance = {'cosine': compute_cosine_distance, 'l2': torch.cdist, 'l1': torch.cdist}[dist_type]
+        self.p = 1 if dist_type == 'l1' else 2 if dist_type == 'l2' else None
+        if margin is None:
+            margin = 0.05 if dist_type == 'cosine' else 1.0
         self.margin = margin
 
     def forward(self, z, labels):
-        pairwise_distances = torch.cdist(z, z)
+        pairwise_distances = self.distance(z, z, p=self.p)
         mask_positive = torch.eq(labels.unsqueeze(0), labels.unsqueeze(1)).float()
         mask_negative = 1 - mask_positive
         # Get the distances for each of the masks
@@ -253,27 +259,40 @@ class TripletLoss(nn.Module):
 class CombinedVAELoss(nn.Module):
 
     # V & J weights are still here for compatibility issues but should not be used in theory
-    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_v=False, use_j=False, max_len=(7+8+22+6+7+23), aa_dim=20,
-                 v_dim=51, j_dim=13, weight_seq=3, weight_v=0, weight_j=0, weight_kld=1, debug=False, warm_up=0,
-                 n_batches=20, weight_vae=2, weight_triplet=1, triplet_loss_margin=1.5):
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_v=False, use_j=False,
+                 max_len=(7 + 8 + 22 + 6 + 7 + 23), aa_dim=20, v_dim=51, j_dim=13, weight_seq=3, weight_v=0, weight_j=0,
+                 weight_kld=1, debug=False, warm_up=0, n_batches=20, weight_vae=2, weight_triplet=1,
+                 dist_type='cosine', triplet_loss_margin=None):
         super(CombinedVAELoss, self).__init__()
         # TODO: Here, maybe change the additional term from triplet loss to something else (Center Loss or Contrastive loss?)
         self.vae_loss = VAELoss(sequence_criterion, use_v, use_j, max_len, aa_dim, v_dim, j_dim,
-                               weight_seq, weight_v, weight_j, weight_kld, debug, warm_up, n_batches)
-        self.triplet_loss = TripletLoss(triplet_loss_margin)
+                                weight_seq, weight_v, weight_j, weight_kld, debug, warm_up, n_batches)
+        self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
         self.norm_factor = (self.weight_triplet + self.weight_vae)
 
     # Maybe this normalisation factor thing is not needed
     def forward(self, x_hat, x, mu, logvar, z, labels):
-
         # Both the vaeloss and triplet loss are mean reduced already ; Just need to adjust weights for each term (?)
         recon_loss, kld_loss = self.vae_loss(x_hat, x, mu, logvar)
         recon_loss = self.weight_vae * recon_loss / self.norm_factor
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
         triplet_loss = self.weight_triplet * self.triplet_loss(z, labels) / self.norm_factor
         return recon_loss, kld_loss, triplet_loss
+
+
+def compute_cosine_distance(z_embedding, *args, **kwargs):
+    # Compute the dot product of the embedding matrix
+    dot_product = torch.mm(z_embedding, z_embedding.t())
+
+    # Compute the L2 norms of the vectors
+    norms = torch.norm(z_embedding, p=2, dim=1, keepdim=True)
+
+    # Compute the pairwise cosine distances
+    cosine_distance_matrix = 1 - dot_product / (norms * norms.t())
+
+    return cosine_distance_matrix
 
 
 # NOTE : Fixed version with the true acc
