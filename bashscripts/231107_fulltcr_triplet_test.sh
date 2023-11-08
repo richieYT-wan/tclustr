@@ -1,16 +1,8 @@
 #!/bin/bash
 
-# ARGS
-# 1 : walltime
-# 2 : mla1
-# 3 : mla2
-# 4 : mlo3
-# 5 : mlb1
-# 6 : mlb2
-# 7 : mlb3
-# 8 : n_hidden
-# 9 : n_latent
-# 10 :
+# TODO: ARGS
+# TODO: 1 : walltime
+
 
 # Define the characters that can be used
 characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

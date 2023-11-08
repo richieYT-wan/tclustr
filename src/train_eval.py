@@ -333,7 +333,7 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         divider += (int(model.use_b) + int(model.use_a) + int(model.use_pep))
     else:
         divider += 1
-
+    best_dict = {}
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_model_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_model_step(model, criterion, valid_loader)
@@ -377,13 +377,13 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_val_losses = valid_loss
             best_val_metrics = valid_metric
 
-            best_dict = {'Best epoch': best_epoch, 'Valid loss': valid_loss}
+            best_dict = {'Best epoch': best_epoch}
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
-            print(best_dict)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
     print(f'End of training cycles')
+    print(best_dict)
     best_train_reconstruction = max([np.sum([x for x in z.values()]) / divider for z in train_metrics])
 
     print(f'Best train loss:\t{min([x["total"] for x in train_losses]):.3e}'
