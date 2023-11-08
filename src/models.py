@@ -169,6 +169,7 @@ class CDR3bVAE(NetParent):
         return seq_idx, v, j
 
 
+# TODO : Make number of layers more flexible and add batchnorm-dropout, try leaky relu
 class FullTCRVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
     def __init__(self,
