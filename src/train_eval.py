@@ -220,7 +220,8 @@ def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_elemen
     return metrics
 
 
-def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.datasets.PairedDataset]), dataloader: torch.utils.data.DataLoader):
+def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.datasets.PairedDataset, src.datasets.TCRSpecificDataset]),
+                  dataloader: torch.utils.data.DataLoader):
     assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
         'Test/Valid loader MUST use SequentialSampler!'
     assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
@@ -228,12 +229,27 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
     if hasattr(model, 'use_v') and hasattr(dataset, 'use_v'):
         assert (model.use_v == dataset.use_v) and (
                 model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
+    # if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion,
+    #                                                                  'triplet_loss')) and
 
+    #     x, labels = x.pop(0), x.pop(-1)
+    #     x_hat, mu, logvar = model(x)
+    #     # Model is already in eval mode here
+    #     z_batch = model.embed(x)
+    #     recon_loss, kld_loss, triplet_loss = criterion(x_hat, x, mu, logvar, z_batch, labels)
+    #     loss = recon_loss + kld_loss + triplet_loss
+    #     acum_triplet_loss += triplet_loss.item() * x.shape[0]
+    # else:
+    #     x_hat, mu, logvar = model(x)
+    #     recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
+    #     loss = recon_loss + kld_loss
     df = dataset.df.reset_index(drop=True).copy()
     x_reconstructed, x_true, z_latent = [], [], []
     with torch.no_grad():
         # Same workaround as above
         for x in dataloader:
+            if dataloader.dataset.__class__.__name__ == 'TCRSpecificDataset':
+                x, labels = x.pop(0), x.pop(-1)
             x_hat, _, _ = model(x)
             z = model.embed(x)
             x_reconstructed.append(x_hat)
