@@ -218,7 +218,6 @@ class FullTCRVAE(NetParent):
             epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
             return (epsilon * std) + mu
         else:
-            print('here')
             return mu
 
     def encode(self, x):
