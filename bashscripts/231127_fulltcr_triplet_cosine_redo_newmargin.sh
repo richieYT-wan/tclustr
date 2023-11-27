@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# 230927_0942 : REDO THE RUNS!
-# What changed : default V and J map, readjusted seq/kld/v/j/ losses weights (3, 2, 2.5, 1.5)
-# Lowered N_epochs because 2000 was too much (do 1750)
+# TODO: ARGS
+# TODO: 1 : walltime
+
 
 # Define the characters that can be used
 characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -14,16 +14,7 @@ first_char="${characters:index:1}"
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_string="${first_char}${rest_chars}"
-# Get the current date and time in the YYMMDD_HHMMSS format
-current_date_time=$(date '+%y%m%d_%H%M%S')
-
-# Combine the current date and time with the random string to create the final filename
-final_filename="${current_date_time}_${random_string}"
-
-#outname="${final_filename}_${1}_run"
-
-# Print the final filename
-outname="10K_epochs_OnlyPositivesFullCDR3b_LowerDim_64_WD_1e-4"
+outname="231108_TripletCosine_A3B3_margin_Auto_25k_epochs"
 
 
 for f in $(seq 0 4);
@@ -37,7 +28,7 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
 cd \${PYDIR}
-python3 ./vae_cdr3_vj.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ml 25 -ne 10000 -lwseq 2 -lwkld 1 -cdr3b "TRB_CDR3" -v "None" -j "None" -nl 64 -nh 128 -lr 5e-4 -wd 1e-4 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 25000 -lwseq 3 -lwkld 5e-3 -lwtrp 0.75 -dist_type cosine -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl 32 -nh 64 -bs 256 -lr 1e-4 -wd 1e-4 -wu 15 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
 EOF
 )
                               # Write the script content to a file
@@ -48,6 +39,7 @@ EOF
 
 done
 
+
 movescript=$(cat <<EOF
 cd /home/projects/vaccine/people/yatwan/tclustr/output/
 ODIR=${outname}_${random_string}/
@@ -57,3 +49,5 @@ EOF
 )
 
 echo "$movescript" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/move_${random_string}.sh"
+
+

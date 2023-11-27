@@ -9,12 +9,13 @@ import wandb
 import math
 import torch
 from torch import optim
+from torch import cuda
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists
-from src.torch_utils import load_checkpoint
+from src.torch_utils import load_checkpoint, save_model_full
 from src.models import FullTCRVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import TCRSpecificDataset
@@ -28,6 +29,8 @@ def args_parser():
     """
     Data processing args
     """
+    parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
+                        help="Will use GPU if True and GPUs are available")
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
     parser.add_argument('-f', '--file', dest='file', required=True, type=str,
@@ -107,7 +110,7 @@ def args_parser():
     parser.add_argument('-lwtrp', '--weight_triplet',
                         dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
     parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
-                        help = 'Which distance metric to use ')
+                        help='Which distance metric to use ')
     parser.add_argument('-margin', dest='margin', default=None, type=float,
                         help='Margin for the triplet loss (Default is None and will have the default behaviour depending on the distance type)')
     parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
@@ -139,11 +142,11 @@ def main():
     # I like dictionary for args :-)
     args = vars(args_parser())
     seed = args['seed'] if args['fold'] is None else args['fold']
+    device = cuda.device('cuda:0') if cuda.is_available() and args['cuda'] else 'cpu'
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
     args['activation'] = {'selu': nn.SELU(), 'relu': nn.ReLU(),
                           'leakyrelu': nn.LeakyReLU(), 'elu': nn.ELU()}[args['activation']]
-
     # Loading data and getting train/valid
     # TODO: Restore valid kcv behaviour // or not
     df = pd.read_csv(args['file'])
@@ -160,7 +163,7 @@ def main():
     kf = '-1' if args["fold"] is None else args['fold']
     rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args[
                                                                                                                        'random_id'] == '' else \
-    args['random_id']
+        args['random_id']
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
@@ -189,7 +192,6 @@ def main():
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
-
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
     train_dataset = TCRSpecificDataset(train_df, **dataset_params)
     valid_dataset = TCRSpecificDataset(valid_df, **dataset_params)
@@ -214,19 +216,24 @@ def main():
         wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                   criterion, optimizer, train_loader, valid_loader,
-                                                                   checkpoint_filename, outdir)
+        best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
+                                                                       criterion, optimizer, train_loader, valid_loader,
+                                                                       checkpoint_filename, outdir)
+    best_dict = {'Best epoch': best_epoch}
+    best_dict.update(best_val_loss)
+    best_dict.update(best_val_metrics)
+    save_model_full(model, checkpoint_filename, outdir,
+                    best_dict=best_dict, dict_kwargs=model_params)
 
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
-                                          'train')  # {f'train_{key}': [d[key] for d in train_losses] for key in train_losses[0]}
+                                          'train')
     train_metrics_dict = get_dict_of_lists(train_metrics,
-                                           'train')  # {f'train_{key}': [d[key] for d in train_metrics] for key in train_metrics[0]}
+                                           'train')
     valid_losses_dict = get_dict_of_lists(valid_losses,
-                                          'valid')  # {f'valid_{key}': [d[key] for d in valid_losses] for key in valid_losses[0]}
+                                          'valid')
     valid_metrics_dict = get_dict_of_lists(valid_metrics,
-                                           'valid')  # {f'valid_{key}': [d[key] for d in valid_metrics] for key in valid_metrics[0]}
+                                           'valid')
 
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}

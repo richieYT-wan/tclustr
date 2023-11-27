@@ -1,42 +1,92 @@
-import os, sys
-import pickle
+import os
 from .utils import mkdirs
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch import optim
+import json
+from src.models import *
 
 
-def set_mode(models_dict, mode='eval'):
+# TODO HERE ADD ALSO FOR DATASET THING (be smarter about this)
+
+def load_model_full(checkpoint_filename, json_filename, dir_path=None):
     """
-    QOL function to set all models to train or eval
+    Instantiate and loads a model directly from a checkpoint and json filename
     Args:
-        models_dict (dict): dictionary of list of models
-        mode (str): mode.lower() should be either 'eval' or 'train'
-    Returns:
-        the same models_dict
-    """
-    assert mode.lower() in ['eval', 'train'], 'Please provide a proper mode' \
-                                              f'(either "train" or "eval"). You provided "{mode}"'
-    mode_bool = mode.lower() == 'train'
-    for key, model_list in models_dict.items():
-        for model in model_list:
-            model.train(mode_bool)
-
-
-def set_device(models_list, device):
-    """
-    QOL fct to set all models in a LIST to the same device.
-    Only for list and not Dict because copying takes time and space
-    Args:
-        models_list:
-        device:
-
+        checkpoint_filename:
+        json_filename:
+        dir_path:
     Returns:
 
     """
-    for model in models_list:
-        model.to(device)
+    dict_kwargs = load_json(json_filename, dir_path)
+    assert 'constructor' in dict_kwargs.keys(), f'No constructor class name provided in the dict_kwargs keys! {dict_kwargs.keys()}'
+    constructor = dict_kwargs.pop('constructor')
+    model = eval(constructor)(**dict_kwargs)
+    model = load_checkpoint(model, checkpoint_filename, dir_path)
+    return model
+
+
+def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', verbose=False, best_dict=None,
+                    dict_kwargs=None, json_filename=None):
+    """
+    Saves a torch model (.pt) along with its init parameters in a JSON file
+    Args:
+        model: Model object
+        checkpoint_filename:
+        dir_path:
+        verbose:
+        best_dict:
+        dict_kwargs:
+        json_filename:
+
+    Returns:
+
+    """
+    if json_filename is None:
+        json_filename = f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json' if checkpoint_filename.endswith(
+            '.pt') \
+            else f'{checkpoint_filename}_JSON_kwargs.json'
+    save_checkpoint(model, checkpoint_filename, dir_path, verbose, best_dict)
+    if 'constructor' not in dict_kwargs.keys():
+        dict_kwargs['constructor'] = model.__class__.__name__
+    save_json(dict_kwargs, json_filename, dir_path)
+    print(
+        f'Model weights saved at {os.path.abspath(os.path.join(dir_path, checkpoint_filename))} ' \
+        f'and JSON at {os.path.abspath(os.path.join(dir_path, json_filename))}')
+
+
+def load_json(filename, dir_path=None):
+    """
+    Loads a dictionary from a .json file and returns it
+    Args:
+        filename:
+
+    Returns:
+        dict_kwargs: A dictionary containing the kwargs necessary to instantiate a given model
+    """
+    if dir_path is not None:
+        filename = os.path.join(dir_path, filename)
+    with open(filename, 'r') as json_file:
+        dict_kwargs = json.load(json_file)
+    return dict_kwargs
+
+
+def save_json(dict_kwargs, filename, dir_path='./'):
+    """
+    Saves a dictionary to a .json file
+    When saving a model, should try to ensure that the model's constructor // class name exists
+    Args:
+        dict_kwargs:
+        filename:
+        dir_path:
+
+    Returns:
+
+    """
+    savepath = os.path.join(dir_path, filename)
+    # Write the dictionary to a JSON file
+    with open(savepath, 'w') as json_file:
+        json.dump(dict_kwargs, json_file)
+    print(f"JSON data has been written to {savepath}")
 
 
 def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './',
@@ -118,3 +168,35 @@ def create_load_model(constructor, filename: str, dir_path: str = None):
     model.load_state_dict(state_dict)
     model.eval()
     return model
+
+
+def set_mode(models_dict, mode='eval'):
+    """
+    QOL function to set all models to train or eval
+    Args:
+        models_dict (dict): dictionary of list of models
+        mode (str): mode.lower() should be either 'eval' or 'train'
+    Returns:
+        the same models_dict
+    """
+    assert mode.lower() in ['eval', 'train'], 'Please provide a proper mode' \
+                                              f'(either "train" or "eval"). You provided "{mode}"'
+    mode_bool = mode.lower() == 'train'
+    for key, model_list in models_dict.items():
+        for model in model_list:
+            model.train(mode_bool)
+
+
+def set_device(models_list, device):
+    """
+    QOL fct to set all models in a LIST to the same device.
+    Only for list and not Dict because copying takes time and space
+    Args:
+        models_list:
+        device:
+
+    Returns:
+
+    """
+    for model in models_list:
+        model.to(device)
