@@ -83,6 +83,7 @@ def save_json(dict_kwargs, filename, dir_path='./'):
 
     """
     savepath = os.path.join(dir_path, filename)
+    dict_kwargs['activation'] = dict_kwargs['activation'].__class__.__name__
     # Write the dictionary to a JSON file
     with open(savepath, 'w') as json_file:
         json.dump(dict_kwargs, json_file)

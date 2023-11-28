@@ -219,11 +219,7 @@ def main():
         best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
                                                                        criterion, optimizer, train_loader, valid_loader,
                                                                        checkpoint_filename, outdir)
-    best_dict = {'Best epoch': best_epoch}
-    best_dict.update(best_val_loss)
-    best_dict.update(best_val_metrics)
-    save_model_full(model, checkpoint_filename, outdir,
-                    best_dict=best_dict, dict_kwargs=model_params)
+
 
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
@@ -287,7 +283,11 @@ def main():
         file.write(f"Best valid seq acc: {valid_seq_acc}\n")
         if args['test_file'] is not None:
             file.write(f"Best test seq acc: {test_seq_acc}\n")
-
+    best_dict = {'Best epoch': best_epoch}
+    best_dict.update(best_val_loss)
+    best_dict.update(best_val_metrics)
+    save_model_full(model, checkpoint_filename, outdir,
+                    best_dict=best_dict, dict_kwargs=model_params)
     end = dt.now()
     elapsed = divmod((end - start).seconds, 60)
     print(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
