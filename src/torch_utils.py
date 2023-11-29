@@ -1,10 +1,11 @@
 import os
 from .utils import mkdirs
-import torch
+from torch.nn import LeakyReLU, ELU, SELU, ReLU
 import json
 from src.models import *
 
-
+ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
+            'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
 # TODO HERE ADD ALSO FOR DATASET THING (be smarter about this)
 
 def load_model_full(checkpoint_filename, json_filename, dir_path=None):
@@ -20,6 +21,7 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None):
     dict_kwargs = load_json(json_filename, dir_path)
     assert 'constructor' in dict_kwargs.keys(), f'No constructor class name provided in the dict_kwargs keys! {dict_kwargs.keys()}'
     constructor = dict_kwargs.pop('constructor')
+    dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
     model = eval(constructor)(**dict_kwargs)
     model = load_checkpoint(model, checkpoint_filename, dir_path)
     return model
