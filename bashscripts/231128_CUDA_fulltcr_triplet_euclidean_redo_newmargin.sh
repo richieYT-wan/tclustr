@@ -22,7 +22,7 @@ do
  filename="${outname}_fold_${f}_${random_string}"
   script_content=$(cat <<EOF
 source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-source activate pynn
+source activate cuda
 
 HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
