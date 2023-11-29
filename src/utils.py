@@ -2,7 +2,6 @@ import argparse
 import os
 import pickle
 import pandas as pd
-from IPython.display import display_html
 from itertools import chain, cycle
 from matplotlib import pyplot as plt
 import matplotlib.patheffects as path_effects
@@ -179,19 +178,6 @@ def flatten_product(container):
                 yield j
         else:
             yield i
-
-
-def display_side(*args, titles=cycle([''])):
-    """
-    small util to display pd frames side by side
-    """
-    html_str = ''
-    for df, title in zip(args, chain(titles, cycle(['</br>']))):
-        html_str += '<th style="text-align:center"><td style="vertical-align:top">'
-        html_str += f'<h2>{title}</h2>'
-        html_str += df.to_html().replace('table', 'table style="display:inline"')
-        html_str += '</td></th>'
-    display_html(html_str, raw=True)
 
 
 def str2bool(v):
