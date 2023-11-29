@@ -148,7 +148,7 @@ def main():
     else:
         device = torch.device('cpu')
     print("Using : {}".format(device))
-
+    # TODO FIX THE BEHAVIOUR FOR MANUAL SEED BECAUSE IT'S DUPLICATED
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
     args['activation'] = {'selu': nn.SELU(), 'relu': nn.ReLU(),
@@ -210,7 +210,9 @@ def main():
     checkpoint_filename = f'checkpoint_best_fold{args["fold"]:02}_{fold_filename}.pt'
 
     # instantiate objects
-    torch.manual_seed(args["fold"])
+    #TODO FIX THE BEHAVIOUR FOR MANUAL SEED BECAUSE IT'S DUPLICATED
+    if args['seed'] is None:
+        torch.manual_seed(args["fold"])
     model = FullTCRVAE(**model_params)
     model.to(device)
     print(f'Model using device: {model.device}')

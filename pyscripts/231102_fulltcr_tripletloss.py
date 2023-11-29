@@ -142,7 +142,11 @@ def main():
     # I like dictionary for args :-)
     args = vars(args_parser())
     seed = args['seed'] if args['fold'] is None else args['fold']
-    device = cuda.device('cuda:0') if cuda.is_available() and args['cuda'] else 'cpu'
+    if torch.cuda.is_available() and args['cuda']:
+        device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
+    print("Using : {}".format(device))
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
     args['activation'] = {'selu': nn.SELU(), 'relu': nn.ReLU(),
