@@ -101,8 +101,8 @@ def train_model_step(model, criterion, optimizer, train_loader):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        x_reconstructed.append(x_hat)
-        x_true.append(x)
+        x_reconstructed.append(x_hat.detach().cpu())
+        x_true.append(x.detach().cpu())
         acum_total_loss += loss.item() * x.shape[0]
         acum_recon_loss += recon_loss.item() * x.shape[0]
         acum_kld_loss += kld_loss.item() * x.shape[0]
@@ -139,7 +139,7 @@ def eval_model_step(model, criterion, valid_loader):
         # Same workaround as above
         for x in valid_loader:
             if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss')) and valid_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
-                x, labels = x.pop(0), x.pop(-1)
+                x, labels = x.pop(0).to(model.device), x.pop(-1).to(model.device)
                 x_hat, mu, logvar = model(x)
                 # Model is already in eval mode here
                 z_batch = model.embed(x)
@@ -147,11 +147,12 @@ def eval_model_step(model, criterion, valid_loader):
                 loss = recon_loss + kld_loss + triplet_loss
                 acum_triplet_loss += triplet_loss.item() * x.shape[0]
             else:
+                x = x.to(model.device)
                 x_hat, mu, logvar = model(x)
                 recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
                 loss = recon_loss + kld_loss
-            x_reconstructed.append(x_hat)
-            x_true.append(x)
+            x_reconstructed.append(x_hat.detach().cpu())
+            x_true.append(x.detach().cpu())
             acum_total_loss += loss.item() * x.shape[0]
             acum_recon_loss += recon_loss.item() * x.shape[0]
             acum_kld_loss += kld_loss.item() * x.shape[0]
@@ -237,16 +238,17 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
         # Same workaround as above
         for x in dataloader:
             if dataloader.dataset.__class__.__name__ == 'TCRSpecificDataset':
-                x, labels = x.pop(0), x.pop(-1)
+                x, labels = x.pop(0).to(model.device), x.pop(-1).to(model.device)
                 x_hat, mu, logvar = model(x)
                 # Model is already in eval mode here
                 z = model.embed(x)
             else:
+                x = x.to(model.device)
                 x_hat, _, _ = model(x)
                 z = model.embed(x)
-            x_reconstructed.append(x_hat)
-            x_true.append(x)
-            z_latent.append(z)
+            x_reconstructed.append(x_hat.detach().cpu())
+            x_true.append(x.detach().cpu())
+            z_latent.append(z.detach().cpu())
 
     x_reconstructed = torch.cat(x_reconstructed)
     x_true = torch.cat(x_true)
