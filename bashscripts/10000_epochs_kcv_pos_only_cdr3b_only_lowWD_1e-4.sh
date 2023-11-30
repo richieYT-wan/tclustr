@@ -14,6 +14,15 @@ first_char="${characters:index:1}"
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_string="${first_char}${rest_chars}"
+# Get the current date and time in the YYMMDD_HHMMSS format
+current_date_time=$(date '+%y%m%d_%H%M%S')
+
+# Combine the current date and time with the random string to create the final filename
+final_filename="${current_date_time}_${random_string}"
+
+#outname="${final_filename}_${1}_run"
+
+# Print the final filename
 outname="10K_epochs_OnlyPositivesFullCDR3b_LowerDim_64_WD_1e-4"
 
 

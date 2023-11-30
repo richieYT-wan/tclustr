@@ -4,8 +4,9 @@ from tqdm.auto import tqdm
 import numpy as np
 from torch.utils.data import DataLoader
 import src.datasets
-from src.torch_utils import save_checkpoint, load_checkpoint
+from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
 from src.metrics import reconstruction_accuracy
+from torch import cuda
 
 
 class EarlyStopping:
@@ -83,7 +84,7 @@ def train_model_step(model, criterion, optimizer, train_loader):
     x_reconstructed, x_true = [], []
     for x in train_loader:
         if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss')) and train_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
-            x, labels = x.pop(0), x.pop(-1)
+            x, labels = x.pop(0).to(model.device), x.pop(-1).to(model.device)
             x_hat, mu, logvar = model(x)
             # TODO: CHECK THIS Set to eval mode for the extraction of the latent (? maybe not, need to try?)
             model.eval()
@@ -93,14 +94,15 @@ def train_model_step(model, criterion, optimizer, train_loader):
             loss = recon_loss + kld_loss + triplet_loss
             acum_triplet_loss += triplet_loss.item() * x.shape[0]
         else:
+            x = x.to(model.device)
             x_hat, mu, logvar = model(x)
             recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
             loss = recon_loss + kld_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        x_reconstructed.append(x_hat)
-        x_true.append(x)
+        x_reconstructed.append(x_hat.detach().cpu())
+        x_true.append(x.detach().cpu())
         acum_total_loss += loss.item() * x.shape[0]
         acum_recon_loss += recon_loss.item() * x.shape[0]
         acum_kld_loss += kld_loss.item() * x.shape[0]
@@ -137,7 +139,7 @@ def eval_model_step(model, criterion, valid_loader):
         # Same workaround as above
         for x in valid_loader:
             if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss')) and valid_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
-                x, labels = x.pop(0), x.pop(-1)
+                x, labels = x.pop(0).to(model.device), x.pop(-1).to(model.device)
                 x_hat, mu, logvar = model(x)
                 # Model is already in eval mode here
                 z_batch = model.embed(x)
@@ -145,11 +147,12 @@ def eval_model_step(model, criterion, valid_loader):
                 loss = recon_loss + kld_loss + triplet_loss
                 acum_triplet_loss += triplet_loss.item() * x.shape[0]
             else:
+                x = x.to(model.device)
                 x_hat, mu, logvar = model(x)
                 recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
                 loss = recon_loss + kld_loss
-            x_reconstructed.append(x_hat)
-            x_true.append(x)
+            x_reconstructed.append(x_hat.detach().cpu())
+            x_true.append(x.detach().cpu())
             acum_total_loss += loss.item() * x.shape[0]
             acum_recon_loss += recon_loss.item() * x.shape[0]
             acum_kld_loss += kld_loss.item() * x.shape[0]
@@ -249,12 +252,17 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
         # Same workaround as above
         for x in dataloader:
             if dataloader.dataset.__class__.__name__ == 'TCRSpecificDataset':
-                x, labels = x.pop(0), x.pop(-1)
-            x_hat, _, _ = model(x)
-            z = model.embed(x)
-            x_reconstructed.append(x_hat)
-            x_true.append(x)
-            z_latent.append(z)
+                x, labels = x.pop(0).to(model.device), x.pop(-1).to(model.device)
+                x_hat, mu, logvar = model(x)
+                # Model is already in eval mode here
+                z = model.embed(x)
+            else:
+                x = x.to(model.device)
+                x_hat, _, _ = model(x)
+                z = model.embed(x)
+            x_reconstructed.append(x_hat.detach().cpu())
+            x_true.append(x.detach().cpu())
+            z_latent.append(z.detach().cpu())
 
     x_reconstructed = torch.cat(x_reconstructed)
     x_true = torch.cat(x_true)
@@ -409,5 +417,6 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     print(f'Best valid loss :\t{best_val_loss:.3e}, best valid mean reconstruction acc:\t{best_val_reconstruction:.3%}')
     # print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
     model = load_checkpoint(model, checkpoint_filename, outdir)
+    # Here for now it's not the best implementation but save the full model with a undefined json filename
     model.eval()
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics

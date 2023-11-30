@@ -240,7 +240,7 @@ class TripletLoss(nn.Module):
         self.distance = {'cosine': compute_cosine_distance, 'l2': torch.cdist, 'l1': torch.cdist}[dist_type]
         self.p = 1 if dist_type == 'l1' else 2 if dist_type == 'l2' else None
         if margin is None:
-            margin = 0.05 if dist_type == 'cosine' else 1.0
+            margin = 0.25 if dist_type == 'cosine' else 1.0
         self.margin = margin
 
     def forward(self, z, labels):
@@ -290,7 +290,9 @@ def compute_cosine_distance(z_embedding, *args, **kwargs):
     norms = torch.norm(z_embedding, p=2, dim=1, keepdim=True)
 
     # Compute the pairwise cosine distances
-    cosine_distance_matrix = 1 - dot_product / (norms * norms.t())
+    cosine_distance_matrix = 1 - (dot_product / (norms * norms.t()))
+    # Clamps the negative values to 0
+    cosine_distance_matrix[cosine_distance_matrix <= 1e-6] = 0
 
     return cosine_distance_matrix
 

@@ -2,7 +2,6 @@ import argparse
 import os
 import pickle
 import pandas as pd
-from IPython.display import display_html
 from itertools import chain, cycle
 from matplotlib import pyplot as plt
 import matplotlib.patheffects as path_effects
@@ -72,12 +71,12 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palett
         if len(v) == 0 or all([val == 0 for val in v]): continue
         a[1].plot(v[warm_up:], label=k)
         if k == 'valid_seq_accuracy' or k == 'valid_b_accuracy':
-            best_val_accs_epoch = v.index(min(v))
+            best_val_accs_epoch = v.index(max(v))
     a[0].set_ylim([0, 1])
     a[0].axvline(x=best_val_loss_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
                  c='k', label=f'Best loss epoch {best_val_loss_epoch}')
     a[1].axvline(x=best_val_accs_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
-                 c='k', label=f'Best loss epoch {best_val_accs_epoch}')
+                 c='k', label=f'Best accs epoch {best_val_accs_epoch}')
     a[1].set_ylim([0.5, 1.1])
     a[0].set_title('Losses')
     a[1].set_title('Accuracies')
@@ -179,19 +178,6 @@ def flatten_product(container):
                 yield j
         else:
             yield i
-
-
-def display_side(*args, titles=cycle([''])):
-    """
-    small util to display pd frames side by side
-    """
-    html_str = ''
-    for df, title in zip(args, chain(titles, cycle(['</br>']))):
-        html_str += '<th style="text-align:center"><td style="vertical-align:top">'
-        html_str += f'<h2>{title}</h2>'
-        html_str += df.to_html().replace('table', 'table style="display:inline"')
-        html_str += '</td></th>'
-    display_html(html_str, raw=True)
 
 
 def str2bool(v):
