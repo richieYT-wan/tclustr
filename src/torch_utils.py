@@ -122,7 +122,7 @@ def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './'
         print(f'Model saved at {os.path.abspath(savepath)}')
 
 
-def load_checkpoint(model, filename: str, dir_path: str = None):
+def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True):
     """
     Loads a model
     Args:
@@ -139,9 +139,10 @@ def load_checkpoint(model, filename: str, dir_path: str = None):
         checkpoint = torch.load(filename)
         if 'best' in checkpoint.keys():
             best = checkpoint.pop('best')
-            print('Reloading best model:')
-            for k, v in best.items():
-                print(f'{k}: {v}')
+            if verbose:
+                print('Reloading best model:')
+                for k, v in best.items():
+                    print(f'{k}: {v}')
         model.load_state_dict(checkpoint)
     except:
         st = torch.load(filename)
