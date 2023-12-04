@@ -31,16 +31,16 @@ for i in "${!margins[@]}"; do
         for f in $(seq 0 4); do
           filename="${outname}_fold_${f}_${random_string}"
           script_content=$(cat <<EOF
-            source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-            source activate cuda
+source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+source activate cuda
 
-            HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
-            PYDIR=\${HOMEDIR}pyscripts/
-            filename=${filename}
-            cd \${PYDIR}
-            python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 27500 -cuda True -lwseq 3 -lwkld ${wkld} -lwtrp ${wtrp} -dist_type ${triplets[i]} -margin ${margins[i]} -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl ${nl} -nh $((nl * 2)) -bs 512 -lr 1e-4 -wd 1e-4 -wu 10 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
-            EOF
-              )
+HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
+PYDIR=\${HOMEDIR}pyscripts/
+filename=${filename}
+cd \${PYDIR}
+python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 27500 -cuda True -lwseq 3 -lwkld ${wkld} -lwtrp ${wtrp} -dist_type ${triplets[i]} -margin ${margins[i]} -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl ${nl} -nh $((nl * 2)) -bs 512 -lr 1e-4 -wd 1e-4 -wu 10 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+EOF
+)
             # Write the script content to a file
             echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
             chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
@@ -48,12 +48,12 @@ for i in "${!margins[@]}"; do
 
         done
         movescript=$(cat <<EOF
-          cd /home/projects/vaccine/people/yatwan/tclustr/output/
-          ODIR=${outname}_${random_string}/
-          mkdir -p \${ODIR}
-          mv *${random_string}* \${ODIR}
-          EOF
-        )
+cd /home/projects/vaccine/people/yatwan/tclustr/output/
+ODIR=${outname}_${random_string}/
+mkdir -p \${ODIR}
+mv *${random_string}* \${ODIR}
+EOF
+)
         echo "$movescript" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/move_${random_string}.sh"
       done
     done
@@ -86,16 +86,16 @@ for nl in "${nlatents[@]}"; do
     for f in $(seq 0 4); do
       filename="${outname}_fold_${f}_${random_string}"
       script_content=$(cat <<EOF
-        source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-        source activate cuda
+  source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+  source activate cuda
 
-        HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
-        PYDIR=\${HOMEDIR}pyscripts/
-        filename=${filename}
-        cd \${PYDIR}
-        python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 27500 -cuda True -lwseq 3 -lwkld ${wkld} -lwtrp 0 -dist_type 'cosine' -margin None -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl ${nl} -nh $((nl * 2)) -bs 512 -lr 1e-4 -wd 1e-4 -wu 10 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
-      EOF
-      )
+  HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
+  PYDIR=\${HOMEDIR}pyscripts/
+  filename=${filename}
+  cd \${PYDIR}
+  python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 27500 -cuda True -lwseq 3 -lwkld ${wkld} -lwtrp 0 -dist_type 'cosine' -margin None -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl ${nl} -nh $((nl * 2)) -bs 512 -lr 1e-4 -wd 1e-4 -wu 10 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+EOF
+)
         # Write the script content to a file
         echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
         chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
