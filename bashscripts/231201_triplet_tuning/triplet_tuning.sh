@@ -11,9 +11,9 @@ wklds=(1 0.1 0.01)
 for i in "${!margins[@]}"; do
   for nl in "${nlatents[@]}"; do
     if [ "$nl" -eq 32 ]; then
-      walltime="04:30:00"
+      walltime="05:15:00"
     elif [ "$nl" -eq 64 ]; then
-      walltime="06:30:00"
+      walltime="06:45:00"
     fi
     for wtrp in "${wtrps[@]}"; do
       for wkld in "${wklds[@]}"; do
@@ -42,10 +42,9 @@ for i in "${!margins[@]}"; do
             EOF
               )
             # Write the script content to a file
-            echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-            chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-            qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:gpus=1:ppn=40,mem=120gb,walltime=${walltime} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-            rm "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
+            echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
+            chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
+            qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:gpus=1:ppn=40,mem=120gb,walltime=${walltime} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
 
         done
         movescript=$(cat <<EOF
@@ -68,9 +67,9 @@ done
 # ! to get idx
 for nl in "${nlatents[@]}"; do
   if [ "$nl" -eq 32 ]; then
-      walltime="04:30:00"
+      walltime="05:15:00"
   elif [ "$nl" -eq 64 ]; then
-      walltime="06:30:00"
+      walltime="06:45:00"
   fi
   for wkld in "${wklds[@]}"; do
     # Define the characters that can be used
@@ -95,13 +94,12 @@ for nl in "${nlatents[@]}"; do
         filename=${filename}
         cd \${PYDIR}
         python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 27500 -cuda True -lwseq 3 -lwkld ${wkld} -lwtrp 0 -dist_type 'cosine' -margin None -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl ${nl} -nh $((nl * 2)) -bs 512 -lr 1e-4 -wd 1e-4 -wu 10 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
-        EOF
-          )
+      EOF
+      )
         # Write the script content to a file
-        echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-        chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-        qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:gpus=1:ppn=40,mem=120gb,walltime=${walltime} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-        rm "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
+        echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
+        chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
+        qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:gpus=1:ppn=40,mem=120gb,walltime=${walltime} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/231201_triplet_tuning/${filename}.sh"
 
     done
     movescript=$(cat <<EOF
