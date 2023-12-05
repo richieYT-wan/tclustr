@@ -27,4 +27,4 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
 filename=${filename}
 cd ${PYDIR}
-python3 ./train_classifier_frozen_vae.py -cuda False -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o ${outname} -nh 32 -do 0.15 -bn False -n_layers 1 -lr 1e-4 -wd 1e-4 -bs 512 -ne 2500 -kf 0 -rid ${random_string} -seed 0 -model_folder ../output/TripletTest/231108_TripletCosine_A3B3_margin_Auto_25k_epochs_larger_model_7VzZ5/231108_TripletCosine_A3B3_margin01_25k_epochs_larger_model_KFold_0_231130_2321_5PXfp/
+python3 ./train_classifier_frozen_vae.py -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o ${outname} -nh 32 -do 0.15 -bn False -n_layers 1 -lr 1e-4 -wd 1e-4 -bs 512 -ne 2500 -kf 0 -rid ${random_string} -seed 0 -model_folder ../output/TripletTest/231108_TripletCosine_A3B3_margin_Auto_25k_epochs_larger_model_7VzZ5/231108_TripletCosine_A3B3_margin01_25k_epochs_larger_model_KFold_0_231130_2321_5PXfp/
