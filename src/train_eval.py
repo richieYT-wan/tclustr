@@ -432,7 +432,7 @@ def train_classifier_step(model, criterion, optimizer, train_loader):
 
 
 def eval_classifier_step(model, criterion, valid_loader):
-    model.train()
+    model.eval()
     acum_loss = 0
     y_scores, y_true = [], []
     with torch.no_grad():
@@ -458,6 +458,7 @@ def predict_classifier(model, dataset, dataloader):
         dataloader.sampler) == torch.utils.data.SequentialSampler, 'Test/Valid loader MUST use SequentialSampler!'
     df = dataset.df.reset_index(drop=True).copy()
     y_true, y_logit = [], []
+    model.eval()
     with torch.no_grad():
         for x, y in dataloader:
             x, y = x.to(model.device), y.to(model.device)
