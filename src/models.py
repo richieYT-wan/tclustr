@@ -293,6 +293,29 @@ class FullTCRVAE(NetParent):
         return seq_idx, v, j
 
 
+class PeptideClassifier(NetParent):
+
+    def __init__(self, pep_dim, n_latent, n_layers, n_hidden_classifier, dropout=0, batchnorm=False):
+        super(PeptideClassifier, self).__init__()
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax()
+        in_dim = pep_dim+n_latent
+        in_layer = [nn.Linear(in_dim, n_hidden_classifier), self.relu()]
+        if batchnorm:
+            in_layer.append(batchnorm)
+
+
+        layers = []
+        if n_layers>1:
+            layers.append(nn.Linear(n_hidden_classifier, n_hidden_classifier))
+            layers.append(nn.ReLU())
+            if batchnorm:
+                layers.append(batchnorm)
+
+
+
+
 class PairedFVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
     def __init__(self, max_len_b=23, max_len_a=24, max_len_pep=12, encoding='BL50LO', pad_scale=-20,
