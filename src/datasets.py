@@ -2,7 +2,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
-from src.data_processing import encode_batch, V_MAP, J_MAP, PEP_MAP
+from src.data_processing import encode_batch, batch_encode_cat, V_MAP, J_MAP, PEP_MAP
 from overrides import override
 
 
@@ -11,7 +11,7 @@ class VAEDataset(Dataset):
     Parent class so I don't have to re-declare the same bound methods
     """
 
-    def __init__(self, x=torch.empty([100, 1])):
+    def __init__(self, x=torch.empty([10, 1])):
         super(VAEDataset, self).__init__()
         self.x = x
 
@@ -116,95 +116,42 @@ class FullTCRDataset(VAEDataset):
         self.x = torch.cat(x_seq, dim=1)
 
 
-class TCRSpecificDataset(VAEDataset):
+class TCRSpecificDataset(FullTCRDataset):
 
     def __init__(self,
                  df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
                  encoding='BL50LO', pad_scale=None,
                  a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3'):
-        super(TCRSpecificDataset, self).__init__()
-        # TODO : Current behaviour If max_len_x = 0, then don't use that chain...
-        #        Is that the most elegant way to do this ?
-        assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
-                                         max_len_b1, max_len_b2, max_len_b3]]), \
-            'All loops max_len are 0! No chains will be added'
 
-        x_seq = []
-        self.max_len_a1 = max_len_a1
-        self.max_len_a2 = max_len_a2
-        self.max_len_a3 = max_len_a3
-        self.max_len_b1 = max_len_b1
-        self.max_len_b2 = max_len_b2
-        self.max_len_b3 = max_len_b3
-        self.use_a1 = not (max_len_a1 == 0)
-        self.use_a2 = not (max_len_a2 == 0)
-        self.use_a3 = not (max_len_a3 == 0)
-        self.use_b1 = not (max_len_b1 == 0)
-        self.use_b2 = not (max_len_b2 == 0)
-        self.use_b3 = not (max_len_b3 == 0)
+        super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3,
+                                                 max_len_b1, max_len_b2, max_len_b3, encoding,
+                                                 pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col)
 
-        # bad double loop because brain slow
-        for max_len, seq_col in zip([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3],
-                                    [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col]):
-            if max_len != 0:
-                df['len_q'] = df[seq_col].apply(len)
-                df = df.query('len_q <= @max_len')
-        for max_len, seq_col in zip([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3],
-                                    [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col]):
-            if max_len != 0:
-                x_seq.append(encode_batch(df[seq_col], max_len, encoding, pad_scale).flatten(start_dim=1))
-
-        self.df = df.drop(columns=['len_q']).reset_index(drop=True)
-        self.x = torch.cat(x_seq, dim=1)
         self.labels = torch.from_numpy(df['peptide'].map(PEP_MAP).values)
 
     @override
     def __getitem__(self, idx):
         return self.x[idx], self.labels[idx]
 
-class TCRpMHCDataset(VAEDataset):
 
-    def __init__(self,
-                 df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
+class TCRpMHCDataset(FullTCRDataset):
+    """
+    Placeholder where for now, we use a frozen VAE model so that the latent Z is always fixed
+    """
+    def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
                  encoding='BL50LO', pad_scale=None,
                  a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3'):
-        super(TCRpMHCDataset, self).__init__()
-        # TODO : Current behaviour If max_len_x = 0, then don't use that chain...
-        #        Is that the most elegant way to do this ?
-        assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
-                                         max_len_b1, max_len_b2, max_len_b3]]), \
-            'All loops max_len are 0! No chains will be added'
+        super(TCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
+                                             encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col)
 
-        x_seq = []
-        self.max_len_a1 = max_len_a1
-        self.max_len_a2 = max_len_a2
-        self.max_len_a3 = max_len_a3
-        self.max_len_b1 = max_len_b1
-        self.max_len_b2 = max_len_b2
-        self.max_len_b3 = max_len_b3
-        self.use_a1 = not (max_len_a1 == 0)
-        self.use_a2 = not (max_len_a2 == 0)
-        self.use_a3 = not (max_len_a3 == 0)
-        self.use_b1 = not (max_len_b1 == 0)
-        self.use_b2 = not (max_len_b2 == 0)
-        self.use_b3 = not (max_len_b3 == 0)
+        with torch.no_grad():
+            model.eval()
+            z_latent = model.embed(self.x)
 
-        # bad double loop because brain slow
-        for max_len, seq_col in zip([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3],
-                                    [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col]):
-            if max_len != 0:
-                df['len_q'] = df[seq_col].apply(len)
-                df = df.query('len_q <= @max_len')
-        for max_len, seq_col in zip([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3],
-                                    [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col]):
-            if max_len != 0:
-                x_seq.append(encode_batch(df[seq_col], max_len, encoding, pad_scale).flatten(start_dim=1))
+        encoded_peps = batch_encode_cat(df['peptide'], 12, -1)
 
-        self.df = df.drop(columns=['len_q']).reset_index(drop=True)
-        self.x = torch.cat(x_seq, dim=1)
-        self.labels = torch.from_numpy(df['peptide'].map(PEP_MAP).values)
-        self.peptides = encode_batch(df['peptide'], 12, encoding, pad_scale).flatten(start_dim=1)
-
+        self.x = torch.cat([z_latent, encoded_peps], dim=1)
+        self.labels = torch.from_numpy(df['binder'].values)
 
     @override
     def __getitem__(self, idx):

@@ -12,8 +12,9 @@ import string
 from datetime import datetime as dt
 
 
-def get_dict_of_lists(list_of_dicts, name):
-    return {f'{name}_{key}': [d[key] for d in list_of_dicts] for key in list_of_dicts[0]}
+def get_dict_of_lists(list_of_dicts, name, filter=None):
+    filter = list_of_dicts[0].keys() if filter is None else filter
+    return {f'{name}_{key}': [d[key] for d in list_of_dicts] for key in list_of_dicts[0] if key in filter}
 
 
 def get_motif(row, seq_col, window_size):

@@ -6,9 +6,11 @@ from src.models import *
 
 ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
+
+
 # TODO HERE ADD ALSO FOR DATASET THING (be smarter about this)
 
-def load_model_full(checkpoint_filename, json_filename, dir_path=None):
+def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
     Args:
@@ -24,7 +26,10 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None):
     dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
     model = eval(constructor)(**dict_kwargs)
     model = load_checkpoint(model, checkpoint_filename, dir_path)
-    return model
+    if return_json:
+        return model, dict_kwargs
+    else:
+        return model
 
 
 def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', verbose=False, best_dict=None,

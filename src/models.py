@@ -295,23 +295,37 @@ class FullTCRVAE(NetParent):
 
 class PeptideClassifier(NetParent):
 
-    def __init__(self, pep_dim, n_latent, n_layers, n_hidden_classifier, dropout=0, batchnorm=False):
+    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, hidden_dim=32, dropout=0, batchnorm=False):
         super(PeptideClassifier, self).__init__()
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.softmax = nn.Softmax()
         in_dim = pep_dim+n_latent
-        in_layer = [nn.Linear(in_dim, n_hidden_classifier), self.relu()]
+        in_layer = [nn.Linear(in_dim, hidden_dim), self.relu(), nn.Dropout(dropout)]
         if batchnorm:
-            in_layer.append(batchnorm)
+            in_layer.append(nn.BatchNorm1d(hidden_dim))
 
-
+        self.in_layer = nn.Sequential(*in_layer)
+        # Hidden layers
         layers = []
-        if n_layers>1:
-            layers.append(nn.Linear(n_hidden_classifier, n_hidden_classifier))
+        for _ in range(n_layers):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
             layers.append(nn.ReLU())
+            layers.append(nn.Dropout(dropout))
             if batchnorm:
-                layers.append(batchnorm)
+                layers.append(nn.BatchNorm1d(hidden_dim))
+        self.hidden_layers = nn.Sequential(*layers) if n_layers>0 else nn.Identity()
+
+        self.out_layer = nn.Linear(hidden_dim, 1)
+
+    def forward(self, x):
+        x = self.in_layer(x)
+        x = self.hidden_layers(x)
+        x = self.out_layer(x)
+        return x
+
+
+
 
 
 

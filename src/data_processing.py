@@ -24,6 +24,7 @@ CNN_FEATS = ['EL_ratio', 'anchor_mutation', 'delta_VHSE1', 'delta_VHSE3', 'delta
              'delta_aliphatic_index',
              'delta_boman', 'delta_hydrophobicity', 'delta_isoelectric_point', 'delta_rank']
 
+
 def _init(DATADIR):
     #### ==== CONST (blosum, multiprocessing, keys, etc) ==== ####
     VAL = math.floor(4 + (multiprocessing.cpu_count() / 1.5))
@@ -188,6 +189,14 @@ def get_aa_properties(df, seq_col='icore_mut', do_vhse=True, prefix=''):
     # Some hardcoded bs
     return out, ['aliphatic_index', 'boman', 'hydrophobicity',
                  'isoelectric_point', 'VHSE1', 'VHSE3', 'VHSE7', 'VHSE8']
+
+
+def encode_cat(sequence, max_len, pad_value=-1):
+    return F.pad(torch.tensor([CHAR_TO_INT[x] for x in sequence]), (0, max_len - (len(sequence))), value=pad_value)
+
+
+def batch_encode_cat(sequences, max_len, pad_value=-1):
+    return torch.stack([encode_cat(x, max_len, pad_value) for x in sequences])
 
 
 def encode(sequence, max_len=None, encoding='onehot', pad_scale=None):
@@ -411,6 +420,7 @@ def encode_batch_weighted(df, ics_dict=None, device=None, max_len=None, encoding
         return weighted_sequences.float()
     else:
         return weighted_sequences.to(device).float()
+
 
 def pad_tensor(tensor, max_len=12, pad_scale=0, how='right'):
     return F.pad(tensor,
