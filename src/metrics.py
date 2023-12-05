@@ -382,8 +382,8 @@ def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduce
         y_true, y_score = y_true.int().cpu().detach().numpy(), y_score.cpu().detach().numpy()
 
     metrics['auc'] = roc_auc_score(y_true, y_score)
-    metrics['auc_01_std'] = roc_auc_score(y_true, y_score, max_fpr=0.1)
-    metrics['auc_01'] = auc01_score(y_true, y_score, max_fpr=0.1)
+    metrics['auc_01'] = roc_auc_score(y_true, y_score, max_fpr=0.1)
+    metrics['auc_01_real'] = auc01_score(y_true, y_score, max_fpr=0.1)
     metrics['precision'] = precision_score(y_true, y_pred)
     metrics['accuracy'] = accuracy_score(y_true, y_pred)
     metrics['AP'] = average_precision_score(y_true, y_score)

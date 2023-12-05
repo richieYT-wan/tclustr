@@ -496,23 +496,23 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
         valid_losses.append(valid_loss)
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
             train_loss_text = f'Train: Epoch {e}\nLoss:: {train_loss:.4f}'
-            train_metrics_text = [f'{k}:\t{v:.4f}' for k, v in train_metric.items() if
-                                  k in ['auc', 'auc_01', 'accuracy', 'AP']]
+            train_metrics_text = ''.join([f'{k}:\t{v:.4f}' for k, v in train_metric.items() if
+                                  k in ['auc', 'auc_01', 'accuracy', 'AP']])
             train_text = '\n'.join([train_loss_text, train_metrics_text])
             valid_loss_text = f'Valid: Epoch {e}\nLoss:: {valid_loss:.4f}'
-            valid_metrics_text = [f'{k}:\t{v:.4f}' for k, v in valid_metric.items() if
-                                  k in ['auc', 'auc_01', 'accuracy', 'AP']]
+            valid_metrics_text = ''.join([f'{k}:\t{v:.4f}' for k, v in valid_metric.items() if
+                                  k in ['auc', 'auc_01', 'accuracy', 'AP']])
             valid_text = '\n'.join([valid_loss_text, valid_metrics_text])
             tqdm.write(train_text)
             tqdm.write(valid_text)
 
         if e > 1 and (valid_loss <= best_val_loss + tolerance and (
-                valid_metric['auc'] >= (best_val_auc - tolerance) or valid_metric['auc01'] >= (
+                valid_metric['auc'] >= (best_val_auc - tolerance) or valid_metric['auc_01'] >= (
                 best_val_auc01 - tolerance))):
             best_epoch = e
             best_val_loss = valid_loss
             best_val_auc = valid_metric['auc']
-            best_val_auc01 = valid_metric['auc01']
+            best_val_auc01 = valid_metric['auc_01']
             best_val_metrics = valid_metric
             # Saving best dict for logging purposes
             best_dict['epoch'] = best_epoch
@@ -525,7 +525,7 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
         print(best_dict)
 
         print(f'Best train loss:\t{min(train_losses):.3e}, at epoch = {train_losses.index(min(train_losses))}'
-              f'Train AUC, AUC01:\t{train_metrics[train_losses.index(min(train_losses))]["auc"]:.3%},\t{train_metrics[train_losses.index(min(train_losses))]["auc01"]}')
+              f'Train AUC, AUC01:\t{train_metrics[train_losses.index(min(train_losses))]["auc"]:.3%},\t{train_metrics[train_losses.index(min(train_losses))]["auc_01"]}')
         print(f'Best valid epoch: {best_epoch}')
         print(
             f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC, AUC01:\t{best_val_auc:.3%},\t{best_val_auc01:.3%}')

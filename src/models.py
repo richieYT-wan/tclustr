@@ -297,11 +297,12 @@ class PeptideClassifier(NetParent):
 
     def __init__(self, pep_dim=12, n_latent=64, n_layers=0, hidden_dim=32, dropout=0, batchnorm=False):
         super(PeptideClassifier, self).__init__()
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax()
+        # self.sigmoid = nn.Sigmoid()
+
+        # self.softmax = nn.Softmax()
+
         in_dim = pep_dim+n_latent
-        in_layer = [nn.Linear(in_dim, hidden_dim), self.relu(), nn.Dropout(dropout)]
+        in_layer = [nn.Linear(in_dim, hidden_dim), nn.ReLU(), nn.Dropout(dropout)]
         if batchnorm:
             in_layer.append(nn.BatchNorm1d(hidden_dim))
 

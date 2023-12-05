@@ -81,7 +81,7 @@ def args_parser():
     Models args 
     """
     parser.add_argument('-model_folder', type=str, required=False, default=None,
-                        help='Path to the folder containing both the checkpoint and json file. '\
+                        help='Path to the folder containing both the checkpoint and json file. ' \
                              'If used, -pt_file and -json_file are not required and will attempt to read the .pt and .json from the provided directory')
     parser.add_argument('-pt_file', type=str, required=False,
                         default=None, help='Path to the checkpoint file to reload the VAE model')
@@ -90,14 +90,11 @@ def args_parser():
 
     # Classifier stuff
     parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=32,
-                        help='Number of hidden units in the VAE. Default = 256')
-    parser.add_argument('-nl', '--latent_dim', dest='latent_dim', type=int, default=64,
-                        help='Size of the latent dimension. Default = 128')
-    parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
-                        help='Which activation to use. Will map the correct nn.Module for the following keys:' \
-                             '[selu, relu, leakyrelu, elu]')
+                        help='Number of hidden units in the Classifier. Default = 32')
     parser.add_argument('-do', dest='dropout', type=float, default=0,
                         help='Dropout percentage in the hidden layers (0. to disable)')
+    parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=False,
+                        help='Use batchnorm (True/False)')
     parser.add_argument('-n_layers', dest='n_layers', type=int, default=0,
                         help='Number of hidden layers. Default is 0. (Architecture is in_layer -> [hidden_layers]*n_layers -> out_layer)')
 
@@ -121,11 +118,6 @@ def args_parser():
     """
     TODO: Misc. 
     """
-    # These two arguments are to be phased out or re-used, in the case of fold.
-    # For now, for the exercise, I will do KCV and try to see if there is any robustsness across folds in the VAE
-    # later on, it makes no sense to concatenate the latent dimensions so we need to figure something else out.
-    # parser.add_argument('-s', '--split', dest='split', required=False, type=int,
-    #                     default=5, help='How to split the train/test data (test size=1/X)')
     parser.add_argument('-kf', '--fold', dest='fold', required=False, type=int, default=None,
                         help='If added, will split the input file into the train/valid for kcv')
     parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default=None,
@@ -143,9 +135,11 @@ def main():
     assert not all([args[k] is None for k in ['model_folder', 'pt_file', 'json_file']]), \
         'Please provide either the path to the folder containing the .pt and .json or paths to each file (.pt/.json) separately!'
     if args['model_folder'] is not None:
-        checkpoint_file = next(filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['folder'])))
-        json_file = next(filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['folder'])))
-        vae = load_model_full(checkpoint_file, json_file)
+        checkpoint_file = next(
+            filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
+        json_file = next(
+            filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
+        vae = load_model_full(args['model_folder']+checkpoint_file, args['model_folder']+json_file)
     else:
         vae = load_model_full(args['pt_file'], args['json_file'])
 
@@ -188,10 +182,11 @@ def main():
     dataset_init_code = TCRpMHCDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
     dataset_keys = [x for x in args.keys() if x in dataset_init_code]
 
-
     model_params = {k: args[k] for k in model_keys}
-    dataset_params = {k: args[k] for k in dataset_keys}
+    model_params['n_latent'] = vae.latent_dim
+    model_params['pep_dim'] = df.peptide.apply(len).max().item()
 
+    dataset_params = {k: args[k] for k in dataset_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
@@ -206,14 +201,13 @@ def main():
     valid_loader = valid_dataset.get_dataloader(batch_size=args["batch_size"] * 2, sampler=SequentialSampler)
 
     fold_filename = f'kcv_{dfname}_f{args["fold"]:02}_{unique_filename}'
-    checkpoint_filename = f'checkpoint_best_fold{args["fold"]:02}_{fold_filename}.pt'
+    checkpoint_filename = f'checkpoint_best_CLASSIFIER_fold{args["fold"]:02}_{fold_filename}.pt'
 
     # instantiate objects
     torch.manual_seed(args["fold"])
     model = PeptideClassifier(**model_params)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), **optim_params)
-
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
     if args['log_wandb']:
@@ -222,16 +216,17 @@ def main():
         wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-        best_epoch, best_val_loss, best_val_metrics = classifier_train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                                  criterion, optimizer, train_loader, valid_loader,
-                                                                                  checkpoint_filename, outdir)
-
+    best_epoch, best_val_loss, best_val_metrics = classifier_train_eval_loops(args['n_epochs'], args['tolerance'],
+                                                                              model,
+                                                                              criterion, optimizer, train_loader,
+                                                                              valid_loader,
+                                                                              checkpoint_filename, outdir)
 
     # Convert list of dicts to dicts of lists
-    train_losses_dict = get_dict_of_lists(train_losses, 'train', filter = ['auc', 'auc01'])
-    train_metrics_dict = get_dict_of_lists(train_metrics, 'train', filter = ['auc', 'auc01'])
-    valid_losses_dict = get_dict_of_lists(valid_losses, 'valid', filter = ['auc', 'auc01'])
-    valid_metrics_dict = get_dict_of_lists(valid_metrics, 'valid', filter = ['auc', 'auc01'])
+    train_losses_dict = {'train_loss': train_losses} #get_dict_of_lists(train_losses, 'train', filter=['auc', 'auc01'])
+    train_metrics_dict = get_dict_of_lists(train_metrics, 'train', filter=['auc', 'auc01'])
+    valid_losses_dict = {'valid_loss': valid_losses} #get_dict_of_lists(valid_losses, 'valid', filter=['auc', 'auc01'])
+    valid_metrics_dict = get_dict_of_lists(valid_metrics, 'valid', filter=['auc', 'auc01'])
 
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}
@@ -240,8 +235,7 @@ def main():
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         file.write(f'Fold: {args["fold"]}\n')
         file.write(f"Best valid epoch: {best_epoch}\n")
-        for k, v in best_val_loss.items():
-            file.write(f'{k}:\t{v}\n')
+        file.write(f'Best val loss: {best_val_loss}\n')
         for k, v in best_val_metrics.items():
             file.write(f'{k}:\t{v}\n')
 
@@ -250,7 +244,7 @@ def main():
     pkl_dump(train_metrics_dict, f'{outdir}/train_metrics_{fold_filename}.pkl')
     pkl_dump(valid_metrics_dict, f'{outdir}/valid_metrics_{fold_filename}.pkl')
     plot_vae_loss_accs(losses_dict, accs_dict, unique_filename, outdir,
-                       dpi=300, palette='gnuplot2_r', warm_up=args['warm_up'])
+                       dpi=300, palette='gnuplot2_r', warm_up=0)
 
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
@@ -259,9 +253,6 @@ def main():
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
-    valid_seq_acc = valid_preds['seq_acc'].mean()
-
-    print(f'Final valid mean accuracies (seq, v, j): \t{valid_seq_acc:.3%}')
 
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
@@ -279,17 +270,13 @@ def main():
     else:
         test_seq_acc = None
 
-    with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
 
-        file.write(f'Fold: {kf}')
-        file.write(f"Best valid seq acc: {valid_seq_acc}\n")
-        if args['test_file'] is not None:
-            file.write(f"Best test seq acc: {test_seq_acc}\n")
     best_dict = {'Best epoch': best_epoch}
-    best_dict.update(best_val_loss)
+    best_dict['val_loss'] = best_val_loss
     best_dict.update(best_val_metrics)
-    save_model_full(model, checkpoint_filename, outdir,
-                    best_dict=best_dict, dict_kwargs=model_params)
+    # TODO : fix this
+    # save_model_full(model, checkpoint_filename, outdir,
+    #                 best_dict=best_dict, dict_kwargs=model_params)
     end = dt.now()
     elapsed = divmod((end - start).seconds, 60)
     print(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')

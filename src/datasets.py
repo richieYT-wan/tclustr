@@ -151,7 +151,7 @@ class TCRpMHCDataset(FullTCRDataset):
         encoded_peps = batch_encode_cat(df['peptide'], 12, -1)
 
         self.x = torch.cat([z_latent, encoded_peps], dim=1)
-        self.labels = torch.from_numpy(df['binder'].values)
+        self.labels = torch.from_numpy(df['binder'].values).unsqueeze(1).float()
 
     @override
     def __getitem__(self, idx):
