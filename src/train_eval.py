@@ -522,15 +522,15 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             # Saving model
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
-        print(f'End of training cycles')
-        print(best_dict)
+    print(f'End of training cycles')
+    print(best_dict)
 
-        print(f'Best train loss:\t{min(train_losses):.3e}, at epoch = {train_losses.index(min(train_losses))}'
-              f'Train AUC, AUC01:\t{train_metrics[train_losses.index(min(train_losses))]["auc"]:.3%},\t{train_metrics[train_losses.index(min(train_losses))]["auc_01"]}')
-        print(f'Best valid epoch: {best_epoch}')
-        print(
-            f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC, AUC01:\t{best_val_auc:.3%},\t{best_val_auc01:.3%}')
-        model = load_checkpoint(model, checkpoint_filename, outdir)
-        model.eval()
+    print(f'Best train loss:\t{min(train_losses):.3e}, at epoch = {train_losses.index(min(train_losses))}'
+          f'Train AUC, AUC01:\t{train_metrics[train_losses.index(min(train_losses))]["auc"]:.3%},\t{train_metrics[train_losses.index(min(train_losses))]["auc_01"]}')
+    print(f'Best valid epoch: {best_epoch}')
+    print(
+        f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC, AUC01:\t{best_val_auc:.3%},\t{best_val_auc01:.3%}')
+    model = load_checkpoint(model, checkpoint_filename, outdir)
+    model.eval()
 
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_loss, best_val_metrics
