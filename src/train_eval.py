@@ -501,7 +501,7 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
                                   k in ['auc', 'auc_01', 'accuracy', 'AP']])
             train_text = '\n'.join([train_loss_text, train_metrics_text])
             valid_loss_text = f'Valid: Epoch {e}\nLoss:: {valid_loss:.4f}'
-            valid_metrics_text = ''.join([f'{k}:\t{v:.4f}' for k, v in valid_metric.items() if
+            valid_metrics_text = '\t'.join([f'{k}:\t{v:.4f}' for k, v in valid_metric.items() if
                                   k in ['auc', 'auc_01', 'accuracy', 'AP']])
             valid_text = '\n'.join([valid_loss_text, valid_metrics_text])
             tqdm.write(train_text)
@@ -526,7 +526,7 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
     print(best_dict)
 
     print(f'Best train loss:\t{min(train_losses):.3e}, at epoch = {train_losses.index(min(train_losses))}'
-          f'Train AUC, AUC01:\t{train_metrics[train_losses.index(min(train_losses))]["auc"]:.3%},\t{train_metrics[train_losses.index(min(train_losses))]["auc_01"]}')
+          f'\tTrain AUC, AUC01:\t{train_metrics[train_losses.index(min(train_losses))]["auc"]:.3%},\t{train_metrics[train_losses.index(min(train_losses))]["auc_01"]}')
     print(f'Best valid epoch: {best_epoch}')
     print(
         f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC, AUC01:\t{best_val_auc:.3%},\t{best_val_auc01:.3%}')
