@@ -496,12 +496,13 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
         train_losses.append(train_loss)
         valid_losses.append(valid_loss)
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
+            print('\n')
             train_loss_text = f'Train: Epoch {e}\nLoss:: {train_loss:.4f}'
-            train_metrics_text = ''.join([f'{k}:\t{v:.4f}' for k, v in train_metric.items() if
+            train_metrics_text = '\t'.join([f'{k}: {v:.4f}' for k, v in train_metric.items() if
                                   k in ['auc', 'auc_01', 'accuracy', 'AP']])
             train_text = '\n'.join([train_loss_text, train_metrics_text])
             valid_loss_text = f'Valid: Epoch {e}\nLoss:: {valid_loss:.4f}'
-            valid_metrics_text = '\t'.join([f'{k}:\t{v:.4f}' for k, v in valid_metric.items() if
+            valid_metrics_text = '\t'.join([f'{k}: {v:.4f}' for k, v in valid_metric.items() if
                                   k in ['auc', 'auc_01', 'accuracy', 'AP']])
             valid_text = '\n'.join([valid_loss_text, valid_metrics_text])
             tqdm.write(train_text)

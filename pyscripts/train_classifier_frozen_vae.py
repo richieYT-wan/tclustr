@@ -135,11 +135,15 @@ def main():
     assert not all([args[k] is None for k in ['model_folder', 'pt_file', 'json_file']]), \
         'Please provide either the path to the folder containing the .pt and .json or paths to each file (.pt/.json) separately!'
     if args['model_folder'] is not None:
-        checkpoint_file = next(
-            filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
-        json_file = next(
-            filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
-        vae = load_model_full(args['model_folder']+checkpoint_file, args['model_folder']+json_file)
+        try:
+            checkpoint_file = next(
+                filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
+            json_file = next(
+                filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
+            vae = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file)
+        except:
+            print(args['model_folder'], os.listdir(args['model_folder']))
+            raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
     else:
         vae = load_model_full(args['pt_file'], args['json_file'])
 
@@ -253,6 +257,14 @@ def main():
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
+    print('Validation predictions: Per peptide performance')
+    with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
+        file.write('Validation preds ; Per peptide metrics\n')
+        for pep in sorted(valid_preds.peptide.unique()): #valid_preds.groupby('peptide').agg(count=('B3', 'count')).sort_values('count', ascending=False).index:
+            tmp = valid_preds.query('peptide==@pep')
+            metrics = get_metrics(tmp['binder'].values, tmp['pred_prob'])
+            print(f'{pep}:\tAUC: {metrics["auc"]:.4f}\tAUC_01: {metrics["auc_01"]:.4f}\tAP: {metrics["AP"]}')
+            file.write(f'{pep}:\tAUC: {metrics["auc"]:.4f}\tAUC_01: {metrics["auc_01"]:.4f}\tAP: {metrics["AP"]}\n')
 
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
@@ -264,12 +276,15 @@ def main():
         test_preds = predict_classifier(model, test_dataset, test_loader)
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
-        test_seq_acc = test_preds['seq_acc'].mean()
 
-        print(f'Final valid mean accuracies (seq, v, j): \t{test_seq_acc:.3%}')
-    else:
-        test_seq_acc = None
-
+        with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
+            file.write('Test preds ; Per peptide metrics\n')
+            for pep in sorted(
+                    test_preds.peptide.unique()):  # valid_preds.groupby('peptide').agg(count=('B3', 'count')).sort_values('count', ascending=False).index:
+                tmp = test_preds.query('peptide==@pep')
+                metrics = get_metrics(tmp['binder'].values, tmp['pred_prob'])
+                print(f'{pep}:\tAUC: {metrics["auc"]:.4f}\tAUC_01: {metrics["auc_01"]:.4f}\tAP: {metrics["AP"]}')
+                file.write(f'{pep}:\tAUC: {metrics["auc"]:.4f}\tAUC_01: {metrics["auc_01"]:.4f}\tAP: {metrics["AP"]}\n')
 
     best_dict = {'Best epoch': best_epoch}
     best_dict['val_loss'] = best_val_loss
