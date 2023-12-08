@@ -18,7 +18,7 @@ from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_st
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
 from src.models import FullTCRVAE, PeptideClassifier
 from src.train_eval import predict_classifier, classifier_train_eval_loops
-from src.datasets import TCRpMHCDataset
+from src.datasets import LatentTCRpMHCDataset
 from src.metrics import CombinedVAELoss, get_metrics
 import argparse
 
@@ -89,7 +89,7 @@ def args_parser():
                         default=None, help='Path to the json file to reload the VAE model')
 
     # Classifier stuff
-    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=32,
+    parser.add_argument('-nh', '--n_hidden', dest='n_hidden', type=int, default=32,
                         help='Number of hidden units in the Classifier. Default = 32')
     parser.add_argument('-do', dest='dropout', type=float, default=0,
                         help='Dropout percentage in the hidden layers (0. to disable)')
@@ -182,8 +182,8 @@ def main():
     model_init_code = PeptideClassifier.__init__.__code__
     model_init_code = PeptideClassifier.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
     model_keys = [x for x in args.keys() if x in model_init_code]
-    dataset_init_code = TCRpMHCDataset.__init__.__code__
-    dataset_init_code = TCRpMHCDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
+    dataset_init_code = LatentTCRpMHCDataset.__init__.__code__
+    dataset_init_code = LatentTCRpMHCDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
     dataset_keys = [x for x in args.keys() if x in dataset_init_code]
 
     model_params = {k: args[k] for k in model_keys}
@@ -197,8 +197,8 @@ def main():
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
-    train_dataset = TCRpMHCDataset(vae, train_df, **dataset_params)
-    valid_dataset = TCRpMHCDataset(vae, valid_df, **dataset_params)
+    train_dataset = LatentTCRpMHCDataset(vae, train_df, **dataset_params)
+    valid_dataset = LatentTCRpMHCDataset(vae, valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
@@ -269,7 +269,7 @@ def main():
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_dataset = TCRpMHCDataset(vae, test_df, **dataset_params)
+        test_dataset = LatentTCRpMHCDataset(vae, test_df, **dataset_params)
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 

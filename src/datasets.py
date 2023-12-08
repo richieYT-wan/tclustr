@@ -2,7 +2,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
-from src.data_processing import encode_batch, batch_encode_cat, V_MAP, J_MAP, PEP_MAP
+from src.data_processing import encode_batch, batch_encode_cat, V_MAP, J_MAP, PEP_MAP, encoding_matrix_dict
 from overrides import override
 
 
@@ -117,12 +117,14 @@ class FullTCRDataset(VAEDataset):
 
 
 class TCRSpecificDataset(FullTCRDataset):
+    """
+    This class should be used for Triplet-loss optimization as well as optimal VAE-MLP models
+    """
 
     def __init__(self,
                  df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
                  encoding='BL50LO', pad_scale=None,
                  a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3'):
-
         super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3,
                                                  max_len_b1, max_len_b2, max_len_b3, encoding,
                                                  pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col)
@@ -134,24 +136,63 @@ class TCRSpecificDataset(FullTCRDataset):
         return self.x[idx], self.labels[idx]
 
 
-class TCRpMHCDataset(FullTCRDataset):
+class BimodalTCRpMHCDataset(TCRSpecificDataset):
+
+    def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
+                 encoding='BL50LO', pad_scale=None,
+                 pep_encoding='categorical', pep_pad_scale=None,
+                 a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide',
+                 label_col='binder'):
+        super(BimodalTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
+                                                  max_len_b3,
+                                                  encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col)
+        assert pep_encoding in ['categorical'] + list(
+            encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
+                                          f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
+        if pep_encoding == 'categorical':
+            encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
+        else:
+            encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, pep_pad_scale)
+        # Inherits self.x and self.label from its parent class)
+        self.x_pep = encoded_peps
+        self.binder = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
+
+    @override
+    def __getitem__(self, idx):
+        """
+
+        Args:
+            idx:
+
+        Returns:
+            x : Encoded TCR sequence tensor (VAE)
+            x_pep : encoded peptide sequence tensor (MLP)
+            labels : Peptide label for triplet loss (VAE)
+            binder : pMHC-TCR binary binder label for classification loss (MLP)
+        """
+        return self.x[idx], self.x_pep[idx], self.labels[idx], self.binder[idx]
+
+
+class LatentTCRpMHCDataset(FullTCRDataset):
     """
     Placeholder where for now, we use a frozen VAE model so that the latent Z is always fixed
     """
+
     def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
-                 encoding='BL50LO', pad_scale=None,
-                 a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3'):
-        super(TCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
-                                             encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col)
+                 encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
+                 b3_col='B3', pep_col='peptide', label_col='binder'):
+        super(LatentTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
+                                                   max_len_b3,
+                                                   encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col)
 
         with torch.no_grad():
             model.eval()
             z_latent = model.embed(self.x)
 
-        encoded_peps = batch_encode_cat(df['peptide'], 12, -1)
+        encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
 
         self.x = torch.cat([z_latent, encoded_peps], dim=1)
-        self.labels = torch.from_numpy(df['binder'].values).unsqueeze(1).float()
+        self.labels = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
 
     @override
     def __getitem__(self, idx):
