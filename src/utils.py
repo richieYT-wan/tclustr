@@ -12,6 +12,12 @@ import string
 from datetime import datetime as dt
 
 
+def get_class_initcode_keys(class_, dict_kwargs):
+    init_code = class_.__init__.__code__
+    init_code = class_.__init__.__code__.co_varnames[1:init_code.co_argcount]
+    return [x for x in dict_kwargs.keys() if x in init_code]
+
+
 def get_dict_of_lists(list_of_dicts, name, filter=None):
     filter = list_of_dicts[0].keys() if filter is None else filter
     return {f'{name}_{key}': [d[key] for d in list_of_dicts] for key in list_of_dicts[0] if key in filter}

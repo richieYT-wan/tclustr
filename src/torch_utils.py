@@ -90,8 +90,9 @@ def save_json(dict_kwargs, filename, dir_path='./'):
 
     """
     savepath = os.path.join(dir_path, filename)
-    if type(dict_kwargs['activation'])==nn.Module:
-        dict_kwargs['activation'] = dict_kwargs['activation'].__class__.__name__
+    for k in dict_kwargs:
+        if dict_kwargs[k]==nn.Module:
+            dict_kwargs[k] = dict_kwargs[k].__class__.__name__
     # Write the dictionary to a JSON file
     with open(savepath, 'w') as json_file:
         json.dump(dict_kwargs, json_file)

@@ -629,6 +629,56 @@ def eval_bimodal_step(model, criterion, valid_loader):
     return valid_loss, valid_metrics
 
 
+def predict_bimodal(model, dataset, dataloader):
+    assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
+        'Test/Valid loader MUST use SequentialSampler!'
+    assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
+
+    df = dataset.df.reset_index(drop=True).copy()
+    x_reconstructed, x_true, z_latent, y_score, y_true = [], [], [], [], []
+
+    with torch.no_grad():
+        for x, x_pep, label, binder in dataloader:
+            x, x_pep, label, binder = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
+                model.device)
+            # TODO : same as for train with z / mu
+            x_hat, mu, logvar, x_out = model(x, x_pep)
+            x_reconstructed.append(x_hat.detach().cpu())
+            x_true.append(x.detach().cpu())
+            z_latent.append(mu.detach().cpu())
+            y_score.append(x_out.detach().cpu())
+            y_true.append(binder.detach().cpu())
+
+    # Cat outputs to compute metrics
+    x_reconstructed, x_true, y_score, y_true, z_latent = torch.cat(x_reconstructed), torch.cat(x_true), torch.cat(
+        y_score), torch.cat(y_true), torch.cat(z_latent)
+
+    # Reconstruction metrics
+    metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=True)
+    df['seq_acc'] = metrics['seq_accuracy']
+    x_seq_recon, _, _ = model.slice_x(x_reconstructed)
+    x_seq_true, _, _ = model.slice_x(x_true)
+    # Reconstructed sequences
+    seq_hat_reconstructed = model.recover_sequences_blosum(x_seq_recon)
+    seq_true_reconstructed = model.recover_sequences_blosum(x_seq_true)
+    df['hat_reconstructed'] = seq_hat_reconstructed
+    df['true_reconstructed'] = seq_true_reconstructed
+    df['n_errors_seq'] = df.apply(
+        lambda x: sum([c1 != c2 for c1, c2 in zip(x['hat_reconstructed'], x['true_reconstructed'])]), axis=1)
+
+    # Saving latent representations
+    df[[f'z_{i}' for i in range(z_latent.shape[1])]] = z_latent
+
+    # Saving MLP prediction scores
+    df['pred_logit'] = y_score
+    df['pred_prob'] = F.sigmoid(y_score)
+    pred_metrics = get_metrics(y_true, F.sigmoid(y_score))
+    print(f'Mean reconstruction accuracy: {metrics["seq_accuracy"]}')
+    print('MLP metrics:', '\t'.join(f'{k}: {v:.3f}' for k,v in pred_metrics.items()))
+    return df
+
+
+
 def bimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
                              train_loader, valid_loader, checkpoint_filename, outdir):
     """
