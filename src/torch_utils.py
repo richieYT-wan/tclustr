@@ -52,6 +52,7 @@ def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', v
         json_filename = f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json' if checkpoint_filename.endswith(
             '.pt') \
             else f'{checkpoint_filename}_JSON_kwargs.json'
+    
     save_checkpoint(model, checkpoint_filename, dir_path, verbose, best_dict)
     if 'constructor' not in dict_kwargs.keys():
         dict_kwargs['constructor'] = model.__class__.__name__
