@@ -119,10 +119,11 @@ def args_parser():
                         help='Weight for the VAE term (reconstruction+KLD)')
     parser.add_argument('-lwtrp', '--weight_triplet',
                         dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
-    parser.add_argument('-lwclf', '--weight_classification', dest='weight_classification', default=1,
+    parser.add_argument('-lwclf', '--weight_classification', dest='weight_classification',
+                        type = float, default=1,
                         help='weight for the classifier loss term')
     parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
-                        help='Which distance metric to use ')
+                        help='Which distance metric to use [cosine, l2, l1]')
     parser.add_argument('-margin', dest='margin', default=None, type=float,
                         help='Margin for the triplet loss (Default is None and will have the default behaviour depending on the distance type)')
     parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
