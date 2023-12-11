@@ -154,6 +154,7 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
         else:
             encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, pep_pad_scale)
         # Inherits self.x and self.label from its parent class)
+        self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
         self.x_pep = encoded_peps
         self.binder = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
 

@@ -294,29 +294,29 @@ class FullTCRVAE(NetParent):
 
 class PeptideClassifier(NetParent):
 
-    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden=32, dropout=0, batchnorm=False):
+    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False):
         super(PeptideClassifier, self).__init__()
         # self.sigmoid = nn.Sigmoid()
 
         # self.softmax = nn.Softmax()
 
         in_dim = pep_dim + n_latent
-        in_layer = [nn.Linear(in_dim, n_hidden), nn.ReLU(), nn.Dropout(dropout)]
+        in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU(), nn.Dropout(dropout)]
         if batchnorm:
-            in_layer.append(nn.BatchNorm1d(n_hidden))
+            in_layer.append(nn.BatchNorm1d(n_hidden_clf))
 
         self.in_layer = nn.Sequential(*in_layer)
         # Hidden layers
         layers = []
         for _ in range(n_layers):
-            layers.append(nn.Linear(n_hidden, n_hidden))
+            layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
             layers.append(nn.ReLU())
             layers.append(nn.Dropout(dropout))
             if batchnorm:
-                layers.append(nn.BatchNorm1d(n_hidden))
+                layers.append(nn.BatchNorm1d(n_hidden_clf))
         self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
 
-        self.out_layer = nn.Linear(n_hidden, 1)
+        self.out_layer = nn.Linear(n_hidden_clf, 1)
 
     def forward(self, x):
         x = self.in_layer(x)
@@ -358,7 +358,27 @@ class BimodalVAEClassifier(NetParent):
         x_out = self.clf(z)
         return x_hat, mu, logvar, x_out
 
-#
+    def reconstruct_hat(self, x):
+        return self.vae.reconstruct_hat(x)
+
+    def slice_x(self, x):
+        return self.vae.slice_x(x)
+
+    def reconstruct(self, z):
+        return self.vae.reconstruct(z)
+
+    def embed(self, x):
+        return self.vae.embed(x)
+
+    def sample_latent(self, n_samples):
+        return self.vae.sample_latent(n_samples)
+
+    def recover_indices(self, seq_tensor):
+        return self.vae.recover_indices(seq_tensor)
+
+    def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
+        return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)
+
 # class PairedFVAE(NetParent):
 #     # Define the input dimension as some combination of sequence length, AA dim,
 #     def __init__(self, max_len_b=23, max_len_a=24, max_len_pep=12, encoding='BL50LO', pad_scale=-20,

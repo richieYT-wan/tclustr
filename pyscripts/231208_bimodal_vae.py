@@ -15,7 +15,7 @@ from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
-from src.torch_utils import load_checkpoint, save_model_full
+from src.torch_utils import load_checkpoint, save_model_full, load_model_full
 from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
 from src.train_eval import bimodal_train_eval_loops, predict_bimodal, train_bimodal_step, eval_bimodal_step
 from src.datasets import BimodalTCRpMHCDataset
@@ -33,8 +33,8 @@ def args_parser():
                         help="Will use GPU if True and GPUs are available")
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
-    parser.add_argument('-f', '--file', dest='file', required=True, type=str,
-                        default='../data/filtered/.csv',
+    parser.add_argument('-f', '--file', dest='file', required=False, type=str,
+                        default='../data/filtered/231205_nettcr_old_26pep_with_swaps.csv',
                         help='filename of the input train file')
     parser.add_argument('-tf', '--test_file', dest='test_file', type=str,
                         default=None, help='External test set (None by default)')
@@ -76,17 +76,27 @@ def args_parser():
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
+    parser.add_argument('-mlpep', '--pep_dim', dest='pep_dim', type=int, default=12,
+                        help='Max length for peptide encoding (default=12)')
 
     """
     Models args 
     """
-    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=256,
-                        help='Number of hidden units in the VAE. Default = 256')
-    parser.add_argument('-nl', '--latent_dim', dest='latent_dim', type=int, default=128,
-                        help='Size of the latent dimension. Default = 128')
+    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=128,
+                        help='Number of hidden units in the VAE. Default = 128')
+    parser.add_argument('-nl', '--latent_dim', dest='latent_dim', type=int, default=64,
+                        help='Size of the latent dimension. Default = 64')
     parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
                         help='Which activation to use. Will map the correct nn.Module for the following keys:' \
                              '[selu, relu, leakyrelu, elu]')
+    parser.add_argument('-nhclf', '--n_hidden_clf', dest='n_hidden_clf', type=int, default=50,
+                        help='Number of hidden units in the Classifier. Default = 32')
+    parser.add_argument('-do', dest='dropout', type=float, default=0.25,
+                        help='Dropout percentage in the hidden layers (0. to disable)')
+    parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=True,
+                        help='Use batchnorm (True/False)')
+    parser.add_argument('-n_layers', dest='n_layers', type=int, default=1,
+                        help='Number of hidden layers. Default is 0. (Architecture is in_layer -> [hidden_layers]*n_layers -> out_layer)')
 
     """
     Training hyperparameters & args
@@ -95,7 +105,7 @@ def args_parser():
                         help='Learning rate for the optimizer. Default = 5e-4')
     parser.add_argument('-wd', '--weight_decay', dest='weight_decay', type=float, default=1e-4, required=False,
                         help='Weight decay for the optimizer. Default = 1e-4')
-    parser.add_argument('-bs', '--batch_size', dest='batch_size', type=int, default=256, required=False,
+    parser.add_argument('-bs', '--batch_size', dest='batch_size', type=int, default=512, required=False,
                         help='Batch size for mini-batch optimization')
     parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=2000, required=False,
                         help='Number of epochs to train')
@@ -109,6 +119,8 @@ def args_parser():
                         help='Weight for the VAE term (reconstruction+KLD)')
     parser.add_argument('-lwtrp', '--weight_triplet',
                         dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
+    parser.add_argument('-lwclf', '--weight_classification', dest='weight_classification', default=1,
+                        help='weight for the classifier loss term')
     parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
                         help='Which distance metric to use ')
     parser.add_argument('-margin', dest='margin', default=None, type=float,
@@ -142,6 +154,9 @@ def main():
     # I like dictionary for args :-)
     args = vars(args_parser())
     seed = args['seed'] if args['fold'] is None else args['fold']
+
+    # Redundant usage because clf and vae use a diff variable name (was useful before should probly be phased out now)
+    args['n_latent'] = args['latent_dim']
     if cuda.is_available() and args['cuda']:
         device = torch.device('cuda:0')
     else:
@@ -181,7 +196,8 @@ def main():
     clf_keys = get_class_initcode_keys(PeptideClassifier, args)
     dataset_keys = get_class_initcode_keys(BimodalTCRpMHCDataset, args)
     loss_keys = get_class_initcode_keys(BimodalVAELoss, args)
-
+    vae_params = {k:args[k] for k in vae_keys}
+    clf_params = {k:args[k] for k in clf_keys}
     model_params = {k: args[k] for k in vae_keys+clf_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
@@ -204,7 +220,7 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = BimodalVAEClassifier(**model_params)
+    model = BimodalVAEClassifier(vae_params, clf_params)#**model_params)
     criterion = BimodalVAELoss(**loss_params)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
@@ -285,9 +301,14 @@ def main():
     best_dict = {'Best epoch': best_epoch}
     best_dict.update(best_val_loss)
     best_dict.update(best_val_metrics)
+    # reshape dict for saving
+    model_params = {'vae_kwargs': vae_params,
+                    'clf_kwargs': clf_params}
     save_model_full(model, checkpoint_filename, outdir,
                     best_dict=best_dict, dict_kwargs=model_params)
     end = dt.now()
+    load_model_full(checkpoint_filename,f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json',
+                    outdir)
     elapsed = divmod((end - start).seconds, 60)
     print(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
     sys.exit(0)

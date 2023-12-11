@@ -89,7 +89,7 @@ def args_parser():
                         default=None, help='Path to the json file to reload the VAE model')
 
     # Classifier stuff
-    parser.add_argument('-nh', '--n_hidden', dest='n_hidden', type=int, default=32,
+    parser.add_argument('-nh', '--n_hidden', dest='n_hidden_clf', type=int, default=32,
                         help='Number of hidden units in the Classifier. Default = 32')
     parser.add_argument('-do', dest='dropout', type=float, default=0,
                         help='Dropout percentage in the hidden layers (0. to disable)')

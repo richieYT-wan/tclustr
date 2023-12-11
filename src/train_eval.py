@@ -189,10 +189,12 @@ def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_elemen
     x_true = torch.cat(x_true) if type(x_true) == list else x_true
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
     seq_true, v_true, j_true = model.reconstruct_hat(x_true)
-    if not model.use_v:
-        v_hat, v_true = None, None
-    if not model.use_j:
-        j_hat, j_true = None, None
+    if hasattr(model, 'use_v'):
+        if not model.use_v:
+            v_hat, v_true = None, None
+    if hasattr(model, 'use_j'):
+        if not model.use_j:
+            j_hat, j_true = None, None
 
     if all([hasattr(model, 'use_a'), hasattr(model, 'use_b'), hasattr(model, 'use_pep')]):
         metrics = {}
@@ -752,8 +754,8 @@ def bimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_dict.update(valid_metric)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
-        print(f'End of training cycles')
-        print(best_dict)
-        model = load_checkpoint(model, checkpoint_filename, outdir)
-        model.eval()
-        return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics
+    print(f'End of training cycles')
+    print(best_dict)
+    model = load_checkpoint(model, checkpoint_filename, outdir)
+    model.eval()
+    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics

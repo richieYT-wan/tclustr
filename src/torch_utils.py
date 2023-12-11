@@ -23,7 +23,13 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
     dict_kwargs = load_json(json_filename, dir_path)
     assert 'constructor' in dict_kwargs.keys(), f'No constructor class name provided in the dict_kwargs keys! {dict_kwargs.keys()}'
     constructor = dict_kwargs.pop('constructor')
-    dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
+    if 'activation' in dict_kwargs:
+        dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
+    for k in dict_kwargs:
+        if type(dict_kwargs[k]) == dict:
+            for l in dict_kwargs[k]:
+                if l == 'activation':
+                    dict_kwargs[k]['activation'] = eval(dict_kwargs[k]['activation'])()
     model = eval(constructor)(**dict_kwargs)
     model = load_checkpoint(model, checkpoint_filename, dir_path)
     if return_json:
@@ -52,7 +58,7 @@ def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', v
         json_filename = f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json' if checkpoint_filename.endswith(
             '.pt') \
             else f'{checkpoint_filename}_JSON_kwargs.json'
-    
+
     save_checkpoint(model, checkpoint_filename, dir_path, verbose, best_dict)
     if 'constructor' not in dict_kwargs.keys():
         dict_kwargs['constructor'] = model.__class__.__name__
@@ -92,7 +98,11 @@ def save_json(dict_kwargs, filename, dir_path='./'):
     """
     savepath = os.path.join(dir_path, filename)
     for k in dict_kwargs:
-        if type(dict_kwargs[k]) == nn.Module:
+        if type(dict_kwargs[k]) == dict:
+            for l in dict_kwargs[k]:
+                if issubclass(type(dict_kwargs[k][l]), nn.Module):
+                    dict_kwargs[k][l] = dict_kwargs[k][l].__class__.__name__
+        if issubclass(type(dict_kwargs[k]), nn.Module):
             dict_kwargs[k] = dict_kwargs[k].__class__.__name__
     # Write the dictionary to a JSON file
     with open(savepath, 'w') as json_file:
