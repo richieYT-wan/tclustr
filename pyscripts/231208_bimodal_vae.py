@@ -113,15 +113,14 @@ def args_parser():
                         help='Tolerance for loss variation to log best model')
     parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=1,
                         help='Which beta to use for the seq reconstruction term in the loss')
-    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1e-1,
+    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1e-2,
                         help='Which weight to use for the KLD term in the loss')
-    parser.add_argument('-lwvae', '--weight_vae', dest='weight_vae', default=1,
+    parser.add_argument('-lwvae', '--weight_vae', dest='weight_vae', default=1, type=float,
                         help='Weight for the VAE term (reconstruction+KLD)')
     parser.add_argument('-lwtrp', '--weight_triplet',
                         dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
     parser.add_argument('-lwclf', '--weight_classification', dest='weight_classification',
-                        type = float, default=1,
-                        help='weight for the classifier loss term')
+                        type = float, default=1, help='weight for the classifier loss term')
     parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
                         help='Which distance metric to use [cosine, l2, l1]')
     parser.add_argument('-margin', dest='margin', default=None, type=float,

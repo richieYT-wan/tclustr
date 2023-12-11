@@ -296,9 +296,9 @@ class BimodalVAELoss(nn.Module):
                                 weight_seq, weight_v, weight_j, weight_kld, debug, warm_up, n_batches)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.classification_loss = nn.BCEWithLogitsLoss()
-        self.weight_triplet = weight_triplet
-        self.weight_vae = weight_vae
-        self.weight_classification = weight_classification
+        self.weight_triplet = float(weight_triplet)
+        self.weight_vae = float(weight_vae)
+        self.weight_classification = float(weight_classification)
         self.norm_factor = (self.weight_triplet + self.weight_vae + self.weight_classification)
 
     # Maybe this normalisation factor thing is not needed
