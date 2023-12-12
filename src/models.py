@@ -341,7 +341,6 @@ class PeptideClassifier(NetParent):
         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU()]
         if batchnorm:
             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
-
         in_layer.append(nn.Dropout(dropout))
 
         self.in_layer = nn.Sequential(*in_layer)
@@ -371,23 +370,29 @@ class PeptideClassifier(NetParent):
 class AttentionPeptideClassifier(NetParent):
 
     def __init__(self, pep_dim, latent_dim, num_heads=4, n_layers=1, n_hidden_clf=32, dropout=0.0, batchnorm=False, decrease_hidden=False):
+        #
         super(AttentionPeptideClassifier, self).__init__()
         self.in_dim = pep_dim + latent_dim
         self.attention = nn.MultiheadAttention(embed_dim=self.in_dim, num_heads=num_heads,
                                                dropout=dropout, batch_first=True)
         self.dropout = nn.Dropout(dropout)
-        in_layer = [nn.Linear(self.in_dim, n_hidden_clf), nn.ReLU(), self.dropout]
+        in_layer = [nn.Linear(self.in_dim, n_hidden_clf), nn.ReLU()]
         if batchnorm:
             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
+        in_layer.append(self.dropout)
         self.in_layer = nn.Sequential(*in_layer)
         # Hidden layers
         layers = []
         for _ in range(n_layers):
-            layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
+            if decrease_hidden:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf // 2))
+                n_hidden_clf = n_hidden_clf // 2
+            else:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout))
             if batchnorm:
                 layers.append(nn.BatchNorm1d(n_hidden_clf))
+            layers.append(nn.Dropout(dropout))
         self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
 
         self.out_layer = nn.Linear(n_hidden_clf, 1)
