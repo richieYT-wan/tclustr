@@ -1,9 +1,6 @@
 #! /usr/bin/bash
 
-
-source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-source activate cuda
-
+conda activate pynn
 cd ${CDH}tclustr/pyscripts/
 
 
@@ -18,17 +15,17 @@ for i in "${!mainfolders[@]}"; do
   mainfolder=${mainfolders[i]}
   id=${ids[i]}
   outname=${outnames[i]}
-
+  echo ${mainfolder} ${id} ${outname}
   for kf in $(seq 0 4); do
     f="../output/VAE_For_CLF/${mainfolder}/*_${kf}_*"
     for folder in $f; do
       if [ -d "$folder" ]; then
-        python3 ./train_classifier_frozen_vae.py -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o "CLF_1layer64_025_BN_withSwaps_FLIP_BLOSUM_${outname}" -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-4 -bs 1024 -ne 1000 -pepenc BL50LO -kf ${kf} -rid "${id}" -seed ${kf} -model_folder "${folder}/"
+        echo ${folder}
+        python3 ./train_classifier_frozen_vae.py -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o "CLF_1layer64_025_BN_withSwaps_FLIPPED_BNDO_${outname}" -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-4 -bs 1024 -ne 1000 -kf ${kf} -rid "${id}" -seed ${kf} -model_folder "${folder}/"
       fi
     done
   done
-  wait  # Wait for all background processes to finish before moving to the next mainfolder
 done
 
-mkdir -p '../output/FlipBLOSUM/'
-mv '../output/*CLF_1layer64_025_BN_withSwaps_FLIP_BLOSUM_*' '../output/FlipBLOSUM/'
+mkdir -p '../output/FlippedBNDO/'
+mv '../output/*CLF_1layer64_025_BN_withSwaps_FLIPPED_BNDO*' '../output/FlippedBNDO/'

@@ -4,7 +4,7 @@
 source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
 source activate cuda
 
-cd /home/projects/vaccine/people/yatwan/tclustr/pyscripts/
+cd ${CDH}tclustr/pyscripts/
 
 
 pwd
