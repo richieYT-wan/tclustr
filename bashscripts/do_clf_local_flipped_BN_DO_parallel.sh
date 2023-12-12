@@ -23,8 +23,8 @@ for i in "${!mainfolders[@]}"; do
     f="../output/VAE_For_CLF/${mainfolder}/*_${kf}_*"
     for folder in $f; do
       if [ -d "$folder" ]; then
-        echo "${kf} --- ../output/VAE_For_CLF/${mainfolder}/${folder}/"
-        python3 ./train_classifier_frozen_vae.py -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o "FlippedBNDO/CLF_1layer64_025_BN_withSwaps_FLIPPED_BNDO_${outname}" -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-4 -bs 1024 -ne 1000 -kf ${kf} -rid "${id}" -seed ${kf} -model_folder "../output/VAE_For_CLF/${mainfolder}/${folder}/"
+        echo "${kf} --- ../output/VAE_For_CLF/${mainfolder}/${folder}/" &
+        python3 ./train_classifier_frozen_vae.py -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o "FlippedBNDO/CLF_1layer64_025_BN_withSwaps_FLIPPED_BNDO_${outname}" -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-4 -bs 1024 -ne 1000 -kf ${kf} -rid "${id}" -seed ${kf} -model_folder "../output/VAE_For_CLF/${mainfolder}/${folder}/" &
       fi
     done
   done
