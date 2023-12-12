@@ -16,7 +16,7 @@ from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
-from src.models import FullTCRVAE, PeptideClassifier
+from src.models import FullTCRVAE, AttentionPeptideClassifier
 from src.train_eval import predict_classifier, classifier_train_eval_loops
 from src.datasets import LatentTCRpMHCDataset
 from src.metrics import CombinedVAELoss, get_metrics
@@ -182,8 +182,8 @@ def main():
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_init_code = PeptideClassifier.__init__.__code__
-    model_init_code = PeptideClassifier.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
+    model_init_code = AttentionPeptideClassifier.__init__.__code__
+    model_init_code = AttentionPeptideClassifier.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
     model_keys = [x for x in args.keys() if x in model_init_code]
     dataset_init_code = LatentTCRpMHCDataset.__init__.__code__
     dataset_init_code = LatentTCRpMHCDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
@@ -212,7 +212,7 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = PeptideClassifier(**model_params)
+    model = AttentionPeptideClassifier(**model_params)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), **optim_params)
 

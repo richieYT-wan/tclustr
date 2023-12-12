@@ -99,7 +99,8 @@ def args_parser():
                         help='Use batchnorm (True/False)')
     parser.add_argument('-n_layers', dest='n_layers', type=int, default=0,
                         help='Number of hidden layers. Default is 0. (Architecture is in_layer -> [hidden_layers]*n_layers -> out_layer)')
-
+    parser.add_argument('-decrease_hidden', dest='decrease_hidden', default=False, type=str2bool,
+                        help='Activates decreasing hidden layer sizes (n->n//2)')
     """
     Training hyperparameters & args
     """
@@ -214,7 +215,6 @@ def main():
     model = PeptideClassifier(**model_params)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), **optim_params)
-
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
     if args['log_wandb']:
         # wandb stuff
