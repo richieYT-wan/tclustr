@@ -181,7 +181,7 @@ class LatentTCRpMHCDataset(FullTCRDataset):
 
     def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
-                 b3_col='B3', pep_col='peptide', label_col='binder'):
+                 b3_col='B3', pep_col='peptide', label_col='binder', pep_encoding='categorical'):
         super(LatentTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                    max_len_b3,
                                                    encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col)
@@ -190,7 +190,15 @@ class LatentTCRpMHCDataset(FullTCRDataset):
             model.eval()
             z_latent = model.embed(self.x)
 
-        encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
+        assert pep_encoding in ['categorical'] + list(
+            encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
+                                          f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
+        if pep_encoding == 'categorical':
+            # dim (N, 12)
+            encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
+        else:
+            # dim (N, 12, 20) -> (N, 240) after flatten
+            encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, -20).flatten(start_dim=1)
 
         self.x = torch.cat([z_latent, encoded_peps], dim=1)
         self.labels = torch.from_numpy(df[label_col].values).unsqueeze(1).float()

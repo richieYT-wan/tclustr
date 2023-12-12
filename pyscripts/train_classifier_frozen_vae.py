@@ -76,6 +76,8 @@ def args_parser():
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
+    parser.add_argument('-pepenc', '--pep_encoding', dest='pep_encoding', type=str, default='categorical',
+                        help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical; Default = categorical)')
 
     """
     Models args 
@@ -188,7 +190,7 @@ def main():
 
     model_params = {k: args[k] for k in model_keys}
     model_params['n_latent'] = vae.latent_dim
-    model_params['pep_dim'] = df.peptide.apply(len).max().item()
+    model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
 
     dataset_params = {k: args[k] for k in dataset_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}

@@ -291,20 +291,94 @@ class FullTCRVAE(NetParent):
         seq_idx = self.recover_indices(seq)
         return seq_idx, v, j
 
+# # TODO: Uncomment this to recover old behaviour (Lin->relu->do->BN)
+# class PeptideClassifier(NetParent):
+#
+#     def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False, decrease_hidden=False):
+#         super(PeptideClassifier, self).__init__()
+#         # self.sigmoid = nn.Sigmoid()
+#
+#         # self.softmax = nn.Softmax()
+#
+#         in_dim = pep_dim + n_latent
+#         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU(), nn.Dropout(dropout)]
+#         if batchnorm:
+#             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
+#
+#         self.in_layer = nn.Sequential(*in_layer)
+#         # Hidden layers
+#         layers = []
+#         for _ in range(n_layers):
+#             if decrease_hidden:
+#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf//2))
+#                 n_hidden_clf = n_hidden_clf//2
+#             else:
+#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
+#             layers.append(nn.ReLU())
+#             layers.append(nn.Dropout(dropout))
+#             if batchnorm:
+#                 layers.append(nn.BatchNorm1d(n_hidden_clf))
+#
+#         self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
+#         self.out_layer = nn.Linear(n_hidden_clf, 1)
+#
+#     def forward(self, x):
+#         x = self.in_layer(x)
+#         x = self.hidden_layers(x)
+#         x = self.out_layer(x)
+#         return x
 
+# TODO: This is the flipped behaviour to run locally for now
 class PeptideClassifier(NetParent):
 
-    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False):
+    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False, decrease_hidden=False):
         super(PeptideClassifier, self).__init__()
         # self.sigmoid = nn.Sigmoid()
 
         # self.softmax = nn.Softmax()
 
         in_dim = pep_dim + n_latent
-        in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU(), nn.Dropout(dropout)]
+        in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU()]
         if batchnorm:
             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
 
+        in_layer.append(nn.Dropout(dropout))
+
+        self.in_layer = nn.Sequential(*in_layer)
+        # Hidden layers
+        layers = []
+        for _ in range(n_layers):
+            if decrease_hidden:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf//2))
+                n_hidden_clf = n_hidden_clf//2
+            else:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
+            layers.append(nn.ReLU())
+            if batchnorm:
+                layers.append(nn.BatchNorm1d(n_hidden_clf))
+            layers.append(nn.Dropout(dropout))
+
+        self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
+        self.out_layer = nn.Linear(n_hidden_clf, 1)
+
+    def forward(self, x):
+        x = self.in_layer(x)
+        x = self.hidden_layers(x)
+        x = self.out_layer(x)
+        return x
+
+
+class AttentionPeptideClassifier(NetParent):
+
+    def __init__(self, pep_dim, latent_dim, num_heads=4, n_layers=1, n_hidden_clf=32, dropout=0.0, batchnorm=False, decrease_hidden=False):
+        super(AttentionPeptideClassifier, self).__init__()
+        self.in_dim = pep_dim + latent_dim
+        self.attention = nn.MultiheadAttention(embed_dim=self.in_dim, num_heads=num_heads,
+                                               dropout=dropout, batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+        in_layer = [nn.Linear(self.in_dim, n_hidden_clf), nn.ReLU(), self.dropout]
+        if batchnorm:
+            in_layer.append(nn.BatchNorm1d(n_hidden_clf))
         self.in_layer = nn.Sequential(*in_layer)
         # Hidden layers
         layers = []
@@ -318,11 +392,20 @@ class PeptideClassifier(NetParent):
 
         self.out_layer = nn.Linear(n_hidden_clf, 1)
 
-    def forward(self, x):
-        x = self.in_layer(x)
-        x = self.hidden_layers(x)
-        x = self.out_layer(x)
-        return x
+    def forward(self, x_latent, x_pep):
+        # Reshape peptide if it's not a flat vector
+        if len(x_pep.shape)>2:
+            x_pep = x_pep.flatten(start_dim=1)
+        # Concat & Attention (no attention weights returned)
+        x_cat = torch.cat([x_latent, x_pep], dim=1)
+        x_attention, _ = self.attention(x_cat, x_cat, x_cat)
+        # Residual connection adding back the input
+        x_attention += x_cat
+        # Classifier
+        x_out = self.in_layer(x_attention)
+        x_out = self.hidden_layers(x_out)
+        x_out = self.out_layer(x_out)
+        return x_out
 
 
 class BimodalVAEClassifier(NetParent):
@@ -378,6 +461,7 @@ class BimodalVAEClassifier(NetParent):
 
     def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
         return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)
+
 
 # class PairedFVAE(NetParent):
 #     # Define the input dimension as some combination of sequence length, AA dim,
