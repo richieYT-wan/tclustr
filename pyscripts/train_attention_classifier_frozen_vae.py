@@ -14,7 +14,7 @@ from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
-    get_dict_of_lists
+    get_dict_of_lists,  get_class_initcode_keys
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
 from src.models import FullTCRVAE, AttentionPeptideClassifier
 from src.train_eval import predict_classifier, classifier_train_eval_loops
@@ -182,17 +182,13 @@ def main():
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_init_code = AttentionPeptideClassifier.__init__.__code__
-    model_init_code = AttentionPeptideClassifier.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
-    model_keys = [x for x in args.keys() if x in model_init_code]
-    dataset_init_code = LatentTCRpMHCDataset.__init__.__code__
-    dataset_init_code = LatentTCRpMHCDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
-    dataset_keys = [x for x in args.keys() if x in dataset_init_code]
+    model_keys = get_class_initcode_keys(AttentionPeptideClassifier, args)
+    dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
 
     model_params = {k: args[k] for k in model_keys}
-    model_params['n_latent'] = vae.latent_dim
+    model_params['latent_dim'] = vae.latent_dim
     model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
-
+    assert (model_params['latent_dim']+model_params['pep_dim'])%args['num_heads']==0, 'Wrong numheads!'
     dataset_params = {k: args[k] for k in dataset_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file

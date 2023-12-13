@@ -291,6 +291,7 @@ class FullTCRVAE(NetParent):
         seq_idx = self.recover_indices(seq)
         return seq_idx, v, j
 
+
 # # TODO: Uncomment this to recover old behaviour (Lin->relu->do->BN)
 # class PeptideClassifier(NetParent):
 #
@@ -331,7 +332,8 @@ class FullTCRVAE(NetParent):
 # TODO: This is the flipped behaviour to run locally for now
 class PeptideClassifier(NetParent):
 
-    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False, decrease_hidden=False):
+    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
+                 decrease_hidden=False):
         super(PeptideClassifier, self).__init__()
         # self.sigmoid = nn.Sigmoid()
 
@@ -348,8 +350,8 @@ class PeptideClassifier(NetParent):
         layers = []
         for _ in range(n_layers):
             if decrease_hidden:
-                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf//2))
-                n_hidden_clf = n_hidden_clf//2
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf // 2))
+                n_hidden_clf = n_hidden_clf // 2
             else:
                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
             layers.append(nn.ReLU())
@@ -369,7 +371,8 @@ class PeptideClassifier(NetParent):
 
 class AttentionPeptideClassifier(NetParent):
 
-    def __init__(self, pep_dim, latent_dim, num_heads=4, n_layers=1, n_hidden_clf=32, dropout=0.0, batchnorm=False, decrease_hidden=False):
+    def __init__(self, pep_dim, latent_dim, num_heads=4, n_layers=1, n_hidden_clf=32, dropout=0.0, batchnorm=False,
+                 decrease_hidden=False):
         #
         super(AttentionPeptideClassifier, self).__init__()
         self.in_dim = pep_dim + latent_dim
@@ -397,12 +400,8 @@ class AttentionPeptideClassifier(NetParent):
 
         self.out_layer = nn.Linear(n_hidden_clf, 1)
 
-    def forward(self, x_latent, x_pep):
-        # Reshape peptide if it's not a flat vector
-        if len(x_pep.shape)>2:
-            x_pep = x_pep.flatten(start_dim=1)
-        # Concat & Attention (no attention weights returned)
-        x_cat = torch.cat([x_latent, x_pep], dim=1)
+    def forward(self, x_cat):
+        # x_cat is the concatenated vector between the latent and the sequence
         x_attention, _ = self.attention(x_cat, x_cat, x_cat)
         # Residual connection adding back the input
         x_attention += x_cat
