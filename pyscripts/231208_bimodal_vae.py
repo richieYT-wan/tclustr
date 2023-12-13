@@ -199,6 +199,9 @@ def main():
     loss_keys = get_class_initcode_keys(BimodalVAELoss, args)
     vae_params = {k:args[k] for k in vae_keys}
     clf_params = {k:args[k] for k in clf_keys}
+    clf_params['n_latent'] = vae_params['latent_dim']
+    clf_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
+
     model_params = {k: args[k] for k in vae_keys+clf_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
