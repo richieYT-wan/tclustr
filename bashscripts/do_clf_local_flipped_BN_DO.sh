@@ -17,7 +17,3 @@ for i in "${!mainfolders[@]}"; do
     python3 ./train_classifier_frozen_vae.py -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o "CLF_Nh50_Do025_True_nl1_ne1000_withSwaps_FLIPPED_BNDO_${outname}" -nh 50 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-3 -bs 1024 -ne 1000 -kf ${i} -rid "${id}" -seed ${i} -model_folder "../output/TripletTest/${mainfolder}/${f}/"; ((i += 1));
   done
 done
-
-# TODO: Do dual modal training
-
-# TODO ask mathias : Nettcr-pan-trained on my data, and get the test predictions for the 5fold kcv to see benchmark

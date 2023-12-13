@@ -24,7 +24,7 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
 cd \${PYDIR}
-python3 ./231208_bimodal_vae.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/231205_nettcr_old_26pep_with_swaps.csv -pad -20 -enc BL50LO -cuda True -ne 25000 -lwseq 1 -lwkld 1e-2 -lwvae 1 -lwtrp 0 -lwclf 1 -dist_type cosine -margin 0.125 -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl 64 -nh 128 -nhclf 50 -do 0.25 -bn True -n_layers 1 -bs 512 -lr 1e-4 -wd 1e-4 -wu 15 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+python3 ./231208_bimodal_vae.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/231205_nettcr_old_26pep_with_swaps.csv -pad -20 -enc BL50LO -cuda True -ne 25000 -lwseq 1 -lwkld 1e-2 -lwvae 1 -lwtrp 0 -lwclf 1 -dist_type cosine -margin 0.125 -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl 64 -nh 128 -nhclf 64 -do 0.2 -bn True -n_layers 1 -bs 1024 -lr 1.25e-4 -wd 1e-4 -wu 15 -pepenc BL50LO ${outname} -rid ${random_string} -kf ${f} -seed ${f}
 EOF
 )
                               # Write the script content to a file

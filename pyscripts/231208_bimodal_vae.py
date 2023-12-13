@@ -97,7 +97,8 @@ def args_parser():
                         help='Use batchnorm (True/False)')
     parser.add_argument('-n_layers', dest='n_layers', type=int, default=1,
                         help='Number of hidden layers. Default is 0. (Architecture is in_layer -> [hidden_layers]*n_layers -> out_layer)')
-
+    parser.add_argument('-pepenc', '--pep_encoding', dest='pep_encoding', type=str, default='categorical',
+                        help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical; Default = categorical)')
     """
     Training hyperparameters & args
     """
