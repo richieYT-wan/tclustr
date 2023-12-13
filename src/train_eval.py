@@ -725,7 +725,7 @@ def bimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
                 [f"{k.replace('accuracy', 'acc')}:{v:.2%}" for k, v in train_metric.items() if k not in ['auc_01_real', 'AP']])
             train_text = '\n'.join([train_loss_text, train_metrics_text])
 
-            valid_loss_text = f'Train: Epoch {e}\nLoss:\tReconstruction: {valid_loss["reconstruction"]:.4f}\tKLD: {valid_loss["kld"]:.4f}'
+            valid_loss_text = f'Valid: Epoch {e}\nLoss:\tReconstruction: {valid_loss["reconstruction"]:.4f}\tKLD: {valid_loss["kld"]:.4f}'
             valid_loss_text = valid_loss_text + f'\tTriplet: {valid_loss["triplet"]:.4f}'
             valid_loss_text = valid_loss_text + f'\tBCE: {valid_loss["BCE"]:.4f}'
 
