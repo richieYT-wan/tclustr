@@ -28,7 +28,7 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
 cd \${PYDIR}
-python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 25000 -cuda True -lwseq 3 -lwkld 5e-3 -lwtrp 0.75 -dist_type cosine -margin 0.125 -mla1 7 -mla2 8 -mlb1 6 -mlb2 7 -nl 128 -nh 256 -bs 512 -lr 1e-4 -wd 1e-4 -wu 15 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+python3 ./231102_fulltcr_tripletloss.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv -pad -20 -enc BL50LO -ne 30000 -cuda True -lwseq 3 -lwkld 5e-3 -lwtrp 0.75 -dist_type cosine -margin 0.125 -mla1 7 -mla2 8 -mlb1 6 -mlb2 7 -nl 128 -nh 256 -bs 512 -lr 1.5e-4 -wd 1e-4 -wu 15 -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
 EOF
 )
                               # Write the script content to a file
