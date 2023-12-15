@@ -21,11 +21,11 @@ first_char="${characters:index:1}"
 # Generate the remaining 4 characters as a combination of the defined characters
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
-random_string="${first_char}${rest_chars}"
+random_string=PCuSO
 outname="A3B3_aimForPerfectAccuracy_KLD1e-4_wd1e-6_nl128"
 
 
-for f in $(seq 0 4);
+for f in 0 1 4;
 do
  filename="${outname}_fold_${f}_${random_string}"
   script_content=$(cat <<EOF

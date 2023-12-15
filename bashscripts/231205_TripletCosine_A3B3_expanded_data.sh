@@ -1,7 +1,7 @@
 #!/bin/bash
 
-run_id="COS2X"
-outname="231205_TripletCosine_A3B3_expanded_data"
+run_id="COSA3B3"
+outname="231205_TripletCosine_A3B3_expanded_data_REDO"
 
 for f in $(seq 0 4);
 do
