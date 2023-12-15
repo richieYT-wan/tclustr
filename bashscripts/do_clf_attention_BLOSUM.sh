@@ -13,10 +13,7 @@ for i in "${!mainfolders[@]}"; do
   i=0;
   # shellcheck disable=SC2045
   for f in $(ls "../output/VAE_For_CLF/${mainfolder}"); do
-    python3 ./train_attention_classifier_frozen_vae.py -cuda True -f 
-../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o "CLF_Nh64_Do02_8headsAttn_BL50LO_${outname}" -num_heads 8 
--nh 64 -do 0.2 -bn True -n_layers 1 -lr 1.5e-4 -wd 1e-4 -bs 1024 -ne 750 -pepenc BL50LO -kf ${i} -rid "${id}" -seed 
-${i} -model_folder "../output/VAE_For_CLF/${mainfolder}/${f}/"; ((i += 1));
+    python3 ./train_attention_classifier_frozen_vae.py -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -o "CLF_Nh64_Do02_8headsAttn_BL50LO_${outname}" -num_heads 8 -nh 64 -do 0.2 -bn True -n_layers 1 -lr 1.5e-4 -wd 1e-4 -bs 1024 -ne 750 -pepenc BL50LO -kf ${i} -rid "${id}" -seed ${i} -model_folder "../output/VAE_For_CLF/${mainfolder}/${f}/"; ((i += 1));
   done
 done
 
