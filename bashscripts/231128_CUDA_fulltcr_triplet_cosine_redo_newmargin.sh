@@ -5,7 +5,8 @@
 
 
 # Define the characters that can be used
-characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+# removed capital I and lowercase l to avoid stupid confusions
+characters="abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ0123456789"
 # Generate a random index between 0 and 61 (total number of characters)
 index=$((RANDOM % 62))
 # Get the character at the generated index

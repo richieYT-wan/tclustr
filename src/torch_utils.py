@@ -6,9 +6,11 @@ from src.models import *
 
 ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
+
+
 # TODO HERE ADD ALSO FOR DATASET THING (be smarter about this)
 
-def load_model_full(checkpoint_filename, json_filename, dir_path=None):
+def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
     Args:
@@ -21,10 +23,19 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None):
     dict_kwargs = load_json(json_filename, dir_path)
     assert 'constructor' in dict_kwargs.keys(), f'No constructor class name provided in the dict_kwargs keys! {dict_kwargs.keys()}'
     constructor = dict_kwargs.pop('constructor')
-    dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
+    if 'activation' in dict_kwargs:
+        dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
+    for k in dict_kwargs:
+        if type(dict_kwargs[k]) == dict:
+            for l in dict_kwargs[k]:
+                if l == 'activation':
+                    dict_kwargs[k]['activation'] = eval(dict_kwargs[k]['activation'])()
     model = eval(constructor)(**dict_kwargs)
     model = load_checkpoint(model, checkpoint_filename, dir_path)
-    return model
+    if return_json:
+        return model, dict_kwargs
+    else:
+        return model
 
 
 def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', verbose=False, best_dict=None,
@@ -47,6 +58,7 @@ def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', v
         json_filename = f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json' if checkpoint_filename.endswith(
             '.pt') \
             else f'{checkpoint_filename}_JSON_kwargs.json'
+
     save_checkpoint(model, checkpoint_filename, dir_path, verbose, best_dict)
     if 'constructor' not in dict_kwargs.keys():
         dict_kwargs['constructor'] = model.__class__.__name__
@@ -85,7 +97,13 @@ def save_json(dict_kwargs, filename, dir_path='./'):
 
     """
     savepath = os.path.join(dir_path, filename)
-    dict_kwargs['activation'] = dict_kwargs['activation'].__class__.__name__
+    for k in dict_kwargs:
+        if type(dict_kwargs[k]) == dict:
+            for l in dict_kwargs[k]:
+                if issubclass(type(dict_kwargs[k][l]), nn.Module):
+                    dict_kwargs[k][l] = dict_kwargs[k][l].__class__.__name__
+        if issubclass(type(dict_kwargs[k]), nn.Module):
+            dict_kwargs[k] = dict_kwargs[k].__class__.__name__
     # Write the dictionary to a JSON file
     with open(savepath, 'w') as json_file:
         json.dump(dict_kwargs, json_file)

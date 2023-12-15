@@ -147,8 +147,7 @@ def main():
         train = df.query('partition!=@i')
         valid = df.query('partition==@i')
         # TODO HERE CHANGE FULLTCRVAE CALL
-        model = FullTCRVAE(0,0,22,0,0,23, encoding, pad_scale, aa_dim, activation, hidden_dim,
-                           latent_dim)
+        model = FullTCRVAE(0, 0, 22, 0, 0, 23, encoding, pad_scale, aa_dim, activation, hidden_dim, latent_dim)
         model = load_checkpoint(model, checkpoint)
         # TODO Here change dataset call to get maxlens
         train_dataset = FullTCRDataset(train, 0, 0, 22, 0, 0, 23,  encoding, pad_scale)

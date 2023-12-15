@@ -173,9 +173,7 @@ class CDR3bVAE(NetParent):
 # TODO : Make number of layers more flexible and add batchnorm-dropout, try leaky relu
 class FullTCRVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
-    def __init__(self,
-                 max_len_a1=7, max_len_a2=8, max_len_a3=22,
-                 max_len_b1=6, max_len_b2=7, max_len_b3=23,
+    def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
                  encoding='BL50LO', pad_scale=-20, aa_dim=20, activation=nn.SELU(), hidden_dim=128, latent_dim=64):
         super(FullTCRVAE, self).__init__()
         # Init params that will be needed at some point for reconstruction
@@ -200,6 +198,7 @@ class FullTCRVAE(NetParent):
         # TODO: For now, just use a fixed set of layers.
         #       Might need more layers because we are compressing more information
 
+        # TODO: Include dropout+batchnorm
         # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
         self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
                                      nn.Linear(input_dim // 2, hidden_dim), activation)
@@ -293,158 +292,335 @@ class FullTCRVAE(NetParent):
         return seq_idx, v, j
 
 
-class PairedFVAE(NetParent):
-    # Define the input dimension as some combination of sequence length, AA dim,
-    def __init__(self, max_len_b=23, max_len_a=24, max_len_pep=12, encoding='BL50LO', pad_scale=-20,
-                 use_b=True, use_a=True, use_pep=False, use_v=False, use_j=False,
-                 aa_dim=20, v_dim=51, j_dim=13,
-                 activation=nn.SELU(), hidden_dim=128, latent_dim=64):
-        super(PairedFVAE, self).__init__()
-        # Init dimensions
-        v_dim = v_dim if use_v else 0
-        j_dim = j_dim if use_j else 0
-        b_dim = max_len_b * aa_dim if use_b else 0
-        a_dim = max_len_a * aa_dim if use_a else 0
-        pep_dim = max_len_pep * aa_dim if use_pep else 0
-        input_dim = b_dim + a_dim + pep_dim + v_dim + j_dim
-        self.seq_dim = b_dim + a_dim + pep_dim
-        self.input_dim = input_dim
-        self.max_len_b = max_len_b if use_b else 0
-        self.use_b = use_b
-        self.max_len_a = max_len_a if use_a else 0
-        self.use_a = use_a
-        self.max_len_pep = max_len_pep if use_pep else 0
-        self.use_pep = use_pep
-        self.alpha_dim = a_dim
-        self.beta_dim = b_dim
-        self.pep_dim = pep_dim
-        self.aa_dim = aa_dim
-        self.v_dim = v_dim if use_v else 0
-        self.use_v = use_v
-        self.j_dim = j_dim if use_j else 0
-        self.use_j = use_j
-        self.encoding = encoding
-        if pad_scale is None:
-            self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
-        else:
-            self.pad_scale = pad_scale
-        MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
-        MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
-        self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
+# # TODO: Uncomment this to recover old behaviour (Lin->relu->do->BN)
+# class PeptideClassifier(NetParent):
+#
+#     def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False, decrease_hidden=False):
+#         super(PeptideClassifier, self).__init__()
+#         # self.sigmoid = nn.Sigmoid()
+#
+#         # self.softmax = nn.Softmax()
+#
+#         in_dim = pep_dim + n_latent
+#         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU(), nn.Dropout(dropout)]
+#         if batchnorm:
+#             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
+#
+#         self.in_layer = nn.Sequential(*in_layer)
+#         # Hidden layers
+#         layers = []
+#         for _ in range(n_layers):
+#             if decrease_hidden:
+#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf//2))
+#                 n_hidden_clf = n_hidden_clf//2
+#             else:
+#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
+#             layers.append(nn.ReLU())
+#             layers.append(nn.Dropout(dropout))
+#             if batchnorm:
+#                 layers.append(nn.BatchNorm1d(n_hidden_clf))
+#
+#         self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
+#         self.out_layer = nn.Linear(n_hidden_clf, 1)
+#
+#     def forward(self, x):
+#         x = self.in_layer(x)
+#         x = self.hidden_layers(x)
+#         x = self.out_layer(x)
+#         return x
 
-        self.hidden_dim = hidden_dim
-        self.latent_dim = latent_dim
-        # TODO: For now, just use a fixed set of layers.
-        # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
-        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
-                                     nn.Linear(input_dim // 2, hidden_dim), activation)
-        self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
-        self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
-        # TODO: Maybe split the decoder into parts for seq, v, j and also update behaviour in forward etc.
-        # Decoder: latent (z) -> hidden -> in // 2 -> in
-        # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-        #                              nn.Linear(hidden_dim, input_dim //2), activation,
-        #                              nn.Linear(input_dim // 2, input_dim))
+# TODO: This is the flipped behaviour to run locally for now
+class PeptideClassifier(NetParent):
 
-        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                     nn.Linear(hidden_dim, hidden_dim), activation)
+    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
+                 decrease_hidden=False):
+        super(PeptideClassifier, self).__init__()
+        # self.sigmoid = nn.Sigmoid()
 
-        self.decoder_beta = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
-                                          nn.Linear(input_dim // 2, self.beta_dim)) if use_b else None
-        self.decoder_alpha = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
-                                           nn.Linear(input_dim // 2, self.alpha_dim)) if use_a else None
-        self.decoder_pep = nn.Sequential(nn.Linear(hidden_dim, self.pep_dim)) if use_pep else None
+        # self.softmax = nn.Softmax()
 
-        self.decoder_v = nn.Linear(hidden_dim, self.v_dim) if use_v else None
-        self.decoder_j = nn.Linear(hidden_dim, self.j_dim) if use_j else None
+        in_dim = pep_dim + n_latent
+        in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU()]
+        if batchnorm:
+            in_layer.append(nn.BatchNorm1d(n_hidden_clf))
+        in_layer.append(nn.Dropout(dropout))
 
-    @staticmethod
-    def reparameterise(mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
-        z = (epsilon * std) + mu
-        return z
+        self.in_layer = nn.Sequential(*in_layer)
+        # Hidden layers
+        layers = []
+        for _ in range(n_layers):
+            if decrease_hidden:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf // 2))
+                n_hidden_clf = n_hidden_clf // 2
+            else:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
+            layers.append(nn.ReLU())
+            if batchnorm:
+                layers.append(nn.BatchNorm1d(n_hidden_clf))
+            layers.append(nn.Dropout(dropout))
 
-    def encode(self, x):
-        mu_logvar = self.encoder(x.flatten(start_dim=1))
-        mu = self.encoder_mu(mu_logvar)
-        logvar = self.encoder_logvar(mu_logvar)
-        return mu, logvar
-
-    def decode(self, z):
-        x_hat = self.decoder(z)
-        x_hat_b = self.decoder_beta(x_hat) if self.use_b else torch.empty([len(z), 0])
-        x_hat_a = self.decoder_alpha(x_hat) if self.use_a else torch.empty([len(z), 0])
-        x_hat_pep = self.decoder_pep(x_hat) if self.use_pep else torch.empty([len(z), 0])
-        x_hat_v = self.decoder_v(x_hat) if self.use_v else torch.empty([len(z), 0])
-        x_hat_j = self.decoder_j(x_hat) if self.use_j else torch.empty([len(z), 0])
-        return torch.cat([x_hat_b, x_hat_a, x_hat_pep, x_hat_v, x_hat_j], dim=1)
-
-    def slice_x(self, x):
-        # Slices the vector values for the sequences and reconstructs (view) as 3 (Nx2D) tensors
-        sequence = x[:, 0:self.seq_dim]
-        seq_b = sequence[:, :self.beta_dim] \
-            .view(-1, self.max_len_b, self.aa_dim) if self.use_b else None
-
-        seq_a = sequence[:, self.beta_dim:(self.beta_dim + self.alpha_dim)] \
-            .view(-1, self.max_len_a, self.aa_dim) if self.use_a else None
-
-        seq_pep = sequence[:, (self.beta_dim + self.alpha_dim):(self.alpha_dim + self.beta_dim + self.pep_dim)] \
-            .view(-1, self.max_len_pep, self.aa_dim) if self.use_pep else None
-
-        # Reconstructs the v/j gene as one hot vectors
-        v_gene = x[:, self.seq_dim:(self.seq_dim + self.v_dim)] if self.use_v else None
-        j_gene = x[:, (self.seq_dim + self.v_dim):] if self.use_j else None
-        # Here, returns the entire concatenated sequence ; Maybe it should be
-        return (seq_b, seq_a, seq_pep), v_gene, j_gene
-
-    def reconstruct(self, z):
-        with torch.no_grad():
-            x_hat = self.decode(z)
-            # Reconstruct and unflattens the sequence
-            (seq_b, seq_a, seq_pep), v_gene, j_gene = self.slice_x(x_hat)
-            return seq_b, seq_a, seq_pep, v_gene, j_gene
+        self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
+        self.out_layer = nn.Linear(n_hidden_clf, 1)
 
     def forward(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterise(mu, logvar)
-        x_hat = self.decode(z)
-        return x_hat, mu, logvar
+        x = self.in_layer(x)
+        x = self.hidden_layers(x)
+        x = self.out_layer(x)
+        return x
+
+
+class AttentionPeptideClassifier(NetParent):
+
+    def __init__(self, pep_dim, latent_dim, num_heads=4, n_layers=1, n_hidden_clf=32, dropout=0.0, batchnorm=False,
+                 decrease_hidden=False):
+        #
+        super(AttentionPeptideClassifier, self).__init__()
+        self.in_dim = pep_dim + latent_dim
+        self.attention = nn.MultiheadAttention(embed_dim=self.in_dim, num_heads=num_heads,
+                                               dropout=dropout, batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+        in_layer = [nn.Linear(self.in_dim, n_hidden_clf), nn.ReLU()]
+        if batchnorm:
+            in_layer.append(nn.BatchNorm1d(n_hidden_clf))
+        in_layer.append(self.dropout)
+        self.in_layer = nn.Sequential(*in_layer)
+        # Hidden layers
+        layers = []
+        for _ in range(n_layers):
+            if decrease_hidden:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf // 2))
+                n_hidden_clf = n_hidden_clf // 2
+            else:
+                layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
+            layers.append(nn.ReLU())
+            if batchnorm:
+                layers.append(nn.BatchNorm1d(n_hidden_clf))
+            layers.append(nn.Dropout(dropout))
+        self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
+
+        self.out_layer = nn.Linear(n_hidden_clf, 1)
+
+    def forward(self, x_cat):
+        # x_cat is the concatenated vector between the latent and the sequence
+        x_attention, _ = self.attention(x_cat, x_cat, x_cat)
+        # Residual connection adding back the input
+        x_attention += x_cat
+        # Classifier
+        x_out = self.in_layer(x_attention)
+        x_out = self.hidden_layers(x_out)
+        x_out = self.out_layer(x_out)
+        return x_out
+
+
+class BimodalVAEClassifier(NetParent):
+
+    def __init__(self, vae_kwargs, clf_kwargs):
+        super(BimodalVAEClassifier, self).__init__()
+        self.vae = FullTCRVAE(**vae_kwargs)
+        self.clf = PeptideClassifier(**clf_kwargs)
+
+    def forward(self, x_tcr, x_pep):
+        """
+        Needs to back-propagate on and return :
+            x_hat -> reconstruction loss
+            mu/logvar -> KLD loss
+            mu -> Triplet/Contrastive loss: This is just `z_embed` without reparameterisation !
+            x_out -> Prediction loss (Binary Cross Entropy? MSE?)
+        Args:
+            x_tcr:
+            x_pep:
+
+        Returns:
+            x_hat: reconstructed input
+            mu: Mean latent vector (used for KLD + Triplet)
+            logvar: std latent vector (used for KLD)
+            x_out: pMHC-TCR prediction output logit (used for classifier loss)
+        """
+        x_hat, mu, logvar = self.vae(x_tcr)
+        # Here, set the vae to eval before embedding in order to disable reparameterisation
+        # TODO: Should the classifier be trained using z_tcr (reparameterised) or mu (not reparameterised?)
+        #       Figure out which latent representation should be used for classifier. For now, use z_tcr
+        z = self.vae.embed(x_tcr)
+        z = torch.cat([z, x_pep.flatten(start_dim=1)], dim=1)
+        x_out = self.clf(z)
+        return x_hat, mu, logvar, x_out
+
+    def reconstruct_hat(self, x):
+        return self.vae.reconstruct_hat(x)
+
+    def slice_x(self, x):
+        return self.vae.slice_x(x)
+
+    def reconstruct(self, z):
+        return self.vae.reconstruct(z)
 
     def embed(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterise(mu, logvar)
-        return z
+        return self.vae.embed(x)
 
     def sample_latent(self, n_samples):
-        z = torch.randn((n_samples, self.latent_dim)).to(device=self.encoder[0].weight.device)
-        return z
+        return self.vae.sample_latent(n_samples)
 
     def recover_indices(self, seq_tensor):
-        # Sample data
-        N, max_len = seq_tensor.shape[0], seq_tensor.shape[1]
-
-        # Expand MATRIX_VALUES to have the same shape as x_seq for broadcasting
-        expanded_MATRIX_VALUES = self.MATRIX_VALUES.unsqueeze(0).expand(N, -1, -1, -1)
-        # Compute the absolute differences
-        abs_diff = torch.abs(seq_tensor.unsqueeze(2) - expanded_MATRIX_VALUES)
-        # Sum along the last dimension (20) to get the absolute differences for each character
-        abs_diff_sum = abs_diff.sum(dim=-1)
-
-        # Find the argmin along the character dimension (21)
-        argmin_indices = torch.argmin(abs_diff_sum, dim=-1)
-        return argmin_indices
+        return self.vae.recover_indices(seq_tensor)
 
     def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
-        return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor)]
+        return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)
 
-    def reconstruct_hat(self, x_hat):
-        (seq_b, seq_a, seq_pep), v, j = self.slice_x(x_hat)
-        seq_idx_b = self.recover_indices(seq_b) if self.use_b else torch.empty([len(x_hat), 0])
-        seq_idx_a = self.recover_indices(seq_a) if self.use_a else torch.empty([len(x_hat), 0])
-        seq_idx_pep = self.recover_indices(seq_pep) if self.use_pep else torch.empty([len(x_hat), 0])
-        seq = torch.cat([seq_idx_b, seq_idx_a, seq_idx_pep], dim=1)
-        return seq, v, j
+
+# class PairedFVAE(NetParent):
+#     # Define the input dimension as some combination of sequence length, AA dim,
+#     def __init__(self, max_len_b=23, max_len_a=24, max_len_pep=12, encoding='BL50LO', pad_scale=-20,
+#                  use_b=True, use_a=True, use_pep=False, use_v=False, use_j=False,
+#                  aa_dim=20, v_dim=51, j_dim=13,
+#                  activation=nn.SELU(), hidden_dim=128, latent_dim=64):
+#         super(PairedFVAE, self).__init__()
+#         # Init dimensions
+#         v_dim = v_dim if use_v else 0
+#         j_dim = j_dim if use_j else 0
+#         b_dim = max_len_b * aa_dim if use_b else 0
+#         a_dim = max_len_a * aa_dim if use_a else 0
+#         pep_dim = max_len_pep * aa_dim if use_pep else 0
+#         input_dim = b_dim + a_dim + pep_dim + v_dim + j_dim
+#         self.seq_dim = b_dim + a_dim + pep_dim
+#         self.input_dim = input_dim
+#         self.max_len_b = max_len_b if use_b else 0
+#         self.use_b = use_b
+#         self.max_len_a = max_len_a if use_a else 0
+#         self.use_a = use_a
+#         self.max_len_pep = max_len_pep if use_pep else 0
+#         self.use_pep = use_pep
+#         self.alpha_dim = a_dim
+#         self.beta_dim = b_dim
+#         self.pep_dim = pep_dim
+#         self.aa_dim = aa_dim
+#         self.v_dim = v_dim if use_v else 0
+#         self.use_v = use_v
+#         self.j_dim = j_dim if use_j else 0
+#         self.use_j = use_j
+#         self.encoding = encoding
+#         if pad_scale is None:
+#             self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
+#         else:
+#             self.pad_scale = pad_scale
+#         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
+#         MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
+#         self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
+#
+#         self.hidden_dim = hidden_dim
+#         self.latent_dim = latent_dim
+#         # TODO: For now, just use a fixed set of layers.
+#         # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
+#         self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
+#                                      nn.Linear(input_dim // 2, hidden_dim), activation)
+#         self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+#         self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+#         # TODO: Maybe split the decoder into parts for seq, v, j and also update behaviour in forward etc.
+#         # Decoder: latent (z) -> hidden -> in // 2 -> in
+#         # self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+#         #                              nn.Linear(hidden_dim, input_dim //2), activation,
+#         #                              nn.Linear(input_dim // 2, input_dim))
+#
+#         self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+#                                      nn.Linear(hidden_dim, hidden_dim), activation)
+#
+#         self.decoder_beta = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
+#                                           nn.Linear(input_dim // 2, self.beta_dim)) if use_b else None
+#         self.decoder_alpha = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
+#                                            nn.Linear(input_dim // 2, self.alpha_dim)) if use_a else None
+#         self.decoder_pep = nn.Sequential(nn.Linear(hidden_dim, self.pep_dim)) if use_pep else None
+#
+#         self.decoder_v = nn.Linear(hidden_dim, self.v_dim) if use_v else None
+#         self.decoder_j = nn.Linear(hidden_dim, self.j_dim) if use_j else None
+#
+#     @staticmethod
+#     def reparameterise(mu, logvar):
+#         std = torch.exp(0.5 * logvar)
+#         epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+#         z = (epsilon * std) + mu
+#         return z
+#
+#     def encode(self, x):
+#         mu_logvar = self.encoder(x.flatten(start_dim=1))
+#         mu = self.encoder_mu(mu_logvar)
+#         logvar = self.encoder_logvar(mu_logvar)
+#         return mu, logvar
+#
+#     def decode(self, z):
+#         x_hat = self.decoder(z)
+#         x_hat_b = self.decoder_beta(x_hat) if self.use_b else torch.empty([len(z), 0])
+#         x_hat_a = self.decoder_alpha(x_hat) if self.use_a else torch.empty([len(z), 0])
+#         x_hat_pep = self.decoder_pep(x_hat) if self.use_pep else torch.empty([len(z), 0])
+#         x_hat_v = self.decoder_v(x_hat) if self.use_v else torch.empty([len(z), 0])
+#         x_hat_j = self.decoder_j(x_hat) if self.use_j else torch.empty([len(z), 0])
+#         return torch.cat([x_hat_b, x_hat_a, x_hat_pep, x_hat_v, x_hat_j], dim=1)
+#
+#     def slice_x(self, x):
+#         # Slices the vector values for the sequences and reconstructs (view) as 3 (Nx2D) tensors
+#         sequence = x[:, 0:self.seq_dim]
+#         seq_b = sequence[:, :self.beta_dim] \
+#             .view(-1, self.max_len_b, self.aa_dim) if self.use_b else None
+#
+#         seq_a = sequence[:, self.beta_dim:(self.beta_dim + self.alpha_dim)] \
+#             .view(-1, self.max_len_a, self.aa_dim) if self.use_a else None
+#
+#         seq_pep = sequence[:, (self.beta_dim + self.alpha_dim):(self.alpha_dim + self.beta_dim + self.pep_dim)] \
+#             .view(-1, self.max_len_pep, self.aa_dim) if self.use_pep else None
+#
+#         # Reconstructs the v/j gene as one hot vectors
+#         v_gene = x[:, self.seq_dim:(self.seq_dim + self.v_dim)] if self.use_v else None
+#         j_gene = x[:, (self.seq_dim + self.v_dim):] if self.use_j else None
+#         # Here, returns the entire concatenated sequence ; Maybe it should be
+#         return (seq_b, seq_a, seq_pep), v_gene, j_gene
+#
+#     def reconstruct(self, z):
+#         with torch.no_grad():
+#             x_hat = self.decode(z)
+#             # Reconstruct and unflattens the sequence
+#             (seq_b, seq_a, seq_pep), v_gene, j_gene = self.slice_x(x_hat)
+#             return seq_b, seq_a, seq_pep, v_gene, j_gene
+#
+#     def forward(self, x):
+#         mu, logvar = self.encode(x)
+#         z = self.reparameterise(mu, logvar)
+#         x_hat = self.decode(z)
+#         return x_hat, mu, logvar
+#
+#     def embed(self, x):
+#         mu, logvar = self.encode(x)
+#         z = self.reparameterise(mu, logvar)
+#         return z
+#
+#     def sample_latent(self, n_samples):
+#         z = torch.randn((n_samples, self.latent_dim)).to(device=self.encoder[0].weight.device)
+#         return z
+#
+#     def recover_indices(self, seq_tensor):
+#         # Sample data
+#         N, max_len = seq_tensor.shape[0], seq_tensor.shape[1]
+#
+#         # Expand MATRIX_VALUES to have the same shape as x_seq for broadcasting
+#         expanded_MATRIX_VALUES = self.MATRIX_VALUES.unsqueeze(0).expand(N, -1, -1, -1)
+#         # Compute the absolute differences
+#         abs_diff = torch.abs(seq_tensor.unsqueeze(2) - expanded_MATRIX_VALUES)
+#         # Sum along the last dimension (20) to get the absolute differences for each character
+#         abs_diff_sum = abs_diff.sum(dim=-1)
+#
+#         # Find the argmin along the character dimension (21)
+#         argmin_indices = torch.argmin(abs_diff_sum, dim=-1)
+#         return argmin_indices
+#
+#     def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
+#         return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor)]
+#
+#     def reconstruct_hat(self, x_hat):
+#         (seq_b, seq_a, seq_pep), v, j = self.slice_x(x_hat)
+#         seq_idx_b = self.recover_indices(seq_b) if self.use_b else torch.empty([len(x_hat), 0])
+#         seq_idx_a = self.recover_indices(seq_a) if self.use_a else torch.empty([len(x_hat), 0])
+#         seq_idx_pep = self.recover_indices(seq_pep) if self.use_pep else torch.empty([len(x_hat), 0])
+#         seq = torch.cat([seq_idx_b, seq_idx_a, seq_idx_pep], dim=1)
+#         return seq, v, j
+#
+#
 
 
 # STANDARDIZERS

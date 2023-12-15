@@ -5,8 +5,9 @@ import numpy as np
 from torch.utils.data import DataLoader
 import src.datasets
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
-from src.metrics import reconstruction_accuracy
+from src.metrics import reconstruction_accuracy, get_metrics
 from torch import cuda
+from torch.nn import functional as F
 
 
 class EarlyStopping:
@@ -83,10 +84,12 @@ def train_model_step(model, criterion, optimizer, train_loader):
     acum_total_loss, acum_recon_loss, acum_kld_loss, acum_triplet_loss = 0, 0, 0, 0
     x_reconstructed, x_true = [], []
     for x in train_loader:
-        if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss')) and train_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
+        if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion,
+                                                                         'triplet_loss')) and train_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
             x, labels = x.pop(0).to(model.device), x.pop(-1).to(model.device)
             x_hat, mu, logvar = model(x)
             # TODO: CHECK THIS Set to eval mode for the extraction of the latent (? maybe not, need to try?)
+            # TODO: Actually, z with eval() mode is just mu ???
             model.eval()
             z_batch = model.embed(x)
             model.train()
@@ -138,7 +141,8 @@ def eval_model_step(model, criterion, valid_loader):
     with torch.no_grad():
         # Same workaround as above
         for x in valid_loader:
-            if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion, 'triplet_loss')) and valid_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
+            if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion,
+                                                                             'triplet_loss')) and valid_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
                 x, labels = x.pop(0).to(model.device), x.pop(-1).to(model.device)
                 x_hat, mu, logvar = model(x)
                 # Model is already in eval mode here
@@ -185,10 +189,12 @@ def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_elemen
     x_true = torch.cat(x_true) if type(x_true) == list else x_true
     seq_hat, v_hat, j_hat = model.reconstruct_hat(x_reconstructed)
     seq_true, v_true, j_true = model.reconstruct_hat(x_true)
-    if not model.use_v:
-        v_hat, v_true = None, None
-    if not model.use_j:
-        j_hat, j_true = None, None
+    if hasattr(model, 'use_v'):
+        if not model.use_v:
+            v_hat, v_true = None, None
+    if hasattr(model, 'use_j'):
+        if not model.use_j:
+            j_hat, j_true = None, None
 
     if all([hasattr(model, 'use_a'), hasattr(model, 'use_b'), hasattr(model, 'use_pep')]):
         metrics = {}
@@ -220,10 +226,13 @@ def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_elemen
                                                                        pad_index=20,
                                                                        return_per_element=return_per_element)
         metrics = {'seq_accuracy': seq_accuracy, 'v_accuracy': v_accuracy, 'j_accuracy': j_accuracy}
+    # TODO I really need to phase out this thing
+    if v_accuracy==0 and j_accuracy==0:
+        del metrics['v_accuracy'], metrics['j_accuracy']
     return metrics
 
 
-def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.datasets.PairedDataset, src.datasets.TCRSpecificDataset]),
+def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.datasets.PairedDataset]),
                   dataloader: torch.utils.data.DataLoader):
     assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
         'Test/Valid loader MUST use SequentialSampler!'
@@ -232,20 +241,7 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
     if hasattr(model, 'use_v') and hasattr(dataset, 'use_v'):
         assert (model.use_v == dataset.use_v) and (
                 model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
-    # if (criterion.__class__.__name__ == 'CombinedVAELoss' or hasattr(criterion,
-    #                                                                  'triplet_loss')) and
 
-    #     x, labels = x.pop(0), x.pop(-1)
-    #     x_hat, mu, logvar = model(x)
-    #     # Model is already in eval mode here
-    #     z_batch = model.embed(x)
-    #     recon_loss, kld_loss, triplet_loss = criterion(x_hat, x, mu, logvar, z_batch, labels)
-    #     loss = recon_loss + kld_loss + triplet_loss
-    #     acum_triplet_loss += triplet_loss.item() * x.shape[0]
-    # else:
-    #     x_hat, mu, logvar = model(x)
-    #     recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
-    #     loss = recon_loss + kld_loss
     df = dataset.df.reset_index(drop=True).copy()
     x_reconstructed, x_true, z_latent = [], [], []
     with torch.no_grad():
@@ -296,7 +292,6 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
             df['n_errors_pep'] = df.apply(
                 lambda x: sum([c1 != c2 for c1, c2 in zip(x['pep_hat_reconstructed'], x['pep_true_reconstructed'])]),
                 axis=1)
-
     else:
         df['seq_acc'] = metrics['seq_accuracy']
         seq_hat_reconstructed = model.recover_sequences_blosum(x_seq_recon)
@@ -380,19 +375,11 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             valid_text = '\n'.join([valid_loss_text, valid_metrics_text])
             tqdm.write(train_text)
             tqdm.write(valid_text)
-            # tqdm.write(
-            #     f'\nEpoch {e}: train recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{train_loss["reconstruction"]:.4f},\t{train_loss["kld"]:.4f}'
-            #     f'\t{train_metric["seq_accuracy"]:.3f}, \t{train_metric["v_accuracy"]:.3f}, \t{train_metric["j_accuracy"]:.3f}')
-            # tqdm.write(
-            #     f'Epoch {e}: valid recon loss, train kld loss, seq_acc, v_acc, j_acc:\t{valid_loss["reconstruction"]:.4f},\t{valid_loss["kld"]:.4f}\t{valid_metric["seq_accuracy"]:.3f}, \t{valid_metric["v_accuracy"]:.3f}, \t{valid_metric["j_accuracy"]:.3f}')
-
-        # Doesn't allow saving the very first model as sometimes it gets stuck in a random state that has good.
-        # Here, will take the best overall reconstruction (mean for seq, V, and J because V reconstruction somehow gets stuck at some low values
-
         # mean_accuracy = np.sum([valid_metric['seq_accuracy'], valid_metric['v_accuracy'], valid_metric['j_accuracy']]) / divider
         mean_accuracy = np.sum([x for x in valid_metric.values()]) / divider
 
-        if e > 1 and ((valid_loss["total"] <= best_val_loss + tolerance and mean_accuracy > best_val_reconstruction) or mean_accuracy > best_val_reconstruction):
+        if e > 1 and ((valid_loss[
+                           "total"] <= best_val_loss + tolerance and mean_accuracy > best_val_reconstruction) or mean_accuracy > best_val_reconstruction):
             # Getting the individual components for asserts
             best_epoch = e
             best_val_loss = valid_loss['total']
@@ -418,5 +405,357 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     # print(f'Reloaded best model at {os.path.abspath(os.path.join(outdir, checkpoint_filename))}')
     model = load_checkpoint(model, checkpoint_filename, outdir)
     # Here for now it's not the best implementation but save the full model with a undefined json filename
+    model.eval()
+    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics
+
+
+def train_classifier_step(model, criterion, optimizer, train_loader):
+    model.train()
+    acum_loss = 0
+    y_scores, y_true = [], []
+    for x, y in train_loader:
+        x, y = x.to(model.device), y.to(model.device)
+        # output here should be logits to use BCEWithLogitLoss
+        output = model(x)
+        loss = criterion(output, y)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        # Saving scores and true for aucs etc
+        y_scores.append(output.detach().cpu())
+        y_true.append(y.detach().cpu())
+        acum_loss += loss.item() * x.shape[0]
+
+    acum_loss /= len(train_loader.dataset)
+    # Saving the scores as logits but getting the metrics using sigmoid, shouldn't change much but makes the y_pred and thresholding easier
+    y_scores, y_true = torch.cat(y_scores), torch.cat(y_true)
+    train_metrics = get_metrics(y_true, F.sigmoid(y_scores), threshold=0.5, reduced=True, round_digit=5)
+    return acum_loss, train_metrics
+
+
+def eval_classifier_step(model, criterion, valid_loader):
+    model.eval()
+    acum_loss = 0
+    y_scores, y_true = [], []
+    with torch.no_grad():
+        for x, y in valid_loader:
+            x, y = x.to(model.device), y.to(model.device)
+            # output here should be logits to use BCEWithLogitLoss
+            output = model(x)
+            loss = criterion(output, y)
+            # Saving scores and true for aucs etc
+            y_scores.append(output.detach().cpu())
+            y_true.append(y.detach().cpu())
+            acum_loss += loss.item() * x.shape[0]
+
+    acum_loss /= len(valid_loader.dataset)
+    # Saving the scores as logits but getting the metrics using sigmoid, shouldn't change much but makes the y_pred and thresholding easier
+    y_scores, y_true = torch.cat(y_scores), torch.cat(y_true)
+    valid_metrics = get_metrics(y_true, F.sigmoid(y_scores), threshold=0.5, reduced=True, round_digit=5)
+    return acum_loss, valid_metrics
+
+
+def predict_classifier(model, dataset, dataloader):
+    assert type(
+        dataloader.sampler) == torch.utils.data.SequentialSampler, 'Test/Valid loader MUST use SequentialSampler!'
+    df = dataset.df.reset_index(drop=True).copy()
+    y_true, y_logit = [], []
+    model.eval()
+    with torch.no_grad():
+        for x, y in dataloader:
+            x, y = x.to(model.device), y.to(model.device)
+            output = model(x)
+            y_true.append(y.detach().cpu())
+            y_logit.append(output.detach().cpu())
+
+    y_logit, y_true = torch.cat(y_logit), torch.cat(y_true)
+    y_probs = F.sigmoid(y_logit)
+
+    df['pred_logit'] = y_logit
+    df['pred_prob'] = y_probs
+
+    return df
+
+
+def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer, train_loader, valid_loader,
+                                checkpoint_filename, outdir):
+    if not checkpoint_filename.endswith('.pt'):
+        checkpoint_filename = checkpoint_filename + '.pt'
+    print(f'Starting {n_epochs} training cycles')
+    # Pre-saving the model at the very start because some bugged partitions
+    # would have terrible performance and never save for very short debug runs.
+    save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir)
+    # Actual runs
+    train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
+    best_val_loss, best_val_auc, best_val_auc01, best_epoch = 1000, 0.5, 0.5, 1
+    best_val_metrics = {}
+    best_dict = {}
+    for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
+        train_loss, train_metric = train_classifier_step(model, criterion, optimizer, train_loader)
+        valid_loss, valid_metric = eval_classifier_step(model, criterion, valid_loader)
+        train_metrics.append(train_metric)
+        valid_metrics.append(valid_metric)
+        train_losses.append(train_loss)
+        valid_losses.append(valid_loss)
+        if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
+            print('\n')
+            train_loss_text = f'Train: Epoch {e}\nLoss:: {train_loss:.4f}'
+            train_metrics_text = '\t'.join([f'{k}: {v:.4f}' for k, v in train_metric.items() if
+                                            k in ['auc', 'auc_01', 'accuracy', 'AP']])
+            train_text = '\n'.join([train_loss_text, train_metrics_text])
+            valid_loss_text = f'Valid: Epoch {e}\nLoss:: {valid_loss:.4f}'
+            valid_metrics_text = '\t'.join([f'{k}: {v:.4f}' for k, v in valid_metric.items() if
+                                            k in ['auc', 'auc_01', 'accuracy', 'AP']])
+            valid_text = '\n'.join([valid_loss_text, valid_metrics_text])
+            tqdm.write(train_text)
+            tqdm.write(valid_text)
+
+        if e > 1 and (valid_loss <= best_val_loss + tolerance and (
+                valid_metric['auc'] >= (best_val_auc - tolerance) or valid_metric['auc_01'] >= (
+                best_val_auc01 - tolerance))):
+            best_epoch = e
+            best_val_loss = valid_loss
+            best_val_auc = valid_metric['auc']
+            best_val_auc01 = valid_metric['auc_01']
+            best_val_metrics = valid_metric
+            # Saving best dict for logging purposes
+            best_dict['epoch'] = best_epoch
+            best_dict['loss'] = valid_loss
+            best_dict.update(valid_metric)
+            # Saving model
+            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+
+    print(f'End of training cycles')
+    print(best_dict)
+
+    print(f'Best train loss:\t{min(train_losses):.3e}, at epoch = {train_losses.index(min(train_losses))}'
+          f'\tTrain AUC, AUC01:\t{train_metrics[train_losses.index(min(train_losses))]["auc"]:.3%},\t{train_metrics[train_losses.index(min(train_losses))]["auc_01"]}')
+    print(f'Best valid epoch: {best_epoch}')
+    print(
+        f'Best valid loss :\t{best_val_loss:.3e}, best valid AUC, AUC01:\t{best_val_auc:.3%},\t{best_val_auc01:.3%}')
+    model = load_checkpoint(model, checkpoint_filename, outdir)
+    model.eval()
+
+    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_loss, best_val_metrics
+
+
+# TODO: Write train/eval/predict fct/loops for VAE-MLP combined training
+
+def train_bimodal_step(model, criterion, optimizer, train_loader):
+    assert type(train_loader.sampler) == torch.utils.data.RandomSampler, 'TrainLoader should use RandomSampler!'
+    model.train()
+    acum_total_loss, acum_recon_loss, acum_kld_loss, acum_triplet_loss, acum_clf_loss = 0, 0, 0, 0, 0
+    x_reconstructed, x_true, y_score, y_true = [], [], [], []
+    for x, x_pep, label, binder in train_loader:
+        x, x_pep, label, binder = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
+            model.device)
+        # TODO : UNTANGLE BRAIN WITH TRIPLET LOSS, CURRENTLY WE USE THE NO REPARAMETERISATION TO GET A "Z_EMBED"
+        #        BUT Z_EMBED WITHOUT REPARAMETERISATION IS JUST "MU" SO WE SHOULD JUST TAKE MU EVERYWHERE IN THE CODE
+        #        Alternatively : Need to check out / test a model to see if triplet-training with reparam_z is better than with mu
+        x_hat, mu, logvar, x_out = model(x, x_pep)
+        # TODO: here, give "mu" as Z
+        recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder)
+        loss = recon_loss + kld_loss + triplet_loss + clf_loss
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        # accumulate losses and save preds for metrics
+        acum_total_loss += loss.item() * x.shape[0]
+        acum_recon_loss += recon_loss.item() * x.shape[0]
+        acum_kld_loss += kld_loss.item() * x.shape[0]
+        acum_triplet_loss += triplet_loss.item() * x.shape[0]
+        acum_clf_loss += clf_loss.item() * x.shape[0]
+        x_reconstructed.append(x_hat.detach().cpu())
+        x_true.append(x.detach().cpu())
+        y_score.append(x_out.detach().cpu())
+        y_true.append(binder.detach().cpu())
+
+    # Normalize loss per batch
+    acum_total_loss /= len(train_loader.dataset)
+    acum_recon_loss /= len(train_loader.dataset)
+    acum_kld_loss /= len(train_loader.dataset)
+    acum_triplet_loss /= len(train_loader.dataset)
+    acum_clf_loss /= len(train_loader.dataset)
+
+    # Cat outputs to compute metrics
+    x_reconstructed, x_true, y_score, y_true = torch.cat(x_reconstructed), torch.cat(x_true), torch.cat(
+        y_score), torch.cat(y_true)
+    recon_metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False)
+    pred_metrics = get_metrics(y_true, F.sigmoid(y_score), threshold=0.5, reduced=True, round_digit=5)
+    train_metrics = {**recon_metrics, **pred_metrics}
+    train_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss,
+                  'triplet': acum_triplet_loss, 'BCE': acum_clf_loss}
+    return train_loss, train_metrics
+
+
+def eval_bimodal_step(model, criterion, valid_loader):
+    model.eval()
+    acum_total_loss, acum_recon_loss, acum_kld_loss, acum_triplet_loss, acum_clf_loss = 0, 0, 0, 0, 0
+    x_reconstructed, x_true, y_score, y_true = [], [], [], []
+    with torch.no_grad():
+        for x, x_pep, label, binder in valid_loader:
+            x, x_pep, label, binder = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
+                model.device)
+            # TODO : same as for train with z / mu
+            x_hat, mu, logvar, x_out = model(x, x_pep)
+            # TODO: here, give "mu" as Z
+            recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder)
+            loss = recon_loss + kld_loss + triplet_loss + clf_loss
+
+            # accumulate losses and save preds for metrics
+            acum_total_loss += loss.item() * x.shape[0]
+            acum_recon_loss += recon_loss.item() * x.shape[0]
+            acum_kld_loss += kld_loss.item() * x.shape[0]
+            acum_triplet_loss += triplet_loss.item() * x.shape[0]
+            acum_clf_loss += clf_loss.item() * x.shape[0]
+            x_reconstructed.append(x_hat.detach().cpu())
+            x_true.append(x.detach().cpu())
+            y_score.append(x_out.detach().cpu())
+            y_true.append(binder.detach().cpu())
+
+    # Normalize loss per batch
+    acum_total_loss /= len(valid_loader.dataset)
+    acum_recon_loss /= len(valid_loader.dataset)
+    acum_kld_loss /= len(valid_loader.dataset)
+    acum_triplet_loss /= len(valid_loader.dataset)
+    acum_clf_loss /= len(valid_loader.dataset)
+
+    # Cat outputs to compute metrics
+    x_reconstructed, x_true, y_score, y_true = torch.cat(x_reconstructed), torch.cat(x_true), torch.cat(
+        y_score), torch.cat(y_true)
+    recon_metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False)
+    pred_metrics = get_metrics(y_true, F.sigmoid(y_score), threshold=0.5, reduced=True, round_digit=5)
+    valid_metrics = {**recon_metrics, **pred_metrics}
+    valid_loss = {'total': acum_total_loss, 'reconstruction': acum_recon_loss, 'kld': acum_kld_loss,
+                  'triplet': acum_triplet_loss, 'BCE': acum_clf_loss}
+    return valid_loss, valid_metrics
+
+
+def predict_bimodal(model, dataset, dataloader):
+    assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
+        'Test/Valid loader MUST use SequentialSampler!'
+    assert hasattr(dataset, 'df'), 'Not DF found for this dataset!'
+
+    df = dataset.df.reset_index(drop=True).copy()
+    x_reconstructed, x_true, z_latent, y_score, y_true = [], [], [], [], []
+
+    with torch.no_grad():
+        for x, x_pep, label, binder in dataloader:
+            x, x_pep, label, binder = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
+                model.device)
+            # TODO : same as for train with z / mu
+            x_hat, mu, logvar, x_out = model(x, x_pep)
+            x_reconstructed.append(x_hat.detach().cpu())
+            x_true.append(x.detach().cpu())
+            z_latent.append(mu.detach().cpu())
+            y_score.append(x_out.detach().cpu())
+            y_true.append(binder.detach().cpu())
+
+    # Cat outputs to compute metrics
+    x_reconstructed, x_true, y_score, y_true, z_latent = torch.cat(x_reconstructed), torch.cat(x_true), torch.cat(
+        y_score), torch.cat(y_true), torch.cat(z_latent)
+
+    # Reconstruction metrics
+    metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=True)
+    df['seq_acc'] = metrics['seq_accuracy']
+    x_seq_recon, _, _ = model.slice_x(x_reconstructed)
+    x_seq_true, _, _ = model.slice_x(x_true)
+    # Reconstructed sequences
+    seq_hat_reconstructed = model.recover_sequences_blosum(x_seq_recon)
+    seq_true_reconstructed = model.recover_sequences_blosum(x_seq_true)
+    df['hat_reconstructed'] = seq_hat_reconstructed
+    df['true_reconstructed'] = seq_true_reconstructed
+    df['n_errors_seq'] = df.apply(
+        lambda x: sum([c1 != c2 for c1, c2 in zip(x['hat_reconstructed'], x['true_reconstructed'])]), axis=1)
+
+    # Saving latent representations
+    df[[f'z_{i}' for i in range(z_latent.shape[1])]] = z_latent
+
+    # Saving MLP prediction scores
+    df['pred_logit'] = y_score
+    df['pred_prob'] = F.sigmoid(y_score)
+    pred_metrics = get_metrics(y_true, F.sigmoid(y_score))
+    print(f'Mean reconstruction accuracy: {metrics["seq_accuracy"]}')
+    print('MLP metrics:', '\t'.join(f'{k}: {v:.3f}' for k,v in pred_metrics.items()))
+    return df
+
+
+
+def bimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
+                             train_loader, valid_loader, checkpoint_filename, outdir):
+    """
+    Trains a bi-modal VAE-MLP model,
+    then reloads the best checkpoint based on aggregate metrics (losses, reconstruction, prediction aucs?)
+    Args:
+        n_epochs:
+        tolerance:
+        model:
+        criterion:
+        optimizer:
+        train_loader:
+        valid_loader:
+        checkpoint_filename:
+        outdir:
+
+    Returns:
+
+    """
+    print(f'Staring {n_epochs} training cycles')
+    # Pre-save model at epoch 0
+    save_checkpoint(model, checkpoint_filename, dir_path=outdir, verbose=False, best_dict=None)
+    train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
+    best_val_loss, best_val_reconstruction, best_epoch, best_val_auc, best_agg_metric = 1000, 0., 1, 0.5, 0.5
+    # "best_val_losses" is a dictionary of all the various split losses
+    best_val_losses, best_val_metrics, best_dict = {}, {}, {}
+
+    for e in tqdm(range( 1, n_epochs+1), desc='epochs', leave=False):
+        train_loss, train_metric = train_bimodal_step(model, criterion, optimizer, train_loader)
+        valid_loss, valid_metric = eval_bimodal_step(model, criterion, valid_loader)
+        train_metrics.append(train_metric)
+        valid_metrics.append(valid_metric)
+        train_losses.append(train_loss)
+        valid_losses.append(valid_loss)
+        # Periodic prints for tracking
+        if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
+            train_loss_text = f'Train: Epoch {e}\nLoss:\tReconstruction: {train_loss["reconstruction"]:.4f}\tKLD: {train_loss["kld"]:.4f}'
+            train_loss_text = train_loss_text + f'\tTriplet: {train_loss["triplet"]:.4f}'
+            train_loss_text = train_loss_text + f'\tBCE: {train_loss["BCE"]:.4f}'
+
+            train_metrics_text = 'Metrics: ' + ',\t'.join(
+                [f"{k.replace('accuracy', 'acc')}:{v:.2%}" for k, v in train_metric.items() if k not in ['auc_01_real', 'AP']])
+            train_text = '\n'.join([train_loss_text, train_metrics_text])
+
+            valid_loss_text = f'Valid: Epoch {e}\nLoss:\tReconstruction: {valid_loss["reconstruction"]:.4f}\tKLD: {valid_loss["kld"]:.4f}'
+            valid_loss_text = valid_loss_text + f'\tTriplet: {valid_loss["triplet"]:.4f}'
+            valid_loss_text = valid_loss_text + f'\tBCE: {valid_loss["BCE"]:.4f}'
+
+            valid_metrics_text = 'Metrics: ' + ',\t'.join(
+                [f"{k.replace('accuracy', 'acc')}:{v:.2%}" for k, v in valid_metric.items() if
+                 k not in ['auc_01_real', 'AP']])
+            valid_text = '\n'.join([valid_loss_text, valid_metrics_text])
+            tqdm.write(train_text)
+            tqdm.write(valid_text)
+
+        # Saving the best model out of 3 conditions (Total loss, VAE reconstruction, MLP AUC)
+        loss_condition = valid_loss['total'] <= best_val_loss + tolerance
+        recon_condition = valid_metric['seq_accuracy'] >= best_val_reconstruction - tolerance
+        clf_condition = valid_metric['auc'] >= best_val_auc - tolerance
+        if e > 1 and loss_condition and recon_condition and clf_condition:
+            best_epoch = e
+            best_val_loss = valid_loss['total']
+            best_val_reconstruction = valid_metric['seq_accuracy']
+            best_val_auc = valid_metric['auc']
+            # Saving the actual dictionaries for logging purposes
+            best_val_losses = valid_loss
+            best_val_metrics = valid_metric
+
+            best_dict = {'Best epoch': best_epoch, 'Best val loss': best_val_loss}
+            best_dict.update(valid_loss)
+            best_dict.update(valid_metric)
+            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+
+    print(f'End of training cycles')
+    print(best_dict)
+    model = load_checkpoint(model, checkpoint_filename, outdir)
     model.eval()
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics
