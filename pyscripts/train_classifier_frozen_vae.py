@@ -38,6 +38,8 @@ def args_parser():
 
     parser.add_argument('-o', '--out', dest='out', required=False,
                         type=str, default='', help='Additional output name')
+    parser.add_argument('-od', '--outdir', dest='outdir', required=False,
+                        type=str, default=None, help='Additional output directory')
     parser.add_argument('-a1', '--a1_col', dest='a1_col', default='A1', type=str, required=False,
                         help='Name of the column containing B3 sequences (inputs)')
     parser.add_argument('-a2', '--a2_col', dest='a2_col', default='A2', type=str, required=False,
@@ -172,8 +174,13 @@ def main():
         args['random_id']
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
+    outdir = '../output/'
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
-    outdir = os.path.join('../output/', unique_filename) + '/'
+    if args['outdir'] is not None:
+        outdir = os.path.join(outdir, args['outdir'])
+        if not outdir.endswith('/'):
+            outdir = outdir+'/'
+    outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
 
     # Def params so it's tidy
