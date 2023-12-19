@@ -144,12 +144,12 @@ def main():
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
             json_file = next(
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
-            vae = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file)
+            vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file, return_json=True)
         except:
             print(args['model_folder'], os.listdir(args['model_folder']))
             raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
     else:
-        vae = load_model_full(args['pt_file'], args['json_file'])
+        vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
 
     if torch.cuda.is_available() and args['cuda']:
         device = torch.device('cuda:0')
@@ -190,6 +190,9 @@ def main():
     dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
 
     model_params = {k: args[k] for k in model_keys}
+    for k in args:
+        if 'max_len' in k:
+            args[k] = js[k]
     model_params['n_latent'] = vae.latent_dim
     model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
 

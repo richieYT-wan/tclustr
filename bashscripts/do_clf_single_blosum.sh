@@ -1,8 +1,10 @@
 #! /usr/bin/bash
 
+# args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs
 
 mainfolder=$1
-subdir=$(ls -d ${mainfolder}/*/ | grep -vi "clf")
+outdir=$2
+subdir=$(ls -d ${mainfolder}/*/ | grep -vi "clf" | grep -v "PERFx" | grep -v "3omTn\|ws7Ir\|JXuSd\|JXuSd\|IHc02")
 cd ../pyscripts/
 for fullpath in ${subdir}; do
     # Extract inner-most folder name without trailing "/"
@@ -22,7 +24,7 @@ for fullpath in ${subdir}; do
         if [ -d ${kfolder} ]; then
           echo "kfolder, kf"
           echo "${kf} ${folder}"
-          python3 ./train_classifier_frozen_vae.py -model_folder "${folder}/" -rid ${random_id} -od classifier_flipped_blosum/${folder_name}/ -o "CLF_${name_description}" -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-3 -bs 1024 -ne 750 -pepenc BL50LO -kf ${kf} -seed ${kf} 
+          python3 ./train_classifier_frozen_vae.py -model_folder "${folder}/" -rid ${random_id} -od ${2}/${folder_name}/ -o "CLF_${name_description}" -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-3 -bs 1024 -ne ${3} -pepenc BL50LO -kf ${kf} -seed ${kf} 
         fi
       done
     done

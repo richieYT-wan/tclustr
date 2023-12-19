@@ -74,12 +74,12 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
     for k, v in losses_dict.items():
         if len(v) == 0 or all([val == 0 for val in v]): continue
         a[0].plot(v[warm_up:], label=k)
-        if k == 'valid_total':
+        if k == 'valid_total' or k=='valid_loss':
             best_val_loss_epoch = v.index(min(v))
     for k, v in accs_dict.items():
         if len(v) == 0 or all([val == 0 for val in v]): continue
         a[1].plot(v[warm_up:], label=k)
-        if k == 'valid_seq_accuracy' or k == 'valid_b_accuracy':
+        if k == 'valid_seq_accuracy' or k == 'valid_b_accuracy' or k== 'valid_auc':
             best_val_accs_epoch = v.index(max(v))
     a[0].set_ylim([0, 1])
     a[0].axvline(x=best_val_loss_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
