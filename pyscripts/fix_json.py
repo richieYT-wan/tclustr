@@ -74,12 +74,15 @@ def fix_json(directory):
     return 0
 
 
-# Assuming all files are moved to a main directory (like TripletTest)
-maindir=sys.argv[1]
-subdirs=glob.glob(f'{maindir}/*/')
-alldirs=[glob.glob(f'{sub}/*/') for sub in subdirs]
-alldirs=[x for y in alldirs for x in y]
-for f in alldirs:
-    fix_json(f)
-# Parallel(n_jobs=6)(delayed(fix_json)(directory=x) for x in tqdm(alldirs))
+def main():
+    # Assuming all files are moved to a main directory (like TripletTest)
+    maindir=sys.argv[1]
+    subdirs=glob.glob(f'{maindir}/*/')
+    alldirs=[glob.glob(f'{sub}/*/') for sub in subdirs]
+    alldirs=[x for y in alldirs for x in y]
+    for f in alldirs:
+        fix_json(f)
+    # Parallel(n_jobs=6)(delayed(fix_json)(directory=x) for x in tqdm(alldirs))
 
+if __name__=='__main__':
+    main()

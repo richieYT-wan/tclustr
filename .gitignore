@@ -27,6 +27,9 @@ share/python-wheels/
 MANIFEST
 data/covid_ada_002/
 output/
+# output/2310XX_old_experiments
+# output/triplet_tuning
+# output/notebooks
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.

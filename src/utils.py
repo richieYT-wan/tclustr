@@ -28,7 +28,7 @@ def get_motif(row, seq_col, window_size):
 
 
 def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
-                   filename, outdir, dpi=300):
+                   filename, outdir, dpi=300, palette='gnuplot2'):
     f, a = plt.subplots(2, 1, figsize=(12, 10))
     a = a.ravel()
     a[0].plot(train_losses, label='train_losses')
@@ -43,7 +43,8 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
     f.savefig(f'{outdir}{filename}.png', dpi=dpi, bbox_inches='tight')
 
 
-def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palette='gnuplot2_r', warm_up=10):
+def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
+                       palette='gnuplot2_r', warm_up=10):
     """
 
     Args:
@@ -59,7 +60,8 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300, palett
     Returns:
 
     """
-    sns.set_palette(get_palette(palette, n_colors=6))
+    n = max(len(losses_dict.keys()), len(accs_dict.keys()))
+    sns.set_palette(get_palette(palette, n_colors=n))
     f, a = plt.subplots(2, 1, figsize=(14, 10))
     a = a.ravel()
     # Corresponds to the warmup
