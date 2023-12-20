@@ -570,6 +570,13 @@ def train_bimodal_step(model, criterion, optimizer, train_loader):
         y_score.append(x_out.detach().cpu())
         y_true.append(binder.detach().cpu())
 
+    # Increment clf and criterion counter if warm_up_clf after a full epoch (all batches)
+    if hasattr(model, 'warm_up_clf') and hasattr(criterion, 'warm_up_clf'):
+        if model.warm_up_clf > 0 and criterion.warm_up_clf>0:
+            model.increment_counter()
+            criterion.increment_counter()
+            print('THERE INCR')
+    y_score, y_true = [x for x in y_score if x is not None], [x for x in y_true if x is not None]
     # Normalize loss per batch
     acum_total_loss /= len(train_loader.dataset)
     acum_recon_loss /= len(train_loader.dataset)
@@ -613,6 +620,8 @@ def eval_bimodal_step(model, criterion, valid_loader):
             y_score.append(x_out.detach().cpu())
             y_true.append(binder.detach().cpu())
 
+    # Drop the returned None values from clf
+    y_score, y_true = [x for x in y_score if x is not None], [x for x in y_true if x is not None]
     # Normalize loss per batch
     acum_total_loss /= len(valid_loader.dataset)
     acum_recon_loss /= len(valid_loader.dataset)
@@ -711,6 +720,8 @@ def bimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     for e in tqdm(range( 1, n_epochs+1), desc='epochs', leave=False):
         train_loss, train_metric = train_bimodal_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_bimodal_step(model, criterion, valid_loader)
+        print(model.counter, model.warm_up_clf)
+        print(criterion.counter, criterion.warm_up_clf)
         train_metrics.append(train_metric)
         valid_metrics.append(valid_metric)
         train_losses.append(train_loss)

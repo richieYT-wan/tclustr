@@ -414,11 +414,12 @@ class AttentionPeptideClassifier(NetParent):
 
 class BimodalVAEClassifier(NetParent):
 
-    def __init__(self, vae_kwargs, clf_kwargs):
+    def __init__(self, vae_kwargs, clf_kwargs, warm_up_clf=0):
         super(BimodalVAEClassifier, self).__init__()
         self.vae = FullTCRVAE(**vae_kwargs)
         self.clf = PeptideClassifier(**clf_kwargs)
-
+        self.warm_up_clf = warm_up_clf
+        self.counter = 0
     def forward(self, x_tcr, x_pep):
         """
         Needs to back-propagate on and return :
@@ -442,8 +443,16 @@ class BimodalVAEClassifier(NetParent):
         #       Figure out which latent representation should be used for classifier. For now, use z_tcr
         z = self.vae.embed(x_tcr)
         z = torch.cat([z, x_pep.flatten(start_dim=1)], dim=1)
-        x_out = self.clf(z)
+        # Only do the CLF part if the counter is above the warm_up threshold
+        if self.counter < self.warm_up_clf:
+            with torch.no_grad():
+                x_out = self.clf(z)
+        else:
+            x_out = self.clf(z)
         return x_hat, mu, logvar, x_out
+
+    def increment_counter(self):
+        self.counter += 1
 
     def reconstruct_hat(self, x):
         return self.vae.reconstruct_hat(x)

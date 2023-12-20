@@ -288,8 +288,8 @@ class BimodalVAELoss(nn.Module):
     # V & J weights are still here for compatibility issues but should not be used in theory
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_v=False, use_j=False,
                  max_len=(7 + 8 + 22 + 6 + 7 + 23), aa_dim=20, v_dim=51, j_dim=13, weight_seq=3, weight_v=0, weight_j=0,
-                 weight_kld=1, debug=False, warm_up=0, n_batches=20, weight_vae=1, weight_triplet=1, weight_classification=1,
-                 dist_type='cosine', triplet_loss_margin=None):
+                 weight_kld=1, debug=False, warm_up=0, warm_up_clf=0, n_batches=20, weight_vae=1, weight_triplet=1,
+                 weight_classification=1, dist_type='cosine', triplet_loss_margin=None):
         super(BimodalVAELoss, self).__init__()
         # TODO: Here, maybe change the additional term from triplet loss to something else (Center Loss or Contrastive loss?)
         self.vae_loss = VAELoss(sequence_criterion, use_v, use_j, max_len, aa_dim, v_dim, j_dim,
@@ -300,6 +300,8 @@ class BimodalVAELoss(nn.Module):
         self.weight_vae = float(weight_vae)
         self.weight_classification = float(weight_classification)
         self.norm_factor = (self.weight_triplet + self.weight_vae + self.weight_classification)
+        self.warm_up_clf = warm_up_clf
+        self.counter = 0
 
     # Maybe this normalisation factor thing is not needed
     def forward(self, x_hat, x, mu, logvar, z, triplet_labels, x_out, binder_labels):
@@ -308,9 +310,17 @@ class BimodalVAELoss(nn.Module):
         recon_loss = self.weight_vae * recon_loss / self.norm_factor
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
         triplet_loss = self.weight_triplet * self.triplet_loss(z, triplet_labels) / self.norm_factor
-        classification_loss = self.weight_classification * self.classification_loss(x_out, binder_labels) / self.norm_factor
+
+        if self.counter>=self.warm_up_clf:
+            print('here')
+            classification_loss = self.weight_classification * self.classification_loss(x_out, binder_labels) / self.norm_factor
+        else:
+            print('there')
+            classification_loss = torch.tensor([0])
         return recon_loss, kld_loss, triplet_loss, classification_loss
 
+    def increment_counter(self):
+        self.counter += 1
 
 def compute_cosine_distance(z_embedding, *args, **kwargs):
     # Compute the dot product of the embedding matrix
