@@ -254,7 +254,13 @@ def main():
 
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}
+    keys_to_remove = []
 
+    for k in accs_dict:
+        if 'precision' in k or 'auc_01' in k or k == 'train_accuracy' or k == 'valid_accuracy':
+            keys_to_remove.append(k)
+    for k in keys_to_remove:
+        del accs_dict[k]
     # Saving text file for the run:
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         file.write(f'Fold: {args["fold"]}\n')

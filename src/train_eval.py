@@ -393,6 +393,9 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_dict.update(valid_metric)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
+    last_filename = 'last_epoch_' + checkpoint_filename
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+
     print(f'End of training cycles')
     print(best_dict)
     best_train_reconstruction = max([np.sum([x for x in z.values()]) / divider for z in train_metrics])
@@ -524,6 +527,8 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             best_dict.update(valid_metric)
             # Saving model
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+    last_filename = 'last_epoch_' + checkpoint_filename
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
 
     print(f'End of training cycles')
     print(best_dict)
@@ -538,8 +543,6 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
 
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_loss, best_val_metrics
 
-
-# TODO: Write train/eval/predict fct/loops for VAE-MLP combined training
 
 def train_bimodal_step(model, criterion, optimizer, train_loader):
     assert type(train_loader.sampler) == torch.utils.data.RandomSampler, 'TrainLoader should use RandomSampler!'
@@ -764,6 +767,9 @@ def bimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+
+    last_filename = 'last_epoch_'+checkpoint_filename
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
 
     print(f'End of training cycles')
     print(best_dict)
