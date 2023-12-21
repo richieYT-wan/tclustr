@@ -722,8 +722,6 @@ def bimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     for e in tqdm(range( 1, n_epochs+1), desc='epochs', leave=False):
         train_loss, train_metric = train_bimodal_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_bimodal_step(model, criterion, valid_loader)
-        print(model.counter, model.warm_up_clf)
-        print(criterion.counter, criterion.warm_up_clf)
         train_metrics.append(train_metric)
         valid_metrics.append(valid_metric)
         train_losses.append(train_loss)
