@@ -578,7 +578,6 @@ def train_bimodal_step(model, criterion, optimizer, train_loader):
         if model.warm_up_clf > 0 and criterion.warm_up_clf>0:
             model.increment_counter()
             criterion.increment_counter()
-            print('THERE INCR')
     y_score, y_true = [x for x in y_score if x is not None], [x for x in y_true if x is not None]
     # Normalize loss per batch
     acum_total_loss /= len(train_loader.dataset)

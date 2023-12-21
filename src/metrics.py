@@ -312,10 +312,8 @@ class BimodalVAELoss(nn.Module):
         triplet_loss = self.weight_triplet * self.triplet_loss(z, triplet_labels) / self.norm_factor
 
         if self.counter>=self.warm_up_clf:
-            print('here')
             classification_loss = self.weight_classification * self.classification_loss(x_out, binder_labels) / self.norm_factor
         else:
-            print('there')
             classification_loss = torch.tensor([0])
         return recon_loss, kld_loss, triplet_loss, classification_loss
 
