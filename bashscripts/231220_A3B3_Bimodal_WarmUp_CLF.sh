@@ -10,7 +10,7 @@ first_char="${characters:index:1}"
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_string="${first_char}${rest_chars}"
-outname="A3B3_BimodalVAECLF_WarmUp300_1250e"
+outname="A3B3_BimodalVAECLF_WarmUp500_5000e"
 
 
 for f in $(seq 0 4);
