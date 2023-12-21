@@ -24,14 +24,14 @@ HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
 cd \${PYDIR}
-python3 ./231208_bimodal_vae.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/231205_nettcr_old_26pep_with_swaps.csv -pad -20 -enc BL50LO -cuda True -ne 1500 -lwseq 3 -lwkld 1e-2 -lwvae 1 -lwtrp .8 -lwclf 1 -dist_type cosine -margin 0.125 -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl 64 -nh 128 -nhclf 64 -do 0.2 -bn True -n_layers 1 -bs 1024 -lr 1.25e-4 -wd 1e-4 -wu 15 -wuclf 300 -pepenc BL50LO -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
+python3 ./231208_bimodal_vae.py -f /home/projects/vaccine/people/yatwan/tclustr/data/filtered/231205_nettcr_old_26pep_with_swaps.csv -pad -20 -enc BL50LO -cuda True -ne 5000 -lwseq 3 -lwkld 1e-2 -lwvae 1 -lwtrp .8 -lwclf 1 -dist_type cosine -margin 0.125 -mla1 0 -mla2 0 -mlb1 0 -mlb2 0 -nl 64 -nh 128 -nhclf 64 -do 0.2 -bn True -n_layers 1 -bs 1024 -lr 1.25e-4 -wd 1e-4 -wu 15 -wuclf 500 -pepenc BL50LO -o ${outname} -rid ${random_string} -kf ${f} -seed ${f}
 EOF
 )
                               # Write the script content to a file
                               echo "$script_content" > "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
                               chmod +x "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
                               qsub -W group_list=vaccine -A vaccine -m e -l nodes=1:gpus=1:ppn=20,mem=120gb,walltime=${1} "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
-                              rm "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
+#                              rm "/home/projects/vaccine/people/yatwan/tclustr/bashscripts/${filename}.sh"
 
 done
 
