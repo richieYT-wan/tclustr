@@ -686,7 +686,7 @@ def predict_bimodal(model, dataset, dataloader):
     df['pred_logit'] = y_score
     df['pred_prob'] = F.sigmoid(y_score)
     pred_metrics = get_metrics(y_true, F.sigmoid(y_score))
-    print(f'Mean reconstruction accuracy: {metrics["seq_accuracy"]}')
+    # print(f'Mean reconstruction accuracy: {metrics["seq_accuracy"].mean()}')
     print('MLP metrics:', '\t'.join(f'{k}: {v:.3f}' for k,v in pred_metrics.items()))
     return df
 
