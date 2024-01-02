@@ -10,7 +10,7 @@ ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
 
 # TODO HERE ADD ALSO FOR DATASET THING (be smarter about this)
 
-def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False):
+def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
     Args:
@@ -31,7 +31,7 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
                 if l == 'activation':
                     dict_kwargs[k]['activation'] = eval(dict_kwargs[k]['activation'])()
     model = eval(constructor)(**dict_kwargs)
-    model = load_checkpoint(model, checkpoint_filename, dir_path)
+    model = load_checkpoint(model, checkpoint_filename, dir_path, verbose)
     if return_json:
         return model, dict_kwargs
     else:
