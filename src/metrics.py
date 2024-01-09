@@ -243,7 +243,9 @@ class TripletLoss(nn.Module):
             margin = 0.25 if dist_type == 'cosine' else 1.0
         self.margin = margin
 
-    def forward(self, z, labels):
+    def forward(self, z, labels, **kwargs):
+        weights = kwargs['pep_weights'] if ('pep_weights' in kwargs and kwargs['pep_weights'] is not None) else torch.ones([len(z)])
+        weights = weights.to(z.device)
         pairwise_distances = self.distance(z, z, p=self.p)
         mask_positive = torch.eq(labels.unsqueeze(0), labels.unsqueeze(1)).float()
         mask_negative = 1 - mask_positive
@@ -251,7 +253,7 @@ class TripletLoss(nn.Module):
         positive_distances = mask_positive * pairwise_distances
         negative_distances = mask_negative * pairwise_distances
         # Take the relu to encourage error above margin (i.e. threshold)
-        loss = torch.nn.functional.relu(positive_distances - negative_distances + self.margin)
+        loss = torch.nn.functional.relu(positive_distances - negative_distances + self.margin) * weights
         loss = loss.mean()
         return loss
 
@@ -273,12 +275,12 @@ class CombinedVAELoss(nn.Module):
         self.norm_factor = (self.weight_triplet + self.weight_vae)
 
     # Maybe this normalisation factor thing is not needed
-    def forward(self, x_hat, x, mu, logvar, z, labels):
+    def forward(self, x_hat, x, mu, logvar, z, labels, **kwargs):
         # Both the vaeloss and triplet loss are mean reduced already ; Just need to adjust weights for each term (?)
         recon_loss, kld_loss = self.vae_loss(x_hat, x, mu, logvar)
         recon_loss = self.weight_vae * recon_loss / self.norm_factor
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
-        triplet_loss = self.weight_triplet * self.triplet_loss(z, labels) / self.norm_factor
+        triplet_loss = self.weight_triplet * self.triplet_loss(z, labels, **kwargs) / self.norm_factor
         return recon_loss, kld_loss, triplet_loss
 
 
@@ -294,7 +296,7 @@ class BimodalVAELoss(nn.Module):
         self.vae_loss = VAELoss(sequence_criterion, use_v, use_j, max_len, aa_dim, v_dim, j_dim,
                                 weight_seq, weight_v, weight_j, weight_kld, debug, warm_up, n_batches)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
-        self.classification_loss = nn.BCEWithLogitsLoss()
+        self.classification_loss = nn.BCEWithLogitsLoss(reduction='none')
         self.weight_triplet = float(weight_triplet)
         self.weight_vae = float(weight_vae)
         self.weight_classification = float(weight_classification)
@@ -303,16 +305,18 @@ class BimodalVAELoss(nn.Module):
         self.counter = 0
 
     # Maybe this normalisation factor thing is not needed
-    def forward(self, x_hat, x, mu, logvar, z, triplet_labels, x_out, binder_labels):
+    def forward(self, x_hat, x, mu, logvar, z, triplet_labels, x_out, binder_labels, **kwargs):
+        weights = kwargs['pep_weights'] if ('pep_weights' in kwargs and kwargs['pep_weights'] is not None) else torch.ones([len(z)])
+        weights = weights.to(x.device)
         # Both the vaeloss and triplet loss are mean reduced already ; Just need to adjust weights for each term (?)
         recon_loss, kld_loss = self.vae_loss(x_hat, x, mu, logvar)
         recon_loss = self.weight_vae * recon_loss / self.norm_factor
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
-        triplet_loss = self.weight_triplet * self.triplet_loss(z, triplet_labels) / self.norm_factor
+        triplet_loss = self.weight_triplet * self.triplet_loss(z, triplet_labels, pep_weights=weights) / self.norm_factor
 
         if self.counter >= self.warm_up_clf:
-            classification_loss = self.weight_classification * self.classification_loss(x_out,
-                                                                                        binder_labels) / self.norm_factor
+            # Here criterion should be with reduction='none' and then manually do the mean() because `weight` is not used in forward but init
+            classification_loss = (self.weight_classification * self.classification_loss(x_out, binder_labels) * weights).mean() / self.norm_factor
         else:
             classification_loss = torch.tensor([0])
         return recon_loss, kld_loss, triplet_loss, classification_loss

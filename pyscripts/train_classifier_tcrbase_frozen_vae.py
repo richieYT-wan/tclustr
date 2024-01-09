@@ -253,7 +253,7 @@ def main():
     # instantiate objects
     torch.manual_seed(args["fold"])
     model = PeptideClassifier(**model_params)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(reduction='none')
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
