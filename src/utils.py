@@ -45,7 +45,7 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
 
 def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
                        palette='gnuplot2_r', warm_up=10,
-                       figsize=(14, 10), ylim0=[0,1], ylim1=[0.5,1.1]):
+                       figsize=(14, 10), ylim0=[0,1], ylim1=[0.5,1.1], title=None):
     """
 
     Args:
@@ -94,6 +94,9 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
     a[1].legend()
     a[0].set_xlabel('epochs')
     a[1].set_xlabel('epochs')
+    if title is not None:
+        f.suptitle(title, fontweight='semibold', fontsize=14)
+        f.tight_layout()
     f.savefig(f'{outdir}{filename}.png', dpi=dpi, bbox_inches='tight')
     return f,a
 

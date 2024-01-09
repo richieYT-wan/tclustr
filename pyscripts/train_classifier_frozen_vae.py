@@ -9,6 +9,7 @@ import math
 import torch
 from torch import optim
 from torch import cuda
+import glob
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
@@ -138,6 +139,26 @@ def main():
     seed = args['seed'] if args['fold'] is None else args['fold']
     assert not all([args[k] is None for k in ['model_folder', 'pt_file', 'json_file']]), \
         'Please provide either the path to the folder containing the .pt and .json or paths to each file (.pt/.json) separately!'
+    connector = '' if args["out"] == '' else '_'
+    kf = '-1' if args["fold"] is None else args['fold']
+    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args[
+                                                                                                                       'random_id'] == '' else \
+        args['random_id']
+    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
+
+    outdir = '../output/'
+    # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
+    if args['outdir'] is not None:
+        outdir = os.path.join(outdir, args['outdir'])
+        if not outdir.endswith('/'):
+            outdir = outdir + '/'
+
+    if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
+        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]):
+            print('Break')
+            return 0
+
+    outdir = os.path.join(outdir, unique_filename) + '/'
     if args['model_folder'] is not None:
         try:
             checkpoint_file = next(
@@ -167,20 +188,7 @@ def main():
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     # File-saving stuff
-    connector = '' if args["out"] == '' else '_'
-    kf = '-1' if args["fold"] is None else args['fold']
-    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args[
-                                                                                                                       'random_id'] == '' else \
-        args['random_id']
-    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
-    outdir = '../output/'
-    # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
-    if args['outdir'] is not None:
-        outdir = os.path.join(outdir, args['outdir'])
-        if not outdir.endswith('/'):
-            outdir = outdir+'/'
-    outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
 
     # Def params so it's tidy

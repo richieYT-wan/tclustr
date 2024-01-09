@@ -282,7 +282,6 @@ class CombinedVAELoss(nn.Module):
         return recon_loss, kld_loss, triplet_loss
 
 
-
 class BimodalVAELoss(nn.Module):
 
     # V & J weights are still here for compatibility issues but should not be used in theory
@@ -311,14 +310,16 @@ class BimodalVAELoss(nn.Module):
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
         triplet_loss = self.weight_triplet * self.triplet_loss(z, triplet_labels) / self.norm_factor
 
-        if self.counter>=self.warm_up_clf:
-            classification_loss = self.weight_classification * self.classification_loss(x_out, binder_labels) / self.norm_factor
+        if self.counter >= self.warm_up_clf:
+            classification_loss = self.weight_classification * self.classification_loss(x_out,
+                                                                                        binder_labels) / self.norm_factor
         else:
             classification_loss = torch.tensor([0])
         return recon_loss, kld_loss, triplet_loss, classification_loss
 
     def increment_counter(self):
         self.counter += 1
+
 
 def compute_cosine_distance(z_embedding, *args, **kwargs):
     # Compute the dot product of the embedding matrix
@@ -392,7 +393,7 @@ def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:
     return auc(fpr, tpr) * 10
 
 
-def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4)->dict:
+def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4) -> dict:
     """
     Computes all classification metrics & returns a dictionary containing the various key/metrics
     incl. ROC curve, AUC, AUC_01, F1 score, Accuracy, Recall

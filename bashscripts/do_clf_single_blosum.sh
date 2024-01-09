@@ -4,7 +4,7 @@
 
 mainfolder=$1
 outdir=$2
-subdir=$(ls -d ${mainfolder}/*/ | grep -vi "clf" | grep -v "PERFx" | grep -v "3omTn\|ws7Ir\|JXuSd\|JXuSd\|IHc02")
+subdir=$(ls -dr ${mainfolder}/*/ | grep -vi "clf" | grep -v "PERFx" | grep -v "3omTn\|ws7Ir\|JXuSd\|JXuSd\|IHc02")
 cd ../pyscripts/
 for fullpath in ${subdir}; do
     # Extract inner-most folder name without trailing "/"
@@ -17,17 +17,27 @@ for fullpath in ${subdir}; do
     echo "####################"
     echo "Name: ${name_description}"
     echo "Random ID: ${random_id}"
-
-    for kf in $(seq 0 4);do
-      kfolder="${fullpath}*_KFold_${kf}_*/"
-      for folder in ${kfolder};do
-        if [ -d ${kfolder} ]; then
-          echo "kfolder, kf"
-          echo "${kf} ${folder}"
-          python3 ./train_classifier_frozen_vae.py -model_folder "${folder}/" -rid ${random_id} -od ${2}/${folder_name}/ -o "CLF_${name_description}" -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-3 -bs 1024 -ne ${3} -pepenc BL50LO -kf ${kf} -seed ${kf} 
-        fi
+    if [[ $(ls ../output/${outdir} | grep ${random_id} | wc -l) -ne 1 ]]; then
+      for kf in $(seq 0 4);do
+        kfolder="${fullpath}*_KFold_${kf}_*/"
+        for folder in ${kfolder};do
+          if [ -d ${kfolder} ]; then
+            python3 ./train_classifier_frozen_vae.py -model_folder "${folder}/" -rid ${random_id} -od ${2}/${folder_name}/ -o "CLF_${name_description}" -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-3 -bs 1024 -ne ${3} -pepenc BL50LO -kf ${kf} -seed ${kf}
+          fi
+        done
       done
-    done
+    else
+      if [[ $(ls "../output/${outdir}/$(ls ../output/${outdir} | grep ${random_id})" | wc -l) -ne 5 ]];then
+        for kf in $(seq 0 4);do
+        kfolder="${fullpath}*_KFold_${kf}_*/"
+        for folder in ${kfolder};do
+          if [ -d ${kfolder} ]; then
+            python3 ./train_classifier_frozen_vae.py -model_folder "${folder}/" -rid ${random_id} -od ${2}/${folder_name}/ -o "CLF_${name_description}" -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-3 -bs 1024 -ne ${3} -pepenc BL50LO -kf ${kf} -seed ${kf}
+          fi
+        done
+      done
+      fi
+    fi
     echo "####################"
 done
 
