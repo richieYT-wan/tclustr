@@ -93,7 +93,7 @@ def train_model_step(model, criterion, optimizer, train_loader):
             loss = recon_loss + kld_loss + triplet_loss
             acum_triplet_loss += triplet_loss.item() * x.shape[0]
         else:
-            x = x.to(model.device)
+            x = batch.to(model.device)
             x_hat, mu, logvar = model(x)
             recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
             loss = recon_loss + kld_loss
@@ -147,7 +147,7 @@ def eval_model_step(model, criterion, valid_loader):
                 loss = recon_loss + kld_loss + triplet_loss
                 acum_triplet_loss += triplet_loss.item() * x.shape[0]
             else:
-                x = x.to(model.device)
+                x = batch.to(model.device)
                 x_hat, mu, logvar = model(x)
                 recon_loss, kld_loss = criterion(x_hat, x, mu, logvar)
                 loss = recon_loss + kld_loss
@@ -230,7 +230,8 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
     if hasattr(model, 'use_v') and hasattr(dataset, 'use_v'):
         assert (model.use_v == dataset.use_v) and (
                 model.use_j == dataset.use_j), 'use_v/use_j don\'t match for model and dataset!'
-
+    # TODO: Is this needed here?
+    model.eval()
     df = dataset.df.reset_index(drop=True).copy()
     x_reconstructed, x_true, z_latent = [], [], []
     with torch.no_grad():
@@ -240,7 +241,7 @@ def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.dataset
                 # pop(-1) works here because we don't care about potential pep weights (only used for loss)
                 x, labels = batch.pop(0).to(model.device), batch.pop(-1).to(model.device)
                 x_hat, mu, logvar = model(x)
-                # Model is already in eval mode here
+                # Model is already in eval mode here ; Here, z shuold just be mu
                 z = model.embed(x)
             else:
                 x = batch.to(model.device)
@@ -403,13 +404,25 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
 
 
 def train_classifier_step(model, criterion, optimizer, train_loader):
+    """
+
+    Args:
+        model: Should be a standard MLP (like PeptideClassifier)
+        criterion: nn.BCEWithLogitsLoss(reduction='none') since we are doing the mean manually
+        optimizer:
+        train_loader: LatentTCRpMHCDataset's loader
+
+    Returns:
+
+    """
     model.train()
     acum_loss = 0
     y_scores, y_true = [], []
     for batch in train_loader:
         x, y = batch.pop(0).to(model.device), batch.pop(-1).to(model.device)
         # Here, don't set weight as None because criterion is not a custom loss class with custom behaviour
-        pep_weights = batch[0].to(model.device) if train_loader.dataset.pep_weighted else torch.ones([len(y)]).to(model.device)
+        # After popping, if dataset has the pep_weighted flag, then there should be a single element left in batch
+        pep_weights = batch[0].to(model.device) if (train_loader.dataset.pep_weighted and len(batch)==1) else torch.ones([len(y)]).to(model.device)
         # output here should be logits to use BCEWithLogitLoss
         output = model(x)
         # Here criterion should be with reduction='none' and then manually do the mean() because `weight` is not used in forward but init
@@ -430,6 +443,16 @@ def train_classifier_step(model, criterion, optimizer, train_loader):
 
 
 def eval_classifier_step(model, criterion, valid_loader):
+    """
+
+    Args:
+        model: Should be a standard MLP (like PeptideClassifier)
+        criterion: nn.BCEWithLogitsLoss(reduction='none') since we are doing the mean manually
+        valid_loader: LatentTCRpMHCDataset's loader
+
+    Returns:
+
+    """
     model.eval()
     acum_loss = 0
     y_scores, y_true = [], []
@@ -437,7 +460,8 @@ def eval_classifier_step(model, criterion, valid_loader):
         for batch in valid_loader:
             x, y = batch.pop(0).to(model.device), batch.pop(-1).to(model.device)
             # Here, don't set weight as None because criterion is not a custom loss class with custom behaviour
-            pep_weights = batch[0].to(model.device) if valid_loader.dataset.pep_weighted else torch.ones([len(y)]).to(model.device)
+            # After popping, if dataset has the pep_weighted flag, then there should be a single element left in batch
+            pep_weights = batch[0].to(model.device) if (valid_loader.dataset.pep_weighted and len(batch)==1) else torch.ones([len(y)]).to(model.device)
             # output here should be logits to use BCEWithLogitLoss
             output = model(x)
             # Here criterion should be with reduction='none' and then manually do the mean() because `weight` is not used in forward but init
@@ -541,6 +565,10 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_loss, best_val_metrics
 
 
+# TODO : WITH TRIPLET LOSS, CURRENTLY WE USE THE NO REPARAMETERISATION TO GET A "Z_EMBED"
+#        BUT Z_EMBED WITHOUT REPARAMETERISATION IS JUST "MU" SO WE SHOULD JUST TAKE MU EVERYWHERE IN THE CODE
+#        Alternatively : Need to check out / test a model to see if triplet-training with reparam_z is better than with mu
+# TODO: here, give "mu" as Z
 def train_bimodal_step(model, criterion, optimizer, train_loader):
     assert type(train_loader.sampler) == torch.utils.data.RandomSampler, 'TrainLoader should use RandomSampler!'
     model.train()
@@ -548,7 +576,7 @@ def train_bimodal_step(model, criterion, optimizer, train_loader):
     x_reconstructed, x_true, y_score, y_true = [], [], [], []
     # Here, didn't check for class of dataset whether it is TCRSpecificDataset or issubclass of TCRSpecificDataset,
     # Assume it returns the x, x_pep, label, binder in a batch by default
-    # TODO: Maybe a terrible way to unpack a batch to get the weights??
+    # TODO: Maybe a bad way to unpack a batch to get the weights??
     for batch in train_loader:
         if train_loader.dataset.pep_weighted:
             x, x_pep, label, binder, pep_weights = batch
@@ -560,10 +588,7 @@ def train_bimodal_step(model, criterion, optimizer, train_loader):
             model.device), pep_weights.to(model.device)
 
         x_hat, mu, logvar, x_out = model(x, x_pep)
-        # TODO : UNTANGLE BRAIN WITH TRIPLET LOSS, CURRENTLY WE USE THE NO REPARAMETERISATION TO GET A "Z_EMBED"
-        #        BUT Z_EMBED WITHOUT REPARAMETERISATION IS JUST "MU" SO WE SHOULD JUST TAKE MU EVERYWHERE IN THE CODE
-        #        Alternatively : Need to check out / test a model to see if triplet-training with reparam_z is better than with mu
-        # TODO: here, give "mu" as Z
+
         recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder, pep_weights=pep_weights)
         loss = recon_loss + kld_loss + triplet_loss + clf_loss
         optimizer.zero_grad()

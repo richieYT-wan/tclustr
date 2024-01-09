@@ -260,7 +260,7 @@ class TripletLoss(nn.Module):
 
 class CombinedVAELoss(nn.Module):
 
-    # V & J weights are still here for compatibility issues but should not be used in theory
+    # V & J weights are still here for compatibility issues but should not be used
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), use_v=False, use_j=False,
                  max_len=(7 + 8 + 22 + 6 + 7 + 23), aa_dim=20, v_dim=51, j_dim=13, weight_seq=3, weight_v=0, weight_j=0,
                  weight_kld=1, debug=False, warm_up=0, n_batches=20, weight_vae=2, weight_triplet=1,
