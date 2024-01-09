@@ -549,19 +549,22 @@ def train_bimodal_step(model, criterion, optimizer, train_loader):
     # Here, didn't check for class of dataset whether it is TCRSpecificDataset or issubclass of TCRSpecificDataset,
     # Assume it returns the x, x_pep, label, binder in a batch by default
     # TODO: Maybe a terrible way to unpack a batch to get the weights??
-    # TODO: Understand how it works for Criterion because I can't use weights in forward but has to be in init ??!!
-    # TODO:
     for batch in train_loader:
-        x, x_pep, label, binder, pep_weights = batch #if train_loader.dataset.pep_weighted else *batch, None
-        x, x_pep, label, binder = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
-            model.device)
+        if train_loader.dataset.pep_weighted:
+            x, x_pep, label, binder, pep_weights = batch
+        else:
+            x, x_pep, label, binder = batch
+            pep_weights = torch.ones([len(x)])
 
+        x, x_pep, label, binder, pep_weights = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
+            model.device), pep_weights.to(model.device)
+
+        x_hat, mu, logvar, x_out = model(x, x_pep)
         # TODO : UNTANGLE BRAIN WITH TRIPLET LOSS, CURRENTLY WE USE THE NO REPARAMETERISATION TO GET A "Z_EMBED"
         #        BUT Z_EMBED WITHOUT REPARAMETERISATION IS JUST "MU" SO WE SHOULD JUST TAKE MU EVERYWHERE IN THE CODE
         #        Alternatively : Need to check out / test a model to see if triplet-training with reparam_z is better than with mu
-        x_hat, mu, logvar, x_out = model(x, x_pep)
         # TODO: here, give "mu" as Z
-        recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder)
+        recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder, pep_weights=pep_weights)
         loss = recon_loss + kld_loss + triplet_loss + clf_loss
         optimizer.zero_grad()
         loss.backward()
@@ -606,13 +609,20 @@ def eval_bimodal_step(model, criterion, valid_loader):
     acum_total_loss, acum_recon_loss, acum_kld_loss, acum_triplet_loss, acum_clf_loss = 0, 0, 0, 0, 0
     x_reconstructed, x_true, y_score, y_true = [], [], [], []
     with torch.no_grad():
-        for x, x_pep, label, binder in valid_loader:
-            x, x_pep, label, binder = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
-                model.device)
+        for batch in valid_loader:
+            if valid_loader.dataset.pep_weighted:
+                x, x_pep, label, binder, pep_weights = batch
+            else:
+                x, x_pep, label, binder = batch
+                pep_weights = torch.ones([len(x)])
+
+            x, x_pep, label, binder, pep_weights = x.to(model.device), x_pep.to(model.device), label.to(
+                model.device), binder.to(model.device), pep_weights.to(model.device)
+
             # TODO : same as for train with z / mu
             x_hat, mu, logvar, x_out = model(x, x_pep)
             # TODO: here, give "mu" as Z
-            recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder)
+            recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder, pep_weights=pep_weights)
             loss = recon_loss + kld_loss + triplet_loss + clf_loss
 
             # accumulate losses and save preds for metrics
@@ -655,7 +665,8 @@ def predict_bimodal(model, dataset, dataloader):
     x_reconstructed, x_true, z_latent, y_score, y_true = [], [], [], [], []
 
     with torch.no_grad():
-        for x, x_pep, label, binder in dataloader:
+        for batch in dataloader:
+            x, x_pep, label, binder = batch[0], batch[1], batch[2], batch[3]
             x, x_pep, label, binder = x.to(model.device), x_pep.to(model.device), label.to(model.device), binder.to(
                 model.device)
             # TODO : same as for train with z / mu

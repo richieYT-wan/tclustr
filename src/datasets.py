@@ -181,7 +181,10 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
             labels : Peptide label for triplet loss (VAE)
             binder : pMHC-TCR binary binder label for classification loss (MLP)
         """
-        return self.x[idx], self.x_pep[idx], self.labels[idx], self.binder[idx]
+        if self.pep_weighted:
+            return self.x[idx], self.x_pep[idx], self.labels[idx], self.binder[idx], self.pep_weights[idx]
+        else:
+            return self.x[idx], self.x_pep[idx], self.labels[idx], self.binder[idx]
 
 
 class LatentTCRpMHCDataset(FullTCRDataset):
