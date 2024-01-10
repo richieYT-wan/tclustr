@@ -117,7 +117,8 @@ def args_parser():
                         help='Tolerance for loss variation to log best model')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
-
+    parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
+                        help='Using per-sample (by peptide label) weighted loss')
     # TODO: TBD what to do with these!
     """
     TODO: Misc. 
@@ -154,7 +155,7 @@ def main():
             outdir = outdir + '/'
 
     if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
-        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]):
+        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and not args['debug']:
             print('Break')
             return 0
 

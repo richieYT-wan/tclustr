@@ -420,6 +420,7 @@ class BimodalVAEClassifier(NetParent):
         self.clf = PeptideClassifier(**clf_kwargs)
         self.warm_up_clf = warm_up_clf
         self.counter = 0
+
     def forward(self, x_tcr, x_pep):
         """
         Needs to back-propagate on and return :
@@ -443,7 +444,7 @@ class BimodalVAEClassifier(NetParent):
         #       Figure out which latent representation should be used for classifier. For now, use z_tcr
         z = self.vae.embed(x_tcr)
         z = torch.cat([z, x_pep.flatten(start_dim=1)], dim=1)
-        # Only do the CLF part if the counter is above the warm_up threshold
+        # Only do the CLF part if the counter is above the warm_up threshold ; This is redundant
         if self.counter < self.warm_up_clf:
             with torch.no_grad():
                 x_out = self.clf(z)

@@ -118,7 +118,8 @@ def args_parser():
                              'Default = 10. Set to 0 if you want this disabled')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
-
+    parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
+                        help='Using per-sample (by peptide label) weighted loss')
     # TODO: TBD what to do with these!
     """
     TODO: Misc. 

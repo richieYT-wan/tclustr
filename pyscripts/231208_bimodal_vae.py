@@ -133,7 +133,8 @@ def args_parser():
                         help='Set a warm-up period for the CLF loss')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
-
+    parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
+                        help='Using per-sample (by peptide label) weighted loss')
     # TODO: TBD what to do with these!
     """
     TODO: Misc. 
