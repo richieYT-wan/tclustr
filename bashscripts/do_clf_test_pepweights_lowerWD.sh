@@ -4,7 +4,8 @@
 
 mainfolder=/Users/riwa/Documents/code/tclustr/saved_models/
 outdir=/Users/riwa/Documents/code/tclustr/output/output_pepweights_WD1e-5/
-subdir=$(ls -dr ${mainfolder}/*/ | grep "7VzZ5\|PERFx\|PCuSO\|7GsCQ")
+mkdir -p $outdir
+subdir=$(ls -dr ${mainfolder}/*/ | grep "7VzZ5\|PERFx\|PCuSO\|7GsCQ\|FCoPw")
 cd ../pyscripts/
 for fullpath in ${subdir}; do
     # Extract inner-most folder name without trailing "/"

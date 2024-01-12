@@ -267,6 +267,9 @@ def main():
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
+    val_metrics = get_metrics(valid_preds['binder'].values, valid_preds['pred_prob'].values)
+    print(f'Validation predictions: Mean performance: AUC={val_metrics["auc"]:.4f}, AUC_01={val_metrics["auc_01"]:.4f}, AP={val_metrics["AP"]:.4f}')
+
     print('Validation predictions: Per peptide performance')
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         file.write('Validation preds ; Per peptide metrics\n')
