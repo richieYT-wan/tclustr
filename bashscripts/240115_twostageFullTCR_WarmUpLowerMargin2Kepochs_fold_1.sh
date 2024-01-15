@@ -1,4 +1,7 @@
-HOMEDIR=/Users/riwa/Documents/code/tclustr/
+source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+source activate cuda
+
+HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
 # filename=240110_Bimodal_FullTCR_PepWeightedCosClf_fold_1_BWuPw
 cd ${PYDIR}
