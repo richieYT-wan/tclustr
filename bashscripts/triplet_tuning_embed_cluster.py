@@ -265,7 +265,7 @@ mainfolder = '../output/triplet_tuning/'
 subfolders = glob.glob(mainfolder + '*/')
 
 train_df = pd.read_csv('../data/filtered/230927_nettcr_positives_only.csv')
-dataset = FullTCRDataset(train_df, 0, 0, 22, 0, 0, 23, 'BL50LO', -20)
+dataset = FullTCRDataset(train_df, 0, 0, 22, 0, 0, 23, encoding='BL50LO', pad_scale=-20)
 loader = dataset.get_dataloader(batch_size=1024, sampler=SequentialSampler)
 
 summaries, stats, selected = [], [], []

@@ -156,9 +156,9 @@ def main():
         model = FullTCRVAE(7, 8, 22, 6, 7, 23, encoding, pad_scale, aa_dim, activation, hidden_dim, latent_dim)
         model = load_checkpoint(model, checkpoint)
         # TODO Here change dataset call to get maxlens
-        train_dataset = FullTCRDataset(train, 7, 8, 22, 6, 7, 23, encoding, pad_scale)
+        train_dataset = FullTCRDataset(train, 7, 8, 22, 6, 7, 23, encoding=encoding, pad_scale=pad_scale)
         train_loader = train_dataset.get_dataloader(1024, SequentialSampler)
-        valid_dataset = FullTCRDataset(valid, 7, 8, 22, 6, 7, 23, encoding, pad_scale)
+        valid_dataset = FullTCRDataset(valid, 7, 8, 22, 6, 7, 23, encoding=encoding, pad_scale=pad_scale)
         valid_loader = valid_dataset.get_dataloader(1024, SequentialSampler)
         train_preds = predict_model(model, train_dataset, train_loader).assign(set='train')
         valid_preds = predict_model(model, valid_dataset, valid_loader).assign(set='valid')
