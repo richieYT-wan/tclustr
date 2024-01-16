@@ -221,7 +221,7 @@ def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_elemen
     return metrics
 
 
-def predict_model(model, dataset: any([src.datasets.CDR3BetaDataset, src.datasets.PairedDataset]),
+def predict_model(model, dataset,
                   dataloader: torch.utils.data.DataLoader):
     assert type(dataloader.sampler) == torch.utils.data.SequentialSampler, \
         'Test/Valid loader MUST use SequentialSampler!'

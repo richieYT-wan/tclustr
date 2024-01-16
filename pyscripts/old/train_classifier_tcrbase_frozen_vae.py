@@ -2,7 +2,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
 
-module_path = os.path.abspath(os.path.join('..'))
+module_path = os.path.abspath(os.path.join('../..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import wandb
@@ -22,6 +22,8 @@ from src.datasets import LatentTCRpMHCDataset
 from src.metrics import CombinedVAELoss, get_metrics, compute_cosine_distance
 import argparse
 
+
+# TODO THIS SCRIPT WAS NEVER FINISHED // PROBLY BECAUSE WE DIDN'T NEED IT
 
 def get_tcrbase_method(tcr, ref):
     # here take the top1 instead of percent
@@ -216,7 +218,7 @@ def main():
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
-    outdir = os.path.join('../output/', unique_filename) + '/'
+    outdir = os.path.join('../../output/', unique_filename) + '/'
     mkdirs(outdir)
 
     # Def params so it's tidy

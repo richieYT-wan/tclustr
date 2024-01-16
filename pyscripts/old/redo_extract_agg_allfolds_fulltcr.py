@@ -1,3 +1,4 @@
+
 import pandas as pd
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
@@ -6,16 +7,16 @@ import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
 
-module_path = os.path.abspath(os.path.join('..'))
+module_path = os.path.abspath(os.path.join('../..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import argparse
 from torch import nn
 from torch.utils.data import SequentialSampler
 from src.torch_utils import load_checkpoint
-from src.models import CDR3bVAE
+from src.models import FullTCRVAE
 from src.train_eval import predict_model
-from src.datasets import CDR3BetaDataset
+from src.datasets import FullTCRDataset
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.manifold import TSNE
@@ -30,20 +31,16 @@ def args_parser():
     Data processing args
     """
     parser.add_argument('-d', '--dir', dest='dir', required=False,
-                        default='/home/projects/vaccine/people/yatwan/tclustr/output/30K_epochs_OnlyPositivesFullCDR3b_LowerDim_64_WD_1e-4_EDHpH/',
+                        default='/home/projects/vaccine/people/yatwan/tclustr/output/2310XX_MoreChains/FullTCR_nh_128_wd_1e-3_weights_3to1_8NoCI/',
                         type=str, help='directory containing all 5 folds sub-directories')
     parser.add_argument('-f', '--file', dest='file', required=False,
                         default='/home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv',
                         type=str, help='train file')
     parser.add_argument('-o', '--outdir', dest='outdir', required=False,
-                        type=str, default='/home/projects/vaccine/people/yatwan/tclustr/output/231012_redo_clusters/')
-
+                        type=str, default='/home/projects/vaccine/people/yatwan/tclustr/output/2310XX_MoreChains/output/')
+    parser.add_argument('-nh', dest='n_hidden', type=int, default=128)
+    parser.add_argument('-nl', dest='n_latent', type=int, default=64)
     return parser.parse_args()
-
-
-def reassign_label_duplicates(cdr3b, df):
-    max_label = df.query('TRB_CDR3==@cdr3b').groupby('peptide').agg(count=('binder', 'count')).idxmax().item()
-    return max_label
 
 
 def get_cluster_stats(input_df, cluster='KMeans_Cluster', label='GroundTruth', feature='TSNE_1', kf=True):
@@ -128,8 +125,12 @@ def main():
 
     fold_dirs = sorted([f'{maindir}{subdir}/' for subdir in os.listdir(maindir)])
     df = pd.read_csv(args['file'])
-    df['labels'] = df['TRB_CDR3'].apply(reassign_label_duplicates, df=df)
-    df.drop_duplicates(subset=['TRB_CDR3'], inplace=True)
+    df['labels'] = df['peptide']
+    # No longer need to do this thing because we are using the full TCRs
+
+    # df['TRB_CDR3'].apply(reassign_label_duplicates, df=df)
+    # df.drop_duplicates(subset=['TRB_CDR3'], inplace=True)
+
     df.reset_index(drop=True, inplace=True)
     df['seq_id'] = [f'seq_{i:04}' for i in range(len(df))]
     #  INIT PARAMS
@@ -141,8 +142,8 @@ def main():
     v_dim = 0
     j_dim = 0
     activation = nn.SELU()
-    hidden_dim = 128
-    latent_dim = 64
+    hidden_dim = args['n_hidden']
+    latent_dim = args['n_latent']
     zcols = [f'z_{i}' for i in range(latent_dim)]
     max_len_pep = 0
     aa_dim = 20
@@ -151,14 +152,14 @@ def main():
         basename = fd.split('/')[-2].replace('/', '')
         train = df.query('partition!=@i')
         valid = df.query('partition==@i')
-        model = CDR3bVAE(max_len, encoding, pad_scale, aa_dim, use_v, use_j, v_dim, j_dim, activation, hidden_dim,
-                         latent_dim, max_len_pep)
+        # TODO HERE CHANGE FULLTCRVAE CALL
+        model = FullTCRVAE(7, 8, 22, 6, 7, 23, encoding=encoding, pad_scale=pad_scale, aa_dim=aa_dim,
+                           activation=activation, hidden_dim=hidden_dim, latent_dim=latent_dim)
         model = load_checkpoint(model, checkpoint)
-        train_dataset = CDR3BetaDataset(train, max_len, encoding, pad_scale, 'TRB_CDR3', use_v, use_j, None, None,
-                                        v_dim, j_dim, None, None, False, max_len_pep)
+        # TODO Here change dataset call to get maxlens
+        train_dataset = FullTCRDataset(train, 7, 8, 22, 6, 7, 23, encoding=encoding, pad_scale=pad_scale)
         train_loader = train_dataset.get_dataloader(1024, SequentialSampler)
-        valid_dataset = CDR3BetaDataset(valid, max_len, encoding, pad_scale, 'TRB_CDR3', use_v, use_j, None, None,
-                                        v_dim, j_dim, None, None, False, max_len_pep)
+        valid_dataset = FullTCRDataset(valid, 7, 8, 22, 6, 7, 23, encoding=encoding, pad_scale=pad_scale)
         valid_loader = valid_dataset.get_dataloader(1024, SequentialSampler)
         train_preds = predict_model(model, train_dataset, train_loader).assign(set='train')
         valid_preds = predict_model(model, valid_dataset, valid_loader).assign(set='valid')
@@ -224,7 +225,7 @@ def main():
                              left_on=['pred_cluster'], right_on=['pred_cluster'])
 
         # TCR base stuff
-        distances = [f'{fd}{x}' for x in os.listdir(fd) if x.startswith('_') \
+        distances = [f'{fd}{x}' for x in os.listdir(fd) if x.startswith(f'{basename}') \
                      and x.endswith('csv') and 'dist' in x]
         assert len(distances) > 0, 'ntr'
         for d in distances:

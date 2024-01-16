@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
 
-module_path = os.path.abspath(os.path.join('..'))
+module_path = os.path.abspath(os.path.join('../..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import argparse
@@ -31,7 +31,7 @@ def args_parser():
     Data processing args
     """
     parser.add_argument('-d', '--dir', dest='dir', required=False,
-                        default='/home/projects/vaccine/people/yatwan/tclustr/output/2310XX_MoreChains/FullTCR_nh_128_wd_1e-3_weights_3to1_8NoCI/',
+                        default='/home/projects/vaccine/people/yatwan/tclustr/output/2310XX_MoreChains/CDR3_AB_nh_128_wd_1e-3_weights_3to1_i1RsR/',
                         type=str, help='directory containing all 5 folds sub-directories')
     parser.add_argument('-f', '--file', dest='file', required=False,
                         default='/home/projects/vaccine/people/yatwan/tclustr/data/filtered/230927_nettcr_positives_only.csv',
@@ -134,18 +134,12 @@ def main():
     df.reset_index(drop=True, inplace=True)
     df['seq_id'] = [f'seq_{i:04}' for i in range(len(df))]
     #  INIT PARAMS
-    max_len = 25
     encoding = 'BL50LO'
     pad_scale = -20
-    use_v = False
-    use_j = False
-    v_dim = 0
-    j_dim = 0
     activation = nn.SELU()
     hidden_dim = args['n_hidden']
     latent_dim = args['n_latent']
     zcols = [f'z_{i}' for i in range(latent_dim)]
-    max_len_pep = 0
     aa_dim = 20
     for i, fd in enumerate(fold_dirs):
         checkpoint = f"{fd}{next(filter(lambda x: 'checkpoint' in x and x.endswith('.pt'), os.listdir(fd)))}"
@@ -153,12 +147,13 @@ def main():
         train = df.query('partition!=@i')
         valid = df.query('partition==@i')
         # TODO HERE CHANGE FULLTCRVAE CALL
-        model = FullTCRVAE(7, 8, 22, 6, 7, 23, encoding, pad_scale, aa_dim, activation, hidden_dim, latent_dim)
+        model = FullTCRVAE(0, 0, 22, 0, 0, 23, encoding=encoding, pad_scale=pad_scale, aa_dim=aa_dim,
+                           activation=activation, hidden_dim=hidden_dim, latent_dim=latent_dim)
         model = load_checkpoint(model, checkpoint)
         # TODO Here change dataset call to get maxlens
-        train_dataset = FullTCRDataset(train, 7, 8, 22, 6, 7, 23, encoding=encoding, pad_scale=pad_scale)
+        train_dataset = FullTCRDataset(train, 0, 0, 22, 0, 0, 23, encoding=encoding, pad_scale=pad_scale)
         train_loader = train_dataset.get_dataloader(1024, SequentialSampler)
-        valid_dataset = FullTCRDataset(valid, 7, 8, 22, 6, 7, 23, encoding=encoding, pad_scale=pad_scale)
+        valid_dataset = FullTCRDataset(valid, 0, 0, 22, 0, 0, 23, encoding=encoding, pad_scale=pad_scale)
         valid_loader = valid_dataset.get_dataloader(1024, SequentialSampler)
         train_preds = predict_model(model, train_dataset, train_loader).assign(set='train')
         valid_preds = predict_model(model, valid_dataset, valid_loader).assign(set='valid')

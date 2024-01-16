@@ -103,6 +103,13 @@ class FullTCRDataset(VAEDataset):
         self.use_b3 = not (max_len_b3 == 0)
         self.use_pep = not (max_len_pep == 0)
 
+        # TODO: Positional encodings
+        #   For positional encodings, here should have a dictionary of maxlen {k: max_len_k for k in columns}
+        #   Then, use this to get the positional encodings and then concatenate into a (N, K, sum(max_lens)) vector
+        #   that will then be flattened and added to the end
+        #   OR have this attached to the encoded vector and flatten the whole thing (just diff arrangement of where its placed)
+
+
         # bad double loop because brain slow
         for max_len, seq_col in zip([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep],
                                     [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col]):
@@ -132,11 +139,12 @@ class TCRSpecificDataset(FullTCRDataset):
     This class should be used for Triplet-loss optimization as well as optimal VAE-MLP models
     """
 
-    def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, encoding='BL50LO',
-                 pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
-                 pep_weighted=False, pep_weight_scale=3.8):
+    def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
+                 encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
+                 b3_col='B3', pep_weighted=False, pep_weight_scale=3.8):
         super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
-                                                 max_len_b3, encoding=encoding, pad_scale=pad_scale, a1_col=a1_col,
+                                                 max_len_b3, max_len_pep=max_len_pep,
+                                                 encoding=encoding, pad_scale=pad_scale, a1_col=a1_col,
                                                  a2_col=a2_col, a3_col=a3_col, b1_col=b1_col, b2_col=b2_col,
                                                  b3_col=b3_col, pep_weighted=pep_weighted,
                                                  pep_weight_scale=pep_weight_scale)
@@ -153,13 +161,16 @@ class TCRSpecificDataset(FullTCRDataset):
 
 class BimodalTCRpMHCDataset(TCRSpecificDataset):
 
-    def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, encoding='BL50LO',
-                 pad_scale=None, pep_encoding='BL50LO', pep_pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3',
-                 b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', label_col='binder', pep_weighted=False,
-                 pep_weight_scale=3.8):
+    def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
+                 encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO', pep_pad_scale=None, a1_col='A1', a2_col='A2',
+                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', label_col='binder',
+                 pep_weighted=False, pep_weight_scale=3.8):
         super(BimodalTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
-                                                    max_len_b3, encoding, pad_scale, a1_col, a2_col, a3_col, b1_col,
-                                                    b2_col, b3_col, pep_weighted, pep_weight_scale)
+                                                    max_len_b3, max_len_pep=max_len_pep,
+                                                    encoding=encoding, pad_scale=pad_scale, a1_col=a1_col,
+                                                    a2_col=a2_col, a3_col=a3_col, b1_col=b1_col, b2_col=b2_col,
+                                                    b3_col=b3_col, pep_weighted=pep_weighted,
+                                                    pep_weight_scale=pep_weight_scale)
         assert pep_encoding in ['categorical'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
@@ -196,12 +207,13 @@ class LatentTCRpMHCDataset(FullTCRDataset):
     Placeholder where for now, we use a frozen VAE model so that the latent Z is always fixed
     """
 
-    def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3,
+    def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
                  b3_col='B3', pep_col='peptide', label_col='binder', pep_encoding='BL50LO', pep_weighted=False,
                  pep_weight_scale=3.8):
         super(LatentTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
-                                                   max_len_b3, encoding=encoding, pad_scale=pad_scale, a1_col=a1_col,
+                                                   max_len_b3, max_len_pep=max_len_pep,
+                                                   encoding=encoding, pad_scale=pad_scale, a1_col=a1_col,
                                                    a2_col=a2_col, a3_col=a3_col, b1_col=b1_col, b2_col=b2_col,
                                                    b3_col=b3_col, pep_weighted=pep_weighted,
                                                    pep_weight_scale=pep_weight_scale)
@@ -231,57 +243,3 @@ class LatentTCRpMHCDataset(FullTCRDataset):
         else:
             return self.x[idx], self.labels[idx]
 
-
-class PairedDataset(VAEDataset):
-    """
-    For now, only use CDR3b
-    """
-
-    def __init__(self, df, max_len_b=23, max_len_a=24, max_len_pep=12, encoding='BL50LO', pad_scale=None,
-                 cdr3b_col='TRB_CDR3', cdr3a_col='TRA_CDR3', pep_col='peptide', use_b=True, use_a=True, use_pep=True,
-                 use_v=False, use_j=False,
-                 v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP):
-        super(PairedDataset, self).__init__()
-        self.max_len_b = max_len_b
-        self.max_len_a = max_len_a
-        self.max_len_pep = max_len_pep
-        self.use_b = use_b
-        self.use_a = use_a
-        self.use_pep = use_pep
-        self.encoding = encoding
-        self.pad_scale = pad_scale
-        self.use_v = use_v
-        self.use_j = use_j
-        self.v_map = {k: v for v, k in enumerate(sorted(df[v_col].unique()))} if (v_map is None and use_v) else v_map
-        self.j_map = {k: v for v, k in enumerate(sorted(df[j_col].unique()))} if (j_map is None and use_j) else j_map
-
-        self.v_dim = v_dim
-        self.j_dim = j_dim
-        df['len_b'] = df[cdr3b_col].apply(len) if use_b else 0
-        df['len_a'] = df[cdr3a_col].apply(len) if use_a else 0
-        df['len_pep'] = df[pep_col].apply(len) if use_pep else 0
-        df = df.query('len_b<=@max_len_b and len_a<=@max_len_a and len_pep<=@max_len_pep')
-        self.df = df
-        # Only get sequences, no target because unsupervised learning, flattened to concat to classes
-        x_b = encode_batch(df[cdr3b_col], max_len_b, encoding, pad_scale).flatten(start_dim=1) if use_b \
-            else torch.empty([len(df), 0])
-        x_a = encode_batch(df[cdr3a_col], max_len_a, encoding, pad_scale).flatten(start_dim=1) if use_a \
-            else torch.empty([len(df), 0])
-        x_pep = encode_batch(df[pep_col], max_len_pep, encoding, pad_scale).flatten(start_dim=1) if use_pep \
-            else torch.empty([len(df), 0])
-        x = torch.cat([x_b, x_a, x_pep], dim=1)
-        if use_v:
-            # get the mapping to a class
-            df['v_class'] = df[v_col].map(self.v_map).astype(int)
-            x_v = F.one_hot(torch.from_numpy(df['v_class'].values), num_classes=v_dim).float()
-            x = torch.cat([x, x_v], dim=1)
-            self.x_v = x_v
-
-        if use_j:
-            # get the mapping to a class
-            df['j_class'] = df[j_col].map(self.j_map).astype(int)
-            x_j = F.one_hot(torch.from_numpy(df['j_class'].values), num_classes=j_dim).float()
-            x = torch.cat([x, x_j], dim=1)
-            self.x_j = x_j
-
-        self.x = x

@@ -21,6 +21,7 @@ class NetParent(nn.Module):
         super(NetParent, self).__init__()
         # device is cpu by default
         self.device = 'cpu'
+        self.counter = 0
 
     @staticmethod
     def init_weights(m):
@@ -47,6 +48,9 @@ class NetParent(nn.Module):
         #
         super(NetParent, self).to(device)
         self.device = device
+
+    def increment_counter(self):
+        self.counter += 1
 
 
 class CDR3bVAE(NetParent):
@@ -174,10 +178,11 @@ class CDR3bVAE(NetParent):
 class FullTCRVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
-                 encoding='BL50LO', pad_scale=-20, aa_dim=20, activation=nn.SELU(), hidden_dim=128, latent_dim=64):
+                 max_len_pep=0, encoding='BL50LO', pad_scale=-20, aa_dim=20, activation=nn.SELU(), hidden_dim=128,
+                 latent_dim=64):
         super(FullTCRVAE, self).__init__()
         # Init params that will be needed at some point for reconstruction
-        max_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
+        max_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])
         input_dim = max_len * aa_dim
         self.encoding = encoding
         if pad_scale is None:
@@ -240,6 +245,7 @@ class FullTCRVAE(NetParent):
         """
         We don't use V/J genes in this model but this exists for compatibility issues
         So that I don't have to rewrite most of my code in train_eval.py
+        sounds like a problem for Future Yat :-)
         Args:
             x:
 
@@ -413,7 +419,7 @@ class AttentionPeptideClassifier(NetParent):
 
 
 class BimodalVAEClassifier(NetParent):
-
+    # TODO : Refactoring to include pep : This here should be fine but CAREFUL when adding positional encoding
     def __init__(self, vae_kwargs, clf_kwargs, warm_up_clf=0):
         super(BimodalVAEClassifier, self).__init__()
         self.vae = FullTCRVAE(**vae_kwargs)
@@ -444,7 +450,7 @@ class BimodalVAEClassifier(NetParent):
         #       Figure out which latent representation should be used for classifier. For now, use z_tcr
         z = self.vae.embed(x_tcr)
         z = torch.cat([z, x_pep.flatten(start_dim=1)], dim=1)
-        # Only do the CLF part if the counter is above the warm_up threshold ; This is redundant
+        # Only do the CLF part if the counter is above the warm_up threshold ; This is redundant but just in case
         if self.counter < self.warm_up_clf:
             with torch.no_grad():
                 x_out = self.clf(z)
@@ -452,8 +458,6 @@ class BimodalVAEClassifier(NetParent):
             x_out = self.clf(z)
         return x_hat, mu, logvar, x_out
 
-    def increment_counter(self):
-        self.counter += 1
 
     def reconstruct_hat(self, x):
         return self.vae.reconstruct_hat(x)

@@ -2,7 +2,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
 
-module_path = os.path.abspath(os.path.join('..'))
+module_path = os.path.abspath(os.path.join('../..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import wandb
@@ -17,8 +17,7 @@ from src.torch_utils import load_checkpoint
 from src.models import CDR3bVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import CDR3BetaDataset
-from src.metrics import VAELoss, get_metrics
-from sklearn.metrics import roc_auc_score, precision_score
+from src.metrics import VAELoss
 import argparse
 
 
@@ -86,7 +85,7 @@ def args_parser():
     parser.add_argument('-lwj', '--weight_j', dest='weight_j', type=float, default=1.5,
                         help='Which weight to use for the J gene term in the loss')
     parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
-                        help='Whether to do a warm-up period for the loss (without the KLD term). '\
+                        help='Whether to do a warm-up period for the loss (without the KLD term). ' \
                              'Default = 10. Set to 0 if you want this disabled')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
@@ -95,6 +94,11 @@ def args_parser():
     """
     TODO: Misc. 
     """
+    # These two arguments are to be phased out or re-used, in the case of fold.
+    # For now, for the exercise, I will do KCV and try to see if there is any robustsness across folds in the VAE
+    # later on, it makes no sense to concatenate the latent dimensions so we need to figure something else out.
+    # parser.add_argument('-s', '--split', dest='split', required=False, type=int,
+    #                     default=5, help='How to split the train/test data (test size=1/X)')
     parser.add_argument('-kf', '--fold', dest='fold', required=False, type=int, default=None,
                         help='If added, will split the input file into the train/valid for kcv')
     parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default=None,
@@ -117,32 +121,27 @@ def main():
     # TODO: Restore valid kcv behaviour // or not
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
-
-    if args['fold'] is not None:
-        train_df = df.query('partition!=@args["fold"]')
-        valid_df = df.query('partition==@args["fold"]')
-    else:
-        train_df = df
-        valid_df = df.query('partition==0')
+    train_df = df.query('partition!=@args["fold"]')
+    valid_df = df.query('partition==@args["fold"]')
     args['n_batches'] = math.ceil(len(train_df) / args['batch_size'])
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     args['use_v'] = False if args['v_col'] == "None" else True
     args['use_j'] = False if args['j_col'] == "None" else True
-    args['add_pep'] = True
-    args['max_len_pep'] = 12
     args['v_dim'] = 51
     args['j_dim'] = 13
+    args['add_pep'] = False
+    args['max_pep_len'] = 0
     if args['log_wandb']:
         wandb.login()
     # File-saving stuff
     connector = '' if args["out"] == '' else '_'
     kf = '-1' if args["fold"] is None else args['fold']
-    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args['random_id'] == '' else args['random_id']
+    rid =  args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args['random_id'] == '' else args['random_id']
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
-    outdir = os.path.join('../output/', unique_filename) + '/'
+    outdir = os.path.join('../../output/', unique_filename) + '/'
     mkdirs(outdir)
 
     # Def params so it's tidy
@@ -160,7 +159,6 @@ def main():
 
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
-    args['max_len'] = args['max_len']+args['max_len_pep']
     loss_params = {k: args[k] for k in loss_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
@@ -171,7 +169,6 @@ def main():
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
     train_dataset = CDR3BetaDataset(train_df, **dataset_params)
     valid_dataset = CDR3BetaDataset(valid_df, **dataset_params)
-    print(train_dataset.x.shape)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
@@ -197,12 +194,11 @@ def main():
                                                                    criterion, optimizer, train_loader, valid_loader,
                                                                    checkpoint_filename, outdir)
 
-    # Convert list of dicts to dicts of lists
+    # Convert list of dicts to dicts of lists ; TODO: Maybe this here should be in trian_eval_loops instead
     train_losses_dict = get_dict_of_lists(train_losses, 'train')  #{f'train_{key}': [d[key] for d in train_losses] for key in train_losses[0]}
     train_metrics_dict = get_dict_of_lists(train_metrics, 'train')  #{f'train_{key}': [d[key] for d in train_metrics] for key in train_metrics[0]}
     valid_losses_dict = get_dict_of_lists(valid_losses, 'valid')  #{f'valid_{key}': [d[key] for d in valid_losses] for key in valid_losses[0]}
     valid_metrics_dict = get_dict_of_lists(valid_metrics, 'valid')  #{f'valid_{key}': [d[key] for d in valid_metrics] for key in valid_metrics[0]}
-
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}
 
@@ -220,7 +216,7 @@ def main():
     pkl_dump(train_metrics_dict, f'{outdir}/train_metrics_{fold_filename}.pkl')
     pkl_dump(valid_metrics_dict, f'{outdir}/valid_metrics_{fold_filename}.pkl')
     plot_vae_loss_accs(losses_dict, accs_dict, unique_filename, outdir,
-                       dpi=300, palette='gnuplot2_r', warm_up=args['warm_up'])
+                       dpi=300, palette='gnuplot2_r', warm_up=10)
 
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
