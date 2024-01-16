@@ -255,7 +255,8 @@ def predict_model(model, dataset,
     x_true = torch.cat(x_true)
     metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=True)
 
-    # slice_x for PairedFVAE now returns a tuple for the sequence (beta, alpha, pep)
+    # TODO: What is this
+    #   slice_x for PairedFVAE now returns a tuple for the sequence (beta, alpha, pep)
     x_seq_recon, _, _ = model.slice_x(x_reconstructed)
     x_seq_true, _, _ = model.slice_x(x_true)
     # TODO: think of a better way to do this...

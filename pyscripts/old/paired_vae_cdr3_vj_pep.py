@@ -22,6 +22,8 @@ from src.metrics import PairedVAELoss
 import argparse
 
 
+# TODO : Refactoring has removed all occurences of PairedXX and this script should be DEAD
+
 def args_parser():
     parser = argparse.ArgumentParser(description='Script to train and evaluate a NNAlign model ')
     """
