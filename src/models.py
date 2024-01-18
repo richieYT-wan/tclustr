@@ -51,9 +51,15 @@ class NetParent(nn.Module):
 
     def increment_counter(self):
         self.counter += 1
-
+        for c in self.children():
+            if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
+                c.increment_counter()
 
 class CDR3bVAE(NetParent):
+    """
+    TODO : To deprecate this class
+    """
+
     # Define the input dimension as some combination of sequence length, AA dim,
     def __init__(self, max_len=23, encoding='BL50LO', pad_scale=-20, aa_dim=20, use_v=True, use_j=True, v_dim=51,
                  j_dim=13, activation=nn.SELU(), hidden_dim=128, latent_dim=32, max_len_pep=0):
@@ -178,12 +184,23 @@ class CDR3bVAE(NetParent):
 class FullTCRVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
-                 max_len_pep=0, encoding='BL50LO', pad_scale=-20, aa_dim=20, activation=nn.SELU(), hidden_dim=128,
-                 latent_dim=64):
+                 max_len_pep=0, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
+                 activation=nn.SELU(), hidden_dim=128, latent_dim=64):
         super(FullTCRVAE, self).__init__()
         # Init params that will be needed at some point for reconstruction
+        # Here, define aa_dim and pos_dim ; pos_dim is the dimension of a positional encoding.
+        # pos_dim should be given by how many sequences are used, i.e. how many max_len_x > 0
+        # But also use a flag `add_positional_encoding` to make it more explicit that it's active or not
         max_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])
-        input_dim = max_len * aa_dim
+        pos_dim = sum([int(mlx) > 0 for mlx in
+                       [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep]]) \
+            if add_positional_encoding else 0
+        self.aa_dim = aa_dim
+        self.pos_dim = pos_dim
+        self.add_positional_encoding = add_positional_encoding
+        input_dim = max_len * (aa_dim + pos_dim)
+        self.input_dim = input_dim
+        self.max_len = max_len
         self.encoding = encoding
         if pad_scale is None:
             self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
@@ -192,18 +209,13 @@ class FullTCRVAE(NetParent):
         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
         MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
         self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
-        self.input_dim = input_dim
-        # Exists for compatibility issues
-        self.use_v = False
-        self.use_j = False
-        self.max_len = max_len
-        self.aa_dim = aa_dim
+        # Neural network params
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
         # TODO: For now, just use a fixed set of layers.
         #       Might need more layers because we are compressing more information
 
-        # TODO: Include dropout+batchnorm
+        # TODO: Include dropout+batchnorm (Actually tried and didn't work too well)
         # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
         self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
                                      nn.Linear(input_dim // 2, hidden_dim), activation)
@@ -243,27 +255,32 @@ class FullTCRVAE(NetParent):
 
     def slice_x(self, x):
         """
-        We don't use V/J genes in this model but this exists for compatibility issues
-        So that I don't have to rewrite most of my code in train_eval.py
-        sounds like a problem for Future Yat :-)
+        Slices and extracts // reshapes the sequence vector
+        Also extracts the positional encoding vector if used (?)
         Args:
             x:
 
         Returns:
 
         """
-        sequence = x[:, 0:(self.max_len * self.aa_dim)].view(-1, self.max_len, self.aa_dim)
-        # Reconstructs the v/j gene as one hot vectors
-        v_gene = None
-        j_gene = None
-        return sequence, v_gene, j_gene
+        # The slicing part exist here as legacy code in case we want to add other features to the end of the vector
+        # In this case, we need to first slice the first part of the vector which is the sequence, then additionally
+        # slice the rest of the vector which should be whatever feature we add in
+        # Here, reshape to aa_dim+pos_dim no matter what, as pos_dim can be 0, and first set pos_enc to None
+        sequence = x[:, 0:(self.max_len * (self.aa_dim+self.pos_dim))].view(-1, self.max_len, (self.aa_dim+self.pos_dim))
+        positional_encoding = None
+        # Then, if self.pos_dim is not 0, further slice the tensor to recover each part
+        if self.add_positional_encoding:
+            positional_encoding = sequence[:, :, self.aa_dim:]
+            sequence = sequence[:, :, :self.aa_dim]
+        return sequence, positional_encoding
 
     def reconstruct(self, z):
         with torch.no_grad():
             x_hat = self.decode(z)
             # Reconstruct and unflattens the sequence
-            sequence, v_gene, j_gene = self.slice_x(x_hat)
-            return sequence, v_gene, j_gene
+            sequence, positional_encoding = self.slice_x(x_hat)
+            return sequence, positional_encoding
 
     def embed(self, x):
         mu, logvar = self.encode(x)
@@ -293,9 +310,9 @@ class FullTCRVAE(NetParent):
         return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor)]
 
     def reconstruct_hat(self, x_hat):
-        seq, v, j = self.slice_x(x_hat)
-        seq_idx = self.recover_indices(seq)
-        return seq_idx, v, j
+        sequence, positional_encoding = self.slice_x(x_hat)
+        seq_idx = self.recover_indices(sequence)
+        return seq_idx, positional_encoding
 
 
 # # TODO: Uncomment this to recover old behaviour (Lin->relu->do->BN)
@@ -457,7 +474,6 @@ class BimodalVAEClassifier(NetParent):
         else:
             x_out = self.clf(z)
         return x_hat, mu, logvar, x_out
-
 
     def reconstruct_hat(self, x):
         return self.vae.reconstruct_hat(x)

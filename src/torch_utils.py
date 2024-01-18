@@ -8,7 +8,7 @@ ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
 
 
-# TODO HERE ADD ALSO FOR DATASET THING (be smarter about this)
+
 
 def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True):
     """

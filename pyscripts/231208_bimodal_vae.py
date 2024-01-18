@@ -71,14 +71,18 @@ def args_parser():
     parser.add_argument('-mlb3', '--max_len_b3', dest='max_len_b3', type=int, default=23,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
+    parser.add_argument('-mlpep', '--max_len_pep', dest='max_len_pep', type=int, default=0,
+                        help='Max seq length admitted for peptide. Set to 0 to disable adding peptide to the input')
     parser.add_argument('-enc', '--encoding', dest='encoding', type=str, default='BL50LO', required=False,
                         help='Which encoding to use: onehot, BL50LO, BL62LO, BL62FREQ (default = BL50LO)')
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
-    parser.add_argument('-mlpep', '--pep_dim', dest='pep_dim', type=int, default=12,
-                        help='Max length for peptide encoding (default=12)')
+    parser.add_argument('-pep_dim', '--pep_dim', dest='pep_dim', type=int, default=12,
+                        help='Max length for peptide encoding (default=12) to the classifier')
 
+    parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=False,
+                        help='Adding positional encoding to the sequence vector. False by default')
     """
     Models args 
     """
@@ -121,7 +125,7 @@ def args_parser():
     parser.add_argument('-lwtrp', '--weight_triplet',
                         dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
     parser.add_argument('-lwclf', '--weight_classification', dest='weight_classification',
-                        type = float, default=1, help='weight for the classifier loss term')
+                        type=float, default=1, help='weight for the classifier loss term')
     parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
                         help='Which distance metric to use [cosine, l2, l1]')
     parser.add_argument('-margin', dest='margin', default=None, type=float,
@@ -200,15 +204,15 @@ def main():
     clf_keys = get_class_initcode_keys(PeptideClassifier, args)
     dataset_keys = get_class_initcode_keys(BimodalTCRpMHCDataset, args)
     loss_keys = get_class_initcode_keys(BimodalVAELoss, args)
-    vae_params = {k:args[k] for k in vae_keys}
-    clf_params = {k:args[k] for k in clf_keys}
+    vae_params = {k: args[k] for k in vae_keys}
+    clf_params = {k: args[k] for k in clf_keys}
     clf_params['n_latent'] = vae_params['latent_dim']
     clf_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
 
-    model_params = {k: args[k] for k in vae_keys+clf_keys}
+    model_params = {k: args[k] for k in vae_keys + clf_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
-    loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
+    # loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
@@ -227,7 +231,7 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])#**model_params)
+    model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
     criterion = BimodalVAELoss(**loss_params)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
@@ -238,10 +242,10 @@ def main():
         wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-        best_epoch, best_val_loss, best_val_metrics = bimodal_train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                       criterion, optimizer, train_loader, valid_loader,
-                                                                       checkpoint_filename, outdir)
-
+    best_epoch, best_val_loss, best_val_metrics = bimodal_train_eval_loops(args['n_epochs'], args['tolerance'], model,
+                                                                           criterion, optimizer, train_loader,
+                                                                           valid_loader,
+                                                                           checkpoint_filename, outdir)
 
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
@@ -320,7 +324,7 @@ def main():
     save_model_full(model, checkpoint_filename, outdir,
                     best_dict=best_dict, dict_kwargs=model_params)
     end = dt.now()
-    load_model_full(checkpoint_filename,f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json',
+    load_model_full(checkpoint_filename, f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json',
                     outdir)
     elapsed = divmod((end - start).seconds, 60)
     print(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')

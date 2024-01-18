@@ -166,3 +166,6 @@ notebooks/230927_latent_inference.ipynb
 data/filtered/230929_nettcr_pos_adj_matrix.csv
 data/231006_latent_dists
 data/baselines
+notebooks/tighterMargin_dist_sorted.pkl
+notebooks/tighterMargin_distances.pkl
+notebooks/dist_sorted_2stage_warmupLowerMargin_KF1_TIGHT.pkl
