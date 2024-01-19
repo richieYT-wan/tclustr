@@ -133,7 +133,7 @@ def args_parser():
     parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
                         help='Whether to do a warm-up period for the loss (without the KLD term). ' \
                              'Default = 10. Set to 0 if you want this disabled')
-    parser.add_argument('-wuclf', '--warm_up_clf', type=int, default=0,
+    parser.add_argument('-wuclf', '--warm_up_clf', type=int, default=750,
                         help='Set a warm-up period for the CLF loss')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
