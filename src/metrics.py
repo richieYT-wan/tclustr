@@ -238,9 +238,11 @@ class BimodalVAELoss(LossParent):
 
         if self.counter >= self.warm_up_clf:
             # Here criterion should be with reduction='none' and then manually do the mean() because `weight` is not used in forward but init
+            # but now I don't even use necessarily use sample weights
             classification_loss = (self.weight_classification * self.classification_loss(x_out,
                                                                                          binder_labels) * weights).mean() / self.norm_factor
-            print(classification_loss)
+            if self.debug:
+                print('clf pep weights, loss', weights[:10], classification_loss)
         else:
             classification_loss = torch.tensor([0])
         return recon_loss, kld_loss, triplet_loss, classification_loss
