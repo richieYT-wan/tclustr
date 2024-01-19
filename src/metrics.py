@@ -20,9 +20,10 @@ from sklearn.metrics import roc_curve, roc_auc_score, f1_score, accuracy_score, 
 
 class LossParent(nn.Module):
 
-    def __init__(self):
+    def __init__(self, debug=False):
         super(LossParent, self).__init__()
         self.counter = 0
+        self.debug = debug
 
     def increment_counter(self):
         "one level of children modules ; If we get too many might need to have a recursive method somewhere"
@@ -30,6 +31,9 @@ class LossParent(nn.Module):
         for c in self.children():
             if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
                 c.increment_counter()
+
+
+
 
 
 class VAELoss(LossParent):
