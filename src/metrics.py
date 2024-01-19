@@ -43,13 +43,12 @@ class VAELoss(LossParent):
     counter increment should be called externally, e.g. 1x per epoch, in train-eval loop functions
 
     **17.01.24 : warm_up counter should now be an epoch counter and not batch counter**
-    Should remove the usage of n_batches
     --> All I need to ensure : FullTCRvae works, fulltcrvae_triplet works, bimodal works
     """
 
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 weight_seq=1, weight_kld=.5, debug=False, warm_up=0, n_batches=20):
+                 weight_seq=3, weight_kld=1e-2, debug=False, warm_up=0):
         super(VAELoss, self).__init__()
         max_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])
         pos_dim = sum([int(mlx) > 0 for mlx in
@@ -67,7 +66,6 @@ class VAELoss(LossParent):
         self.step = 0
         self.debug = debug
         self.kld_warm_up = warm_up
-        self.n_batches = n_batches
         print(self.weight_seq, self.base_weight_kld)
 
     def slice_x(self, x):
@@ -112,9 +110,12 @@ class VAELoss(LossParent):
         x_hat_seq, positional_hat = self.slice_x(x_hat)
         x_true_seq, positional_true = self.slice_x(x)
         reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
+
         if self.add_positional_encoding:
+            # TODO Should maybe add a weight here to minimize this part because it's easy
+            #      For now, try to use weight = 1/100 weight_seq ?
             positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true)
-            reconstruction_loss += positional_loss
+            reconstruction_loss += (0.01 * self.weight_seq * positional_loss)
 
         # KLD weight regime control
         if self.counter < self.kld_warm_up:
@@ -176,7 +177,7 @@ class CombinedVAELoss(LossParent):
     """
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 weight_seq=3, weight_kld=1, debug=False, warm_up=0, n_batches=20, weight_vae=2, weight_triplet=1,
+                 weight_seq=1, weight_kld=1e-2, debug=False, warm_up=10, weight_vae=1, weight_triplet=1,
                  dist_type='cosine', triplet_loss_margin=None):
         super(CombinedVAELoss, self).__init__()
         # TODO: PHASE OUT N BATCHES
@@ -184,7 +185,7 @@ class CombinedVAELoss(LossParent):
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
                                 add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up, n_batches=n_batches)
+                                weight_kld=weight_kld, debug=debug, warm_up=warm_up)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
@@ -203,17 +204,17 @@ class CombinedVAELoss(LossParent):
 class BimodalVAELoss(LossParent):
 
     # V & J weights are still here for compatibility issues but should not be used in theory
-    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'),aa_dim=20, max_len_a1=0, max_len_a2=0,
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 weight_seq=3, weight_kld=1, debug=False, warm_up=0, warm_up_clf=0, n_batches=20, weight_vae=1,
-                 weight_triplet=1, weight_classification=1, dist_type='cosine', triplet_loss_margin=None):
+                 weight_seq=3, weight_kld=1, debug=False, warm_up=0, warm_up_clf=0, weight_vae=1, weight_triplet=1,
+                 weight_classification=1, dist_type='cosine', triplet_loss_margin=None):
         super(BimodalVAELoss, self).__init__()
         # TODO: Here, maybe change the additional term from triplet loss to something else (Center Loss or Contrastive loss?)
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
                                 add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up, n_batches=n_batches)
+                                weight_kld=weight_kld, debug=debug, warm_up=warm_up)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.classification_loss = nn.BCEWithLogitsLoss(reduction='none')
         self.weight_triplet = float(weight_triplet)
@@ -239,6 +240,7 @@ class BimodalVAELoss(LossParent):
             # Here criterion should be with reduction='none' and then manually do the mean() because `weight` is not used in forward but init
             classification_loss = (self.weight_classification * self.classification_loss(x_out,
                                                                                          binder_labels) * weights).mean() / self.norm_factor
+            print(classification_loss)
         else:
             classification_loss = torch.tensor([0])
         return recon_loss, kld_loss, triplet_loss, classification_loss

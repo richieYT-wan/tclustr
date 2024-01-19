@@ -162,7 +162,6 @@ def main():
     dfname = args['file'].split('/')[-1].split('.')[0]
     train_df = df.query('partition!=@args["fold"]')
     valid_df = df.query('partition==@args["fold"]')
-    args['n_batches'] = math.ceil(len(train_df) / args['batch_size'])
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     if args['log_wandb']:

@@ -16,6 +16,7 @@ class VAEDataset(Dataset):
     def __init__(self, x=torch.empty([10, 1])):
         super(VAEDataset, self).__init__()
         self.x = x
+        self.sum_max_len = sum([x for x in self.children() if x.startswith('max_len') and type(x)==int])
 
     def __len__(self):
         return len(self.x)

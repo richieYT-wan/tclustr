@@ -455,7 +455,7 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs + 1:
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
-            
+
         if e > 1 and (valid_loss <= best_val_loss + tolerance and (
                 valid_metric['auc'] >= (best_val_auc - tolerance) or valid_metric['auc_01'] >= (
                 best_val_auc01 - tolerance))):

@@ -162,7 +162,6 @@ def main():
     dfname = args['file'].split('/')[-1].split('.')[0]
     train_df = df.query('partition!=@args["fold"]')
     valid_df = df.query('partition==@args["fold"]')
-    args['n_batches'] = math.ceil(len(train_df) / args['batch_size'])
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     if args['log_wandb']:
@@ -268,7 +267,7 @@ def main():
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
     valid_seq_acc = valid_preds['seq_acc'].mean()
 
-    print(f'Final valid mean accuracies (seq, v, j): \t{valid_seq_acc:.3%}')
+    print(f'Final valid reconstruction accuracy: \t{valid_seq_acc:.3%}')
 
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
@@ -282,7 +281,7 @@ def main():
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()
 
-        print(f'Final valid mean accuracies (seq, v, j): \t{test_seq_acc:.3%}')
+        print(f'Final test reconstruction accuracy: \t{test_seq_acc:.3%}')
     else:
         test_seq_acc = None
 
