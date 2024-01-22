@@ -70,7 +70,7 @@ class VAELoss(LossParent):
         self.step = 0
         self.debug = debug
         self.kld_warm_up = warm_up
-        print(self.weight_seq, self.base_weight_kld)
+        print(f'Weights: seq, kld_base: ', self.weight_seq, self.base_weight_kld)
 
     def slice_x(self, x):
         """
@@ -194,6 +194,7 @@ class CombinedVAELoss(LossParent):
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
         self.norm_factor = (self.weight_triplet + self.weight_vae)
+        print(f'weights: vae, triplet: ', self.weight_vae, self.weight_triplet)
 
     # Maybe this normalisation factor thing is not needed
     def forward(self, x_hat, x, mu, logvar, z, labels, **kwargs):
