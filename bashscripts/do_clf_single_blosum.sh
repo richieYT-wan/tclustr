@@ -4,7 +4,8 @@
 
 mainfolder=$1
 outdir=$2
-subdir=$(ls -dr ${mainfolder}/*/ | grep -vi "clf" | grep -v "PERFx" | grep -v "3omTn\|ws7Ir\|JXuSd\|JXuSd\|IHc02")
+grepstatement=$3
+subdir=$(ls -dr ${mainfolder}/*/ | grep -vi "clf" | grep -v "PERFx" | grep -v "3omTn\|ws7Ir\|JXuSd\|JXuSd\|IHc02" | grep "${grepstatement}")
 cd ../pyscripts/
 for fullpath in ${subdir}; do
     # Extract inner-most folder name without trailing "/"

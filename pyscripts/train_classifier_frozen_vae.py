@@ -72,11 +72,16 @@ def args_parser():
     parser.add_argument('-mlb3', '--max_len_b3', dest='max_len_b3', type=int, default=23,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
+    parser.add_argument('-mlpep', '--max_len_pep', dest='max_len_pep', type=int, default=0,
+                        help='Max seq length admitted for peptide. Set to 0 to disable adding peptide to the input')
     parser.add_argument('-enc', '--encoding', dest='encoding', type=str, default='BL50LO', required=False,
                         help='Which encoding to use: onehot, BL50LO, BL62LO, BL62FREQ (default = BL50LO)')
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
+    parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool,
+                        default=False,
+                        help='Adding positional encoding to the sequence vector. False by default')
     parser.add_argument('-pepenc', '--pep_encoding', dest='pep_encoding', type=str, default='categorical',
                         help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical; Default = categorical)')
 
@@ -155,7 +160,7 @@ def main():
             outdir = outdir + '/'
 
     if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
-        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and not args['debug']:
+        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and args['debug']:
             print('Break')
             return 0
 
@@ -167,11 +172,14 @@ def main():
             json_file = next(
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
             vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file, return_json=True)
+            print(js)
+
         except:
             print(args['model_folder'], os.listdir(args['model_folder']))
             raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
     else:
         vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
+        print(js)
 
     if torch.cuda.is_available() and args['cuda']:
         device = torch.device('cuda:0')
@@ -194,13 +202,14 @@ def main():
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_keys = get_class_initcode_keys(PeptideClassifier, args)
-    dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
 
-    model_params = {k: args[k] for k in model_keys}
     for k in args:
-        if 'max_len' in k:
+        if 'max_len' in k or 'positional' in k:
             args[k] = js[k]
+
+    model_keys = get_class_initcode_keys(PeptideClassifier, args)
+    model_params = {k: args[k] for k in model_keys}
+    dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
     model_params['n_latent'] = vae.latent_dim
     model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
 
