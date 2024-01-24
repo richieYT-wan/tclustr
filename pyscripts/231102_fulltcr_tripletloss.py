@@ -80,7 +80,6 @@ def args_parser():
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
     parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=False,
                         help='Adding positional encoding to the sequence vector. False by default')
-
     """
     Models args 
     """

@@ -84,8 +84,7 @@ class FullTCRDataset(VAEDataset):
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='original_peptide', pep_weighted=False,
                  pep_weight_scale=3.8):
         super(FullTCRDataset, self).__init__()
-        # TODO : Current behaviour If max_len_x = 0, then don't use that chain...
-        #        Is that the most elegant way to do this ?
+
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3]]), \
             'All loops max_len are 0! No chains will be added'
@@ -166,6 +165,7 @@ class TCRSpecificDataset(FullTCRDataset):
                                                  b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_weighted=pep_weighted,
                                                  pep_weight_scale=pep_weight_scale)
         # Here "labels" are for each peptide, used for the triplet loss
+        # MIGHT be overridden wrongly in BimodalTCR dataset!!
         self.labels = torch.from_numpy(df['peptide'].map(PEP_MAP).values)
 
     @override
@@ -196,9 +196,19 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
         else:
             encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, pep_pad_scale)
         # Inherits self.x and self.label from its parent class)
+        # TODO:
+        #   Here, since it inherits FullVAEdataset, it's important not to pass the pep_col down because
+        #   here the pep_col is used for the triplet loss label, and in FullVAEdataset it's used as input encoding
+        #   Should maybe unify this in order to handle data with swapped negatives ? (because Bimodal inherits from this)
         self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
         self.x_pep = encoded_peps
         self.binder = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
+        
+        # Summary for Bimodal:
+        # self.labels is overriden and uses original_peptide, for triplet loss
+        # self.encoded_peps (used for the CLF) uses the pep_col, which is `peptide` by default (i.e. includes swapped neg)
+        # self.x (where peptide seq can be encoded with TCR) uses `original_peptide`
+        # meaning it's very easy for the model to learn inputs (swapped vs not swapped) and give 100% AUC
 
     @override
     def __getitem__(self, idx):
