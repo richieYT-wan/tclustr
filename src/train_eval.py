@@ -68,8 +68,6 @@ def invoke(early_stopping, loss, model, implement=False):
         return False
 
 
-
-
 # noinspection PyUnboundLocalVariable
 def train_model_step(model, criterion, optimizer, train_loader):
     """

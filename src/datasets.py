@@ -81,12 +81,12 @@ class FullTCRDataset(VAEDataset):
 
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
-                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='original_peptide', pep_weighted=False,
+                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
                  pep_weight_scale=3.8):
         super(FullTCRDataset, self).__init__()
 
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
-                                         max_len_b1, max_len_b2, max_len_b3]]), \
+                                         max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
             'All loops max_len are 0! No chains will be added'
 
         self.max_len_a1 = max_len_a1
@@ -132,8 +132,10 @@ class FullTCRDataset(VAEDataset):
 
         # Concatenate all the tensors in the list `x_seq` into one tensor `x_seq`
         x_seq = torch.cat(x_seq, dim=1)
+        self.matrix_dim = 20
         if add_positional_encoding:
             # Stack the `x_pos` tensors in the list together into a single tensor along dimension 2 (n_chains)
+            self.matrix_dim += len(x_pos)
             x_pos = torch.stack(x_pos, dim=2)
             # Add the pos encode to the seq tensor (N, sum(ML), 20) -> (N, sum(ML), 20+n_chains)
             x_seq = torch.cat([x_seq, x_pos], dim=2)
@@ -200,10 +202,13 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
         #   Here, since it inherits FullVAEdataset, it's important not to pass the pep_col down because
         #   here the pep_col is used for the triplet loss label, and in FullVAEdataset it's used as input encoding
         #   Should maybe unify this in order to handle data with swapped negatives ? (because Bimodal inherits from this)
-        self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
+        # self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
+        # Here, should now try to use the swapped peptide as labels for the triplet loss. This should mess everything up
+        self.labels = torch.from_numpy(df[pep_col].map(PEP_MAP).values)
+
         self.x_pep = encoded_peps
         self.binder = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
-        
+
         # Summary for Bimodal:
         # self.labels is overriden and uses original_peptide, for triplet loss
         # self.encoded_peps (used for the CLF) uses the pep_col, which is `peptide` by default (i.e. includes swapped neg)
