@@ -244,8 +244,10 @@ class BimodalVAELoss(LossParent):
         if self.counter >= self.warm_up_clf:
             # Here criterion should be with reduction='none' and then manually do the mean() because `weight` is not used in forward but init
             # but now I don't even use necessarily use sample weights
+            # TODO : Here, removed "* weights" from the classification loss before the mean() because we are using weights to remove triplet from swapped datapoints
+            #       i.e. : Triplet is only trained with positive points, whereas the rest are trained with all the losses
             classification_loss = (self.weight_classification * self.classification_loss(x_out,
-                                                                                         binder_labels) * weights).mean() / self.norm_factor
+                                                                                         binder_labels) ).mean() / self.norm_factor
             if self.debug:
                 print('clf pep weights, loss', weights[:10], classification_loss)
         else:

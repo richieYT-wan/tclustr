@@ -194,9 +194,9 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
         if pep_encoding == 'categorical':
-            encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
+            encoded_peps = batch_encode_cat(self.df[pep_col], 12, -1)
         else:
-            encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, pep_pad_scale)
+            encoded_peps = encode_batch(self.df[pep_col], 12, pep_encoding, pep_pad_scale)
         # Inherits self.x and self.label from its parent class)
         # TODO:
         #   Here, since it inherits FullVAEdataset, it's important not to pass the pep_col down because
@@ -204,11 +204,16 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
         #   Should maybe unify this in order to handle data with swapped negatives ? (because Bimodal inherits from this)
         # self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
         # Here, should now try to use the swapped peptide as labels for the triplet loss. This should mess everything up
-        self.labels = torch.from_numpy(df[pep_col].map(PEP_MAP).values)
+        self.labels = torch.from_numpy(self.df[pep_col].map(PEP_MAP).values)
 
         self.x_pep = encoded_peps
-        self.binder = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
+        self.binder = torch.from_numpy(self.df[label_col].values).unsqueeze(1).float()
 
+        # TODO: fix this
+        #   Quick & Dirty fix for triplet loss : Use PepWeights as binary mask to remove some losses
+        #   Set pepweights as where original_pep == pep, in BimodalVAELoss, use weights only for triplet
+        self.pep_weights = torch.from_numpy(self.df.apply(lambda x: x['original_peptide']==x['peptide'], axis=1).values).float().unsqueeze(1)
+        print('xd')
         # Summary for Bimodal:
         # self.labels is overriden and uses original_peptide, for triplet loss
         # self.encoded_peps (used for the CLF) uses the pep_col, which is `peptide` by default (i.e. includes swapped neg)

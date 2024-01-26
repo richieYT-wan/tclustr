@@ -8,8 +8,6 @@ ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
 
 
-
-
 def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
