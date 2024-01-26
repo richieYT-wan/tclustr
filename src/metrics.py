@@ -118,8 +118,9 @@ class VAELoss(LossParent):
         if self.add_positional_encoding:
             # TODO Should maybe add a weight here to minimize this part because it's easy
             #      For now, try to use weight = 1/100 weight_seq ?
+            # Here use 1e-4
             positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true)
-            reconstruction_loss += (0.01 * self.weight_seq * positional_loss)
+            reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
 
         # KLD weight regime control
         if self.counter < self.kld_warm_up:
