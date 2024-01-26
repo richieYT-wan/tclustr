@@ -7,7 +7,8 @@ from sklearn.metrics import roc_auc_score
 from src.metrics import compute_cosine_distance
 
 
-def make_dist_matrix(df, seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3')):
+def make_dist_matrix(df, label_col='peptide',
+                     seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'), cols=('peptide','original_peptide')):
     df['seq'] = df.apply(lambda x: ''.join([x[c] for c in seq_cols]), axis=1)
     seqs = df.seq.values
     # Getting dist matrix
@@ -15,8 +16,8 @@ def make_dist_matrix(df, seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3')):
     zs = torch.from_numpy(df[zcols].values)
     dist_matrix = pd.DataFrame(compute_cosine_distance(zs),
                                columns=seqs, index=seqs)
-    dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[['set', 'peptide', 'original_peptide']],
-                           left_index=True, right_index=True).rename(columns={'peptide': 'label'})
+    dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[list(cols)],
+                           left_index=True, right_index=True)#.rename(columns={label_col: 'label'})
     return dist_matrix
 
 
@@ -53,9 +54,10 @@ def do_tcrbase(query_distmatrix, db_distmatrix, label='GILGFVFTL'):
     return output.sort_values(['y_true', 'score'], ascending=False)
 
 
-def do_histplot(dist_matrix, peptide, label_col='label', unique_filename=None, outdir=None):
+def do_histplot(dist_matrix, peptide, f=None,ax=None, label_col='label',
+                unique_filename=None, outdir=None, bins=100):
     # splitting the matrix by label
-    dist_matrix = dist_matrix[dist_matrix.index.tolist() + ['set', label_col, 'original_peptide']]
+    dist_matrix = dist_matrix[dist_matrix.index.tolist() + [label_col, 'original_peptide']]
     same = dist_matrix.query(f'{label_col}==@peptide')
     same_tcrs = same.index.tolist()
     diff = dist_matrix.query(f'{label_col}!=@peptide')
@@ -75,10 +77,12 @@ def do_histplot(dist_matrix, peptide, label_col='label', unique_filename=None, o
     pal = sns.color_palette('gnuplot2', 4)
     sns.set_palette([pal[-1], pal[0]])
     sns.set_style('darkgrid')
-    f, a = plt.subplots(1, 1, figsize=(9, 5))
-    sns.histplot(data=ntr, x='distance', hue=label_col, ax=a, kde=False,
-                 stat='percent', common_norm=False, bins=300, alpha=0.75)
-    a.set_title(peptide, fontsize=14, fontweight='semibold')
+    if ax is None:
+        f, ax = plt.subplots(1, 1, figsize=(9, 5))
+    sns.histplot(data=ntr, x='distance', hue=label_col, ax=ax, kde=False,
+                 stat='percent', common_norm=False, bins=bins, alpha=0.75)
+    ax.set_xlim([0,1.1])
+    ax.set_title(peptide, fontsize=14, fontweight='semibold')
     if unique_filename is not None:
         outdir = './' if outdir is None else outdir
         f.savefig(f'{outdir}{peptide}_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
