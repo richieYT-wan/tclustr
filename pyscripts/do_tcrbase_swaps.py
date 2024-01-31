@@ -15,6 +15,7 @@ from src.train_eval import predict_model
 from src.datasets import FullTCRDataset, BimodalTCRpMHCDataset
 from src.models import BimodalVAEClassifier, FullTCRVAE
 from src.metrics import compute_cosine_distance
+from src.sim_utils import make_dist_matrix
 from sklearn.metrics import roc_auc_score
 import argparse
 import numpy as np
@@ -34,96 +35,90 @@ def sort_lines(data):
     return sorted_lines
 
 
-def get_tcrbase_method(tcr, ref):
-    # here take the top 1 (shortest distance = highest sim)
-    best = ref[tcr].sort_values().head(1)
-    best_name = best.index[0]
-    best_dist = best.item()
-    label = ref.loc[best_name]['label']
-    return label, best_name, best_dist
+def do_tcrbase_and_histplots(preds, peptide, partition, f=None, ax=None,
+                             unique_filename=None, outdir=None, bins=100):
+    query = preds.query('partition==@partition and peptide==@peptide').assign(set='query')
+    database = preds.query('partition!=@partition and peptide==@peptide and original_peptide==@peptide').assign(
+        set='database')
+    concat = pd.concat([query, database])
+    dist_matrix = make_dist_matrix(concat, cols=('set', 'peptide', 'original_peptide', 'binder'))
 
+    query = dist_matrix.query('set=="query"')
+    database = dist_matrix.query('set=="database"')
+    db_tcrs = database.index.tolist()
+    # Scoring query against database & splitting by label
+    pos = query[db_tcrs + ['binder']].query('binder==1')
+    neg = query[db_tcrs + ['binder']].query('binder==0')
+    tcrbase_output = pd.concat([pos, neg])
+    pos = pos.drop(columns=['binder']).values
+    neg = neg.drop(columns=['binder']).values
 
-def do_tcrbase(query_distmatrix, db_distmatrix, label='GILGFVFTL'):
-    """
-    dist_matrix is the filtered query matrix
-    ref is the filtered database matrix
-    Args:
-        query_distmatrix:
-        db_distmatrix:
-        label:
+    # Getting the AUC for labelling and output DF ;
+    pos_out = tcrbase_output.query('binder==1').drop(columns=['binder'])
+    neg_out = tcrbase_output.query('binder!=1').drop(columns=['binder'])
+    pos_out = pos_out.apply(lambda x: [np.min(x), x.index[int(np.argmin(x))]], axis=1, result_type='expand').rename(
+        columns={0: 'min_dist', 1: 'most_similar'})
+    neg_out = neg_out.apply(lambda x: [np.min(x), x.index[int(np.argmin(x))]], axis=1, result_type='expand').rename(
+        columns={0: 'min_dist', 1: 'most_similar'})
+    cat_out = pd.concat([pos_out.assign(label=1), neg_out.assign(label=0)])
+    auc = roc_auc_score(cat_out['label'], 1 - cat_out['min_dist'])
 
-    Returns:
-
-    """
-    output = query_distmatrix.drop(
-        columns=[x for x in query_distmatrix.columns if x != 'label']).copy().reset_index().rename(
-        columns={'index': 'tcr'})
-
-    output[['similar_label', 'best_match', 'best_dist']] = output.apply(
-        lambda x: get_tcrbase_method(x['tcr'], ref=db_distmatrix),
-        axis=1, result_type='expand')
-    output['y_true'] = (output['label'] == label).astype(int)
-    output['score'] = 1 - output['best_dist']
-    return output.sort_values(['y_true', 'score'], ascending=False)
-
-
-def do_histplot(dist_matrix, peptide, unique_filename, outdir, auc=None):
-    # splitting the matrix by label
-    valid = dist_matrix.query('set=="query"')
-    valid = valid[valid.index.tolist() + ['set', 'label', 'original_peptide']]
-    same = valid.query('label==@peptide')
-    same_tcrs = same.index.tolist()
-    diff = valid.query('label!=@peptide')
-    diff_tcrs = diff.index.tolist()
-    same_matrix = same[same_tcrs].values
-    diff_matrix = same[diff_tcrs].values
-    # Getting the flattened distributions (upper triangle and making df for plot), for AvA
-    trimask = np.triu(np.ones(same_matrix.shape), k=1)
-    masked_same = np.multiply(same_matrix, trimask)
-    flattened_same = masked_same[masked_same != 0].flatten()
-    flattened_diff = diff_matrix.flatten()
-    cat = np.concatenate([flattened_same, flattened_diff])
-    labels = np.concatenate([np.array(['same'] * len(flattened_same) + ['diff'] * len(flattened_diff))])
-    ntr = pd.DataFrame(data=np.stack([cat, labels]).T, columns=['distance', 'label'])
-    ntr['distance'] = ntr['distance'].astype(float)
-    # plotting
+    # Plot both the distribution of scores and the "best" score as done above
+    #   Plotting distribution of all scores
+    pos_flat = pos.flatten()
+    neg_flat = neg.flatten()
+    cat = np.concatenate([pos_flat, neg_flat])
+    labels = np.concatenate([np.array(['pos'] * len(pos_flat) + ['neg'] * len(neg_flat))])
+    df_plot_allvsall = pd.DataFrame(data=np.stack([cat, labels]).T, columns=['distance', 'label'])
+    df_plot_allvsall['distance'] = df_plot_allvsall['distance'].astype(float)
     pal = sns.color_palette('gnuplot2', 4)
     sns.set_palette([pal[-1], pal[0]])
     sns.set_style('darkgrid')
-    f, a = plt.subplots(1, 1, figsize=(9, 5))
-    sns.histplot(data=ntr, x='distance', hue='label', ax=a, kde=False, stat='percent', common_norm=False, bins=100,
-                 alpha=0.75)
-    a.set_title(f'All vs All {peptide}: AUC={auc:.4f}', fontsize=14, fontweight='semibold')
-    f.savefig(f'{outdir}{peptide}_AvA_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
 
-    # Here, plotting the best score only
-    f2, ax2 = plt.subplots(1,1, figsize=(9,5))
-    same_best = same_matrix.min(axis=1).flatten()
-    diff_best = diff_matrix.min(axis=1).flatten()
-    cat_best = np.concatenate([same_best, diff_best])
-    labels_best = np.concatenate([np.array(['same'] * len(same_best) + ['diff'] * len(diff_best))])
-    df_plot_best = pd.DataFrame(data=np.stack([cat_best, labels_best]).T, columns=['distance', 'label'])
-    df_plot_best['distance'] = df_plot_best['distance'].astype(float)
-
-    bins = max(int(len(dist_matrix.query('original_peptide==@peptide'))/9), 25)
-    sns.histplot(data=df_plot_best, x='distance', hue='label', ax=ax2, kde=False,
+    if ax is None:
+        f, ax = plt.subplots(1, 1, figsize=(9, 5))
+    sns.histplot(data=df_plot_allvsall, x='distance', hue='label', ax=ax, kde=False,
                  stat='percent', common_norm=False, bins=bins, alpha=0.75)
-    ax2.set_title(f'Best {peptide}, AUC = {auc:.4f}', fontsize=14, fontweight='semibold')
+    # ax.set_xlim([0,1.1])
+    ax.set_title(f'TCRBase: All vs All {peptide}: {auc:.4f}', fontsize=14, fontweight='semibold')
     if unique_filename is not None:
         outdir = './' if outdir is None else outdir
-        f2.savefig(f'{outdir}{peptide}_Best_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
+        f.savefig(f'{outdir}{peptide}_AvA_TCRBase_distances_histplot_{unique_filename}', dpi=150,
+                  bbox_inches='tight')
+
+    #   Plotting "Best" score
+    pos_best = pos.min(axis=1).flatten()
+    neg_best = neg.min(axis=1).flatten()
+    cat_best = np.concatenate([pos_best, neg_best])
+    labels_best = np.concatenate([np.array(['pos'] * len(pos_best) + ['neg'] * len(neg_best))])
+    df_plot_best = pd.DataFrame(data=np.stack([cat_best, labels_best]).T, columns=['distance', 'label'])
+    df_plot_best['distance'] = df_plot_best['distance'].astype(float)
+    f2, ax2 = plt.subplots(1, 1, figsize=(9, 5))
+    bins = max(int(len(query.query('original_peptide==@peptide'))/9), 25)
+
+    sns.histplot(data=df_plot_best, x='distance', hue='label', ax=ax2, kde=False,
+                 stat='percent', common_norm=False, bins=bins, alpha=0.75)
+    # ax.set_xlim([0,1.1])
+
+    ax2.set_title(f'TCRBase: Best score {peptide}, AUC = {auc:.4f}', fontsize=14, fontweight='semibold')
+    if unique_filename is not None:
+        outdir = './' if outdir is None else outdir
+        f2.savefig(f'{outdir}{peptide}_Best_TCRBase_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
+
+    return cat_out
 
 
-def wrapper(dist_matrix, peptide, unique_filename, outdir):
-    query = dist_matrix.query('set=="query"').copy()
-    database = dist_matrix.query('set=="database" and label==@peptide').copy()
-    output = do_tcrbase(query, database, label=peptide)
-    output.to_csv(f'{outdir}tcrbase_{peptide}_{unique_filename}.csv')
-    auc = roc_auc_score(output['y_true'], output['score'])
-    auc01 = roc_auc_score(output['y_true'], output['score'], max_fpr=0.1)
+def wrapper(preds, peptide, args, unique_filename, outdir):
+    cat_out = do_tcrbase_and_histplots(preds, peptide, partition=args['fold'],
+                                      unique_filename=unique_filename, outdir=outdir)
+
+    cat_out.to_csv(f'{outdir}tcrbase_{peptide}_{unique_filename}.csv')
+
+    auc = roc_auc_score(cat_out['label'], 1 - cat_out['min_dist'])
+    auc01 = roc_auc_score(cat_out['label'], 1 - cat_out['min_dist'], max_fpr=0.1)
     text = f'\n{peptide}:\tauc={auc:.3f}\tauc01={auc01:.3f}'
-    do_histplot(dist_matrix, peptide, unique_filename, outdir, auc=auc)
     tqdm.write(text)
+
     return text
 
 
@@ -137,13 +132,13 @@ def args_parser():
                         help="Will use GPU if True and GPUs are available")
 
     parser.add_argument('-db', '--db_file', dest='db_file', required=True, type=str,
-                        default='../data/filtered/230927_nettcr_positives_only.csv',
+                        default='../data/filtered/231205_nettcr_old_26pep_with_swaps.csv',
                         help='filename of the input reference file')
     parser.add_argument('-qr', '--query_file', dest='query_file', type=str,
                         default=None, help='External test set (None by default). If None, will use "-kf"' \
                                            ' to split db_file into query (test) and db (train) files.' \
                                            ' If both are active, query_file will have priority')
-    parser.add_argument('-kf', '--fold', dest='fold', type=int, default=0,
+    parser.add_argument('-kf', '--fold', dest='fold', type=int, default=1,
                         help='None by default. Will be used only if -qr is None. If -qr is a file, kf will be overriden.')
     parser.add_argument('-o', '--out', dest='out', required=False,
                         type=str, default='', help='Additional output name')
@@ -297,8 +292,8 @@ def main():
     dataset_params = {k: args[k] for k in dataset_keys}
     db_dataset = FullTCRDataset(db_df, **dataset_params)
     qr_dataset = FullTCRDataset(qr_df, **dataset_params)
-    db_loader = db_dataset.get_dataloader(batch_size=1024, sampler=SequentialSampler)
-    qr_loader = qr_dataset.get_dataloader(batch_size=1024, sampler=SequentialSampler)
+    db_loader = db_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
+    qr_loader = qr_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
 
     # Get the "predictions" (latent vectors)
     db_preds = predict_model(vae, db_dataset, db_loader)
@@ -306,30 +301,21 @@ def main():
     # Here, concatenate and construct the distance matrix a single time ; Keep the columns for filtering later
     concat = pd.concat([qr_preds.assign(set="query"), db_preds.assign(set="database")])
     concat['tcr'] = concat.apply(lambda x: ''.join([x[c] for c in ['A1', 'A2', 'A3', 'B1', 'B2', 'B3']]), axis=1)
-    tcrs = concat.tcr.values
-    # Getting dist matrix
-    zcols = [z for z in concat.columns if z.startswith("z_")]
-    zs = torch.from_numpy(concat[zcols].values)
-    dist_matrix = pd.DataFrame(compute_cosine_distance(zs),
-                               columns=tcrs, index=tcrs)
-    dist_matrix = pd.merge(dist_matrix, concat.set_index('tcr')[['set', 'peptide', 'original_peptide']],
-                           left_index=True, right_index=True).rename(columns={'peptide': 'label'})
 
-    # Dumping args to file
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
 
-    wrapper_ = partial(wrapper, dist_matrix=dist_matrix, unique_filename=unique_filename, outdir=outdir)
+    wrapper_ = partial(wrapper, preds=concat, args=args, unique_filename=unique_filename, outdir=outdir)
     # Then, on a per-peptide basis, do the TCRbase method
     text = Parallel(n_jobs=8)(
-        delayed(wrapper_)(peptide=peptide) for peptide in tqdm(dist_matrix.label.unique(), desc='peptide'))
+        delayed(wrapper_)(peptide=peptide) for peptide in tqdm(concat.peptide.unique(), desc='peptide'))
+
     text = ''.join(text)
     text = sort_lines(text)
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         for line in text:
             file.write(f'{line}\n')
-
 
 if __name__ == '__main__':
     main()

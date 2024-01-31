@@ -169,3 +169,4 @@ data/baselines
 notebooks/tighterMargin_dist_sorted.pkl
 notebooks/tighterMargin_distances.pkl
 notebooks/dist_sorted_2stage_warmupLowerMargin_KF1_TIGHT.pkl
+notebooks/240115_NewFeaturesScratchpad.ipynb
