@@ -8,8 +8,7 @@ mkdir -p ${OUTDIR}
 for f in $(ls ${DIRECTORY} | awk -F[_] '{print $1}' | sort -u)
 do
   echo ${f}
-  echo "${DIRECTORY}${f}_db_p1.tsv"
   
-  ${TCRBASE} -xs -w 1,1,4,1,1,4 -db "${DIRECTORY}${f}_db_p1.tsv" "${DIRECTORY}${f}_query_p1.tsv" > "${OUTDIR}${f}.txt"
+  ${TCRBASE} -xs -w 1,1,3,1,1,3 -db "${DIRECTORY}${f}_db_p1.tsv" "${DIRECTORY}${f}_query_p1.tsv" > "${OUTDIR}${f}.txt"
   
 done
