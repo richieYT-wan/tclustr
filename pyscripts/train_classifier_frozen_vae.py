@@ -179,7 +179,6 @@ def main():
             raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
     else:
         vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
-        print(js)
 
     if torch.cuda.is_available() and args['cuda']:
         device = torch.device('cuda:0')
@@ -187,7 +186,8 @@ def main():
         device = torch.device('cpu')
     print("Using : {}".format(device))
     torch.manual_seed(seed)
-
+    if 'vae_kwargs' in js:
+        js = js['vae_kwargs']
     # Convert the activation string codes to their nn counterparts
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
@@ -203,14 +203,18 @@ def main():
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
 
+    # nique ta mère la pute
     for k in args:
         if 'max_len' in k or 'positional' in k:
-            args[k] = js[k]
+            if k not in js:
+                args[k] = 0
+            else:
+                args[k] = js[k]
 
     model_keys = get_class_initcode_keys(PeptideClassifier, args)
     model_params = {k: args[k] for k in model_keys}
     dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
-    model_params['n_latent'] = vae.latent_dim
+    model_params['n_latent'] = js['latent_dim']
     model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
 
     dataset_params = {k: args[k] for k in dataset_keys}

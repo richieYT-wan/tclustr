@@ -257,11 +257,11 @@ class LatentTCRpMHCDataset(FullTCRDataset):
 
         with torch.no_grad():
             model.eval()
-            print('Here shapes: ')
-            print(f'self.x: {self.x.shape}')
-            for f in [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep]:
-                print(f'{f}')
-            print('PE', add_positional_encoding)
+            # print('Here shapes: ')
+            # print(f'self.x: {self.x.shape}')
+            # for f in [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep]:
+            #     print(f'{f}')
+            # print('PE', add_positional_encoding)
             z_latent = model.embed(self.x)
 
         assert pep_encoding in ['categorical'] + list(
