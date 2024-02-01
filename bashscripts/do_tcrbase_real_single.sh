@@ -1,0 +1,15 @@
+#! /usr/bin/bash
+
+TCRBASE=/home/projects/vaccine/people/morni/tbcr_align/tbcr_align
+DIRECTORY=/home/projects/vaccine/people/yatwan/tclustr/data/tcrbase_partition1_swapped/
+OUTDIR=/home/projects/vaccine/people/yatwan/tclustr/output/tcrbase_partition1_swapped/
+
+mkdir -p ${OUTDIR}
+for f in $(ls ${DIRECTORY} | awk -F[_] '{print $1}' | sort -u)
+do
+  echo ${f}
+  echo "${DIRECTORY}${f}_db_p1.tsv"
+  
+  ${TCRBASE} -xs -w 1,1,4,1,1,4 -db "${DIRECTORY}${f}_db_p1.tsv" "${DIRECTORY}${pep}_query_p1.tsv" > "${OUTDIR}${pep}.txt"
+  
+done
