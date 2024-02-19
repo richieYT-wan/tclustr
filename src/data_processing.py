@@ -265,6 +265,14 @@ def onehot_batch_decode(onehot_sequences):
     return np.stack([onehot_decode(x) for x in onehot_sequences])
 
 
+def positional_encode(seq, pad=(0, 0)):
+    return F.pad(torch.ones([len(seq)]), pad=(pad[0], pad[1] - len(seq)))
+
+
+def batch_positional_encode(seqs, pad=(0, 0)):
+    return torch.stack([positional_encode(seq, pad) for seq in seqs])
+
+
 def get_ic_weights(df, ics_dict: dict, max_len=None, seq_col='Peptide', hla_col='HLA', mask=False,
                    invert=False, threshold=0.2):
     """

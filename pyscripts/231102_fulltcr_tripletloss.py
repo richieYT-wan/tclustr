@@ -71,12 +71,15 @@ def args_parser():
     parser.add_argument('-mlb3', '--max_len_b3', dest='max_len_b3', type=int, default=23,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
+    parser.add_argument('-mlpep', '--max_len_pep', dest='max_len_pep', type=int, default=0,
+                        help='Max seq length admitted for peptide. Set to 0 to disable adding peptide to the input')
     parser.add_argument('-enc', '--encoding', dest='encoding', type=str, default='BL50LO', required=False,
                         help='Which encoding to use: onehot, BL50LO, BL62LO, BL62FREQ (default = BL50LO)')
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
-
+    parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=False,
+                        help='Adding positional encoding to the sequence vector. False by default')
     """
     Models args 
     """
@@ -118,7 +121,8 @@ def args_parser():
                              'Default = 10. Set to 0 if you want this disabled')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
-
+    parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
+                        help='Using per-sample (by peptide label) weighted loss')
     # TODO: TBD what to do with these!
     """
     TODO: Misc. 
@@ -157,7 +161,6 @@ def main():
     dfname = args['file'].split('/')[-1].split('.')[0]
     train_df = df.query('partition!=@args["fold"]')
     valid_df = df.query('partition==@args["fold"]')
-    args['n_batches'] = math.ceil(len(train_df) / args['batch_size'])
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     if args['log_wandb']:
@@ -190,7 +193,7 @@ def main():
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
-    loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
+    # loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
@@ -263,7 +266,7 @@ def main():
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
     valid_seq_acc = valid_preds['seq_acc'].mean()
 
-    print(f'Final valid mean accuracies (seq, v, j): \t{valid_seq_acc:.3%}')
+    print(f'Final valid reconstruction accuracy: \t{valid_seq_acc:.3%}')
 
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
@@ -277,7 +280,7 @@ def main():
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()
 
-        print(f'Final valid mean accuracies (seq, v, j): \t{test_seq_acc:.3%}')
+        print(f'Final test reconstruction accuracy: \t{test_seq_acc:.3%}')
     else:
         test_seq_acc = None
 

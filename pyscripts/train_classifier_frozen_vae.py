@@ -9,6 +9,7 @@ import math
 import torch
 from torch import optim
 from torch import cuda
+import glob
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
@@ -38,6 +39,8 @@ def args_parser():
 
     parser.add_argument('-o', '--out', dest='out', required=False,
                         type=str, default='', help='Additional output name')
+    parser.add_argument('-od', '--outdir', dest='outdir', required=False,
+                        type=str, default=None, help='Additional output directory')
     parser.add_argument('-a1', '--a1_col', dest='a1_col', default='A1', type=str, required=False,
                         help='Name of the column containing B3 sequences (inputs)')
     parser.add_argument('-a2', '--a2_col', dest='a2_col', default='A2', type=str, required=False,
@@ -69,11 +72,16 @@ def args_parser():
     parser.add_argument('-mlb3', '--max_len_b3', dest='max_len_b3', type=int, default=23,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
+    parser.add_argument('-mlpep', '--max_len_pep', dest='max_len_pep', type=int, default=0,
+                        help='Max seq length admitted for peptide. Set to 0 to disable adding peptide to the input')
     parser.add_argument('-enc', '--encoding', dest='encoding', type=str, default='BL50LO', required=False,
                         help='Which encoding to use: onehot, BL50LO, BL62LO, BL62FREQ (default = BL50LO)')
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
+    parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool,
+                        default=False,
+                        help='Adding positional encoding to the sequence vector. False by default')
     parser.add_argument('-pepenc', '--pep_encoding', dest='pep_encoding', type=str, default='categorical',
                         help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical; Default = categorical)')
 
@@ -114,7 +122,8 @@ def args_parser():
                         help='Tolerance for loss variation to log best model')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
-
+    parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
+                        help='Using per-sample (by peptide label) weighted loss')
     # TODO: TBD what to do with these!
     """
     TODO: Misc. 
@@ -136,35 +145,6 @@ def main():
     seed = args['seed'] if args['fold'] is None else args['fold']
     assert not all([args[k] is None for k in ['model_folder', 'pt_file', 'json_file']]), \
         'Please provide either the path to the folder containing the .pt and .json or paths to each file (.pt/.json) separately!'
-    if args['model_folder'] is not None:
-        try:
-            checkpoint_file = next(
-                filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
-            json_file = next(
-                filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
-            vae = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file)
-        except:
-            print(args['model_folder'], os.listdir(args['model_folder']))
-            raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
-    else:
-        vae = load_model_full(args['pt_file'], args['json_file'])
-
-    if torch.cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
-    else:
-        device = torch.device('cpu')
-    print("Using : {}".format(device))
-    torch.manual_seed(seed)
-
-    # Convert the activation string codes to their nn counterparts
-    df = pd.read_csv(args['file'])
-    dfname = args['file'].split('/')[-1].split('.')[0]
-    train_df = df.query('partition!=@args["fold"]')
-    valid_df = df.query('partition==@args["fold"]')
-    args['n_batches'] = math.ceil(len(train_df) / args['batch_size'])
-    # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
-    args['aa_dim'] = 20
-    # File-saving stuff
     connector = '' if args["out"] == '' else '_'
     kf = '-1' if args["fold"] is None else args['fold']
     rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args[
@@ -172,18 +152,69 @@ def main():
         args['random_id']
     unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
 
+    outdir = '../output/'
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
-    outdir = os.path.join('../output/', unique_filename) + '/'
+    if args['outdir'] is not None:
+        outdir = os.path.join(outdir, args['outdir'])
+        if not outdir.endswith('/'):
+            outdir = outdir + '/'
+
+    if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
+        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and args['debug']:
+            print('Break')
+            return 0
+
+    outdir = os.path.join(outdir, unique_filename) + '/'
+    if args['model_folder'] is not None:
+        try:
+            checkpoint_file = next(
+                filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
+            json_file = next(
+                filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
+            vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file, return_json=True)
+            print(js)
+
+        except:
+            print(args['model_folder'], os.listdir(args['model_folder']))
+            raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
+    else:
+        vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
+
+    if torch.cuda.is_available() and args['cuda']:
+        device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
+    print("Using : {}".format(device))
+    torch.manual_seed(seed)
+    if 'vae_kwargs' in js:
+        js = js['vae_kwargs']
+    # Convert the activation string codes to their nn counterparts
+    df = pd.read_csv(args['file'])
+    dfname = args['file'].split('/')[-1].split('.')[0]
+    train_df = df.query('partition!=@args["fold"]')
+    valid_df = df.query('partition==@args["fold"]')
+    # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
+    args['aa_dim'] = 20
+    # File-saving stuff
+
     mkdirs(outdir)
 
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_keys = get_class_initcode_keys(PeptideClassifier, args)
-    dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
 
+    # nique ta mère la pute
+    for k in args:
+        if 'max_len' in k or 'positional' in k:
+            if k not in js:
+                args[k] = 0
+            else:
+                args[k] = js[k]
+
+    model_keys = get_class_initcode_keys(PeptideClassifier, args)
     model_params = {k: args[k] for k in model_keys}
-    model_params['n_latent'] = vae.latent_dim
+    dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
+    model_params['n_latent'] = js['latent_dim']
     model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
 
     dataset_params = {k: args[k] for k in dataset_keys}
@@ -206,7 +237,7 @@ def main():
     # instantiate objects
     torch.manual_seed(args["fold"])
     model = PeptideClassifier(**model_params)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(reduction='none')
     optimizer = optim.Adam(model.parameters(), **optim_params)
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
 
@@ -248,6 +279,9 @@ def main():
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
+    val_metrics = get_metrics(valid_preds['binder'].values, valid_preds['pred_prob'].values)
+    print(f'Validation predictions: Mean performance: AUC={val_metrics["auc"]:.4f}, AUC_01={val_metrics["auc_01"]:.4f}, AP={val_metrics["AP"]:.4f}')
+
     print('Validation predictions: Per peptide performance')
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         file.write('Validation preds ; Per peptide metrics\n')
