@@ -284,3 +284,18 @@ class LatentTCRpMHCDataset(FullTCRDataset):
             return self.x[idx], self.pep_weights[idx], self.labels[idx]
         else:
             return self.x[idx], self.labels[idx]
+
+
+class TrimodalPepTCRDataset(VAEDataset):
+    """
+    Dataset that handles multi-modal data (Alpha chain, Beta chain, +/- peptide) ?
+    For now, no peptide would probably mean health patient data
+    Otherwise, could artificially increase data by removing randomly peptide labels
+    """
+
+    def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
+                 add_positional_encoding=False, encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO',
+                 pep_pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
+                 pep_col='peptide', label_col='binder', pep_weighted=False):
+        super(TrimodalPepTCRDataset, self).__init__()
+        pass

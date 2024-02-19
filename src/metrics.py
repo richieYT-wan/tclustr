@@ -285,14 +285,14 @@ class TrimodalVAELoss(LossParent):
         print(f'weights: vae, triplet: ', self.weight_vae, self.weight_triplet)
 
     def forward(self, x_hat_alpha, x_true_alpha, x_hat_beta, x_true_beta, x_hat_pep, x_true_pep,
-                mu_joint, logvar_joint, triplet_labels=None, **kwargs):
+                mu_joint, logvar_joint, mus:list, logvars:list, triplet_labels=None, **kwargs):
         # Reconstruction losses:
         recon_loss_alpha = self.reconstruction_loss(x_hat_alpha, x_true_alpha, 'alpha')
         recon_loss_beta = self.reconstruction_loss(x_hat_beta, x_true_beta, 'beta')
         recon_loss_pep = self.reconstruction_loss(x_hat_pep, x_true_pep, 'pep')
         reconstruction_loss = recon_loss_alpha + recon_loss_beta + recon_loss_pep
 
-        # KLD weight regime control
+        # KLD weight regime control ; Handles both the joint and marginal KLDs
         if self.counter < self.kld_warm_up:
             # While in the warm-up phase, weight_kld is 0
             self.weight_kld = 0
@@ -302,17 +302,21 @@ class TrimodalVAELoss(LossParent):
             self.weight_kld = max(
                 self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
                 self.base_weight_kld / 5)
-        kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar_joint - mu_joint.pow(2) - logvar_joint.exp()))
+        kld_joint = self.weight_kld * (-0.5 * torch.mean(1 + logvar_joint - mu_joint.pow(2) - logvar_joint.exp()))
+        kld_alpha = self.weight_kld * (-0.5 * torch.mean(1 + logvars[0] - mus[0].pow(2) - logvars[0].expt()))
+        kld_beta = self.weight_kld * (-0.5 * torch.mean(1 + logvars[1] - mus[1].pow(2) - logvars[1].expt()))
+        kld_pep = self.weight_kld * (-0.5 * torch.mean(1 + logvars[2] - mus[2].pow(2) - logvars[2].expt()))
+        kld_total = kld_joint + kld_alpha + kld_beta + kld_pep
         if self.debug:
             print('seq_loss', reconstruction_loss)
             print('kld_weight', self.weight_kld)
-            print('kld_loss', kld, '\n')
+            print('kld_loss', kld_joint.round(4), kld_alpha.round(4), kld_beta.round(4), kld_pep.round(4), '\n')
 
         # This here should probably be changed : Triplet labels wouldn't exist for all of mu_joint
         # Because of the tri-modality, technically we could have datapoints with missing peptide input (?)
         triplet_loss = self.weight_triplet * self.triplet_loss(mu_joint, triplet_labels, **kwargs)
         # Return them separately and sum later so that I can debug each component
-        return reconstruction_loss / self.norm_factor, kld / self.norm_factor, triplet_loss / self.norm_factor
+        return reconstruction_loss / self.norm_factor, kld_total / self.norm_factor, triplet_loss / self.norm_factor
 
     def reconstruction_loss(self, x_hat, x_true, which):
         x_hat_seq, positional_hat = self.slice_x(x_hat, which)

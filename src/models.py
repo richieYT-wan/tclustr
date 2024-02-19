@@ -618,9 +618,11 @@ class TrimodalPepTCRVAE(NetParent):
         mu_alpha, logvar_alpha = self.vae_alpha.encode(x_alpha)
         mu_beta, logvar_beta = self.vae_alpha.encode(x_beta)
         mu_pep, logvar_pep = self.vae_alpha.encode(x_pep)
+        mus = [mu_alpha, mu_beta, mu_pep]
+        logvars = [logvar_alpha, logvar_beta, logvar_pep]
         # Get the joint distribution from a product of experts to join the modalities
-        mu_joint, logvar_joint = self.product_of_experts([mu_alpha, mu_beta, mu_pep],
-                                                         [logvar_alpha, logvar_beta, logvar_pep])
+        mu_joint, logvar_joint = self.product_of_experts(mus,
+                                                         logvars)
 
         # Decode from the joint latent to capture information shared by the modalities
         z = self.reparameterise(mu_joint, logvar_joint)
@@ -629,7 +631,7 @@ class TrimodalPepTCRVAE(NetParent):
         recon_pep = self.vae_pep.decode(z)
 
         # Maybe should also return the marginal distributions ?
-        return recon_alpha, recon_beta, recon_pep, mu_joint, logvar_joint
+        return recon_alpha, recon_beta, recon_pep, mu_joint, logvar_joint, mus, logvars
 
     @staticmethod
     def product_of_experts(mus, logvars):
@@ -648,11 +650,26 @@ class TrimodalPepTCRVAE(NetParent):
         else:
             return mu
 
-    def reconstruct(self, z):
+    # TODO : change this to either have 3 reconstruct or use "which" to reconstruct either 3 seq
+    def reconstruct_alpha(self, z):
         with torch.no_grad():
-            x_hat = self.decode(z)
+            x_hat = self.vae_alpha.decode(z)
             # Reconstruct and unflattens the sequence
-            sequence, positional_encoding = self.slice_x(x_hat)
+            sequence, positional_encoding = self.vae_alpha.slice_x(x_hat)
+            return sequence, positional_encoding
+
+    def reconstruct_beta(self, z):
+        with torch.no_grad():
+            x_hat = self.vae_beta.decode(z)
+            # Reconstruct and unflattens the sequence
+            sequence, positional_encoding = self.vae_beta.slice_x(x_hat)
+            return sequence, positional_encoding
+
+    def reconstruct_pep(self, z):
+        with torch.no_grad():
+            x_hat = self.vae_pep.decode(z)
+            # Reconstruct and unflattens the sequence
+            sequence, positional_encoding = self.vae_pep.slice_x(x_hat)
             return sequence, positional_encoding
 
     def embed(self, x):
