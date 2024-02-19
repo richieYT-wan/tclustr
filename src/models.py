@@ -55,6 +55,7 @@ class NetParent(nn.Module):
             if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
                 c.increment_counter()
 
+
 class CDR3bVAE(NetParent):
     """
     TODO : To deprecate this class
@@ -267,7 +268,8 @@ class FullTCRVAE(NetParent):
         # In this case, we need to first slice the first part of the vector which is the sequence, then additionally
         # slice the rest of the vector which should be whatever feature we add in
         # Here, reshape to aa_dim+pos_dim no matter what, as pos_dim can be 0, and first set pos_enc to None
-        sequence = x[:, 0:(self.max_len * (self.aa_dim+self.pos_dim))].view(-1, self.max_len, (self.aa_dim+self.pos_dim))
+        sequence = x[:, 0:(self.max_len * (self.aa_dim + self.pos_dim))].view(-1, self.max_len,
+                                                                              (self.aa_dim + self.pos_dim))
         positional_encoding = None
         # Then, if self.pos_dim is not 0, further slice the tensor to recover each part
         if self.add_positional_encoding:
@@ -315,44 +317,6 @@ class FullTCRVAE(NetParent):
         return seq_idx, positional_encoding
 
 
-# # TODO: Uncomment this to recover old behaviour (Lin->relu->do->BN)
-# class PeptideClassifier(NetParent):
-#
-#     def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False, decrease_hidden=False):
-#         super(PeptideClassifier, self).__init__()
-#         # self.sigmoid = nn.Sigmoid()
-#
-#         # self.softmax = nn.Softmax()
-#
-#         in_dim = pep_dim + n_latent
-#         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU(), nn.Dropout(dropout)]
-#         if batchnorm:
-#             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
-#
-#         self.in_layer = nn.Sequential(*in_layer)
-#         # Hidden layers
-#         layers = []
-#         for _ in range(n_layers):
-#             if decrease_hidden:
-#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf//2))
-#                 n_hidden_clf = n_hidden_clf//2
-#             else:
-#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
-#             layers.append(nn.ReLU())
-#             layers.append(nn.Dropout(dropout))
-#             if batchnorm:
-#                 layers.append(nn.BatchNorm1d(n_hidden_clf))
-#
-#         self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
-#         self.out_layer = nn.Linear(n_hidden_clf, 1)
-#
-#     def forward(self, x):
-#         x = self.in_layer(x)
-#         x = self.hidden_layers(x)
-#         x = self.out_layer(x)
-#         return x
-
-# TODO: This is the flipped behaviour to run locally for now
 class PeptideClassifier(NetParent):
 
     def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
@@ -436,6 +400,9 @@ class AttentionPeptideClassifier(NetParent):
 
 
 class BimodalVAEClassifier(NetParent):
+    # This name is technically wrong, it should be TwoStageVAEClassifier
+    # Refactoring now would be a bit annoying given the previously saved JSONs that have to be manually changed
+    # Should be refactored at some point.
     # TODO : Refactoring to include pep : This here should be fine but CAREFUL when adding positional encoding
     def __init__(self, vae_kwargs, clf_kwargs, warm_up_clf=0):
         super(BimodalVAEClassifier, self).__init__()
@@ -495,6 +462,207 @@ class BimodalVAEClassifier(NetParent):
 
     def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
         return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)
+
+
+class SequenceVAE(NetParent):
+    """
+        Class to be used in multimodal VAE ; This constructs a VAE for a given sequence
+        Ex: Alpha (A1 to A3 concatenated) or Peptide
+        With slightly fewer parameters in the decoder with one fewer layer
+    """
+
+    # Define the input dimension as some combination of sequence length, AA dim,
+    def __init__(self, max_len, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
+                 activation=nn.SELU(), hidden_dim=128, latent_dim=64):
+        super(SequenceVAE, self).__init__()
+        # Init params that will be needed at some point for reconstruction
+        # Here, define aa_dim and pos_dim ; pos_dim is the dimension of a positional encoding.
+        # pos_dim should be given by how many sequences are used, i.e. how many max_len_x > 0
+        # But also use a flag `add_positional_encoding` to make it more explicit that it's active or not
+        # NOTE : pos_dim does not really make sense in this context ;
+        pos_dim = 1 if add_positional_encoding else 0
+        self.aa_dim = aa_dim
+        self.pos_dim = pos_dim
+        self.add_positional_encoding = add_positional_encoding
+        input_dim = max_len * (aa_dim + pos_dim)
+        self.input_dim = input_dim
+        self.max_len = max_len
+        self.encoding = encoding
+        if pad_scale is None:
+            self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
+        else:
+            self.pad_scale = pad_scale
+        MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
+        MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
+        self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
+        # Neural network params
+        self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+
+        # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
+        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
+                                     nn.Linear(input_dim // 2, hidden_dim), activation)
+        self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+        self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+                                     nn.Linear(hidden_dim, input_dim // 2), activation,
+                                     nn.Linear(input_dim // 2, input_dim))
+
+    def reparameterise(self, mu, logvar):
+        # During training, the reparameterisation leads to z = mu + std * eps
+        # During evaluation, the trick is disabled and z = mu
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+            return (epsilon * std) + mu
+        else:
+            return mu
+
+    def encode(self, x):
+        mu_logvar = self.encoder(x.flatten(start_dim=1))
+        mu = self.encoder_mu(mu_logvar)
+        logvar = self.encoder_logvar(mu_logvar)
+        return mu, logvar
+
+    def decode(self, z):
+        x_hat = self.decoder(z)
+        return x_hat
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        x_hat = self.decode(z)
+        return x_hat, mu, logvar
+
+    def slice_x(self, x):
+        """
+        Slices and extracts // reshapes the sequence vector
+        Also extracts the positional encoding vector if used (?)
+        Args:
+            x:
+
+        Returns:
+
+        """
+        # The slicing part exist here as legacy code in case we want to add other features to the end of the vector
+        # In this case, we need to first slice the first part of the vector which is the sequence, then additionally
+        # slice the rest of the vector which should be whatever feature we add in
+        # Here, reshape to aa_dim+pos_dim no matter what, as pos_dim can be 0, and first set pos_enc to None
+        sequence = x[:, 0:(self.max_len * (self.aa_dim + self.pos_dim))].view(-1, self.max_len,
+                                                                              (self.aa_dim + self.pos_dim))
+        positional_encoding = None
+        # Then, if self.pos_dim is not 0, further slice the tensor to recover each part
+        if self.add_positional_encoding:
+            positional_encoding = sequence[:, :, self.aa_dim:]
+            sequence = sequence[:, :, :self.aa_dim]
+        return sequence, positional_encoding
+
+    def reconstruct(self, z):
+        with torch.no_grad():
+            x_hat = self.decode(z)
+            # Reconstruct and unflattens the sequence
+            sequence, positional_encoding = self.slice_x(x_hat)
+            return sequence, positional_encoding
+
+    def embed(self, x):
+        # by design, embed would return "mu" if self.training is False
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        return z
+
+    def sample_latent(self, n_samples):
+        z = torch.randn((n_samples, self.latent_dim)).to(device=self.encoder[0].weight.device)
+        return z
+
+    def recover_indices(self, seq_tensor):
+        # Sample data
+        N, max_len = seq_tensor.shape[0], seq_tensor.shape[1]
+
+        # Expand MATRIX_VALUES to have the same shape as x_seq for broadcasting
+        expanded_MATRIX_VALUES = self.MATRIX_VALUES.unsqueeze(0).expand(N, -1, -1, -1)
+        # Compute the absolute differences
+        abs_diff = torch.abs(seq_tensor.unsqueeze(2) - expanded_MATRIX_VALUES)
+        # Sum along the last dimension (20) to get the absolute differences for each character
+        abs_diff_sum = abs_diff.sum(dim=-1)
+
+        # Find the argmin along the character dimension (21)
+        argmin_indices = torch.argmin(abs_diff_sum, dim=-1)
+        return argmin_indices
+
+    def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
+        return [''.join([AA_KEYS[y] for y in x]) for x in self.recover_indices(seq_tensor)]
+
+    def reconstruct_hat(self, x_hat):
+        sequence, positional_encoding = self.slice_x(x_hat)
+        seq_idx = self.recover_indices(sequence)
+        return seq_idx, positional_encoding
+
+
+class TrimodalPepTCRVAE(NetParent):
+    def __int__(self, alpha_dim, beta_dim, pep_dim,
+                encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
+                activation=nn.SELU(),
+                hidden_dim_alpha=64, hidden_dim_beta=64, hidden_dim_pep=32,
+                latent_dim=32):
+        super(TrimodalPepTCRVAE, self).__init__()
+        self.vae_alpha = SequenceVAE(alpha_dim, encoding, pad_scale, aa_dim, add_positional_encoding,
+                                     activation, hidden_dim_alpha, latent_dim)
+        self.vae_beta = SequenceVAE(beta_dim, encoding, pad_scale, aa_dim, add_positional_encoding,
+                                    activation, hidden_dim_beta, latent_dim)
+        self.vae_pep = SequenceVAE(pep_dim, encoding, pad_scale, aa_dim, add_positional_encoding,
+                                   activation, hidden_dim_pep, latent_dim)
+
+    # Here, either separate tensors and handle the split in train_eval
+    # or a single tensor and handle the split here
+    def forward(self, x_alpha, x_beta, x_pep):
+        mu_alpha, logvar_alpha = self.vae_alpha.encode(x_alpha)
+        mu_beta, logvar_beta = self.vae_alpha.encode(x_beta)
+        mu_pep, logvar_pep = self.vae_alpha.encode(x_pep)
+        # Get the joint distribution from a product of experts to join the modalities
+        mu_joint, logvar_joint = self.product_of_experts([mu_alpha, mu_beta, mu_pep],
+                                                         [logvar_alpha, logvar_beta, logvar_pep])
+
+        # Decode from the joint latent to capture information shared by the modalities
+        z = self.reparameterise(mu_joint, logvar_joint)
+        recon_alpha = self.vae_alpha.decode(z)
+        recon_beta = self.vae_beta.decode(z)
+        recon_pep = self.vae_pep.decode(z)
+
+        # Maybe should also return the marginal distributions ?
+        return recon_alpha, recon_beta, recon_pep, mu_joint, logvar_joint
+
+    @staticmethod
+    def product_of_experts(mus, logvars):
+        mu_poe = torch.sum(torch.stack(mus) / torch.exp(torch.stack(logvars)), dim=0) / torch.sum(
+            1. / torch.exp(torch.stack(logvars)), dim=0)
+        logvar_poe = -torch.log(torch.sum(1. / torch.exp(torch.stack(logvars)), dim=0))
+        return mu_poe, logvar_poe
+
+    def reparameterise(self, mu, logvar):
+        # During training, the reparameterisation leads to z = mu + std * eps
+        # During evaluation, the trick is disabled and z = mu
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+            return (epsilon * std) + mu
+        else:
+            return mu
+
+    def reconstruct(self, z):
+        with torch.no_grad():
+            x_hat = self.decode(z)
+            # Reconstruct and unflattens the sequence
+            sequence, positional_encoding = self.slice_x(x_hat)
+            return sequence, positional_encoding
+
+    def embed(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterise(mu, logvar)
+        return z
+
+    def sample_latent(self, n_samples):
+        z = torch.randn((n_samples, self.latent_dim)).to(device=self.encoder[0].weight.device)
+        return z
 
 
 # STANDARDIZERS

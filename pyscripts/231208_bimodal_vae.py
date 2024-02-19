@@ -19,7 +19,7 @@ from src.torch_utils import load_checkpoint, save_model_full, load_model_full
 from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
 from src.train_eval import bimodal_train_eval_loops, predict_bimodal, train_bimodal_step, eval_bimodal_step
 from src.datasets import BimodalTCRpMHCDataset
-from src.metrics import BimodalVAELoss
+from src.metrics import TwoStageVAELoss
 from sklearn.metrics import roc_auc_score, precision_score
 import argparse
 
@@ -202,7 +202,7 @@ def main():
     vae_keys = get_class_initcode_keys(FullTCRVAE, args)
     clf_keys = get_class_initcode_keys(PeptideClassifier, args)
     dataset_keys = get_class_initcode_keys(BimodalTCRpMHCDataset, args)
-    loss_keys = get_class_initcode_keys(BimodalVAELoss, args)
+    loss_keys = get_class_initcode_keys(TwoStageVAELoss, args)
     vae_params = {k: args[k] for k in vae_keys}
     clf_params = {k: args[k] for k in clf_keys}
     clf_params['n_latent'] = vae_params['latent_dim']
@@ -231,7 +231,7 @@ def main():
     # instantiate objects
     torch.manual_seed(args["fold"])
     model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
-    criterion = BimodalVAELoss(**loss_params)
+    criterion = TwoStageVAELoss(**loss_params)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval

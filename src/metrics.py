@@ -33,9 +33,6 @@ class LossParent(nn.Module):
                 c.increment_counter()
 
 
-
-
-
 class VAELoss(LossParent):
     """
     No fucking annealing, just some basic stuff for now
@@ -129,8 +126,9 @@ class VAELoss(LossParent):
         else:
             # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
             # until it reaches a minimum of the base weight / 5
-            self.weight_kld = max(self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter-self.kld_warm_up)),
-                                  self.base_weight_kld/5)
+            self.weight_kld = max(
+                self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
+                self.base_weight_kld / 5)
 
         kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
 
@@ -180,6 +178,7 @@ class CombinedVAELoss(LossParent):
     """
     This is the VAE + Triplet Loss, that is used kind of everywhere now
     """
+
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
                  weight_seq=1, weight_kld=1e-2, debug=False, warm_up=10, weight_vae=1, weight_triplet=1,
@@ -207,14 +206,13 @@ class CombinedVAELoss(LossParent):
         return recon_loss, kld_loss, triplet_loss
 
 
-class BimodalVAELoss(LossParent):
-
-    # V & J weights are still here for compatibility issues but should not be used in theory
+class TwoStageVAELoss(LossParent):
+    # Here
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
                  weight_seq=3, weight_kld=1, debug=False, warm_up=0, warm_up_clf=0, weight_vae=1, weight_triplet=1,
                  weight_classification=1, dist_type='cosine', triplet_loss_margin=None):
-        super(BimodalVAELoss, self).__init__()
+        super(TwoStageVAELoss, self).__init__()
         # TODO: Here, maybe change the additional term from triplet loss to something else (Center Loss or Contrastive loss?)
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
@@ -248,7 +246,7 @@ class BimodalVAELoss(LossParent):
             # TODO : Here, removed "* weights" from the classification loss before the mean() because we are using weights to remove triplet from swapped datapoints
             #       i.e. : Triplet is only trained with positive points, whereas the rest are trained with all the losses
             classification_loss = (self.weight_classification * self.classification_loss(x_out,
-                                                                                         binder_labels) ).mean() / self.norm_factor
+                                                                                         binder_labels)).mean() / self.norm_factor
             if self.debug:
                 print('clf pep weights, loss', weights[:10], classification_loss)
         else:
@@ -259,7 +257,112 @@ class BimodalVAELoss(LossParent):
         self.counter += 1
 
 
-def compute_cosine_distance(z_embedding, *args, **kwargs):
+class TrimodalVAELoss(LossParent):
+    def __init__(self, alpha_dim, beta_dim, pep_dim, sequence_criterion=nn.MSELoss(reduction='mean'),
+                 aa_dim=20, add_positional_encoding=False,
+                 weight_seq=1, weight_kld=1e-2, weight_triplet=1, weight_vae=1,
+                 dist_type='cosine', triplet_loss_margin=0.075,
+                 debug=False, warm_up=15):
+        super(TrimodalVAELoss, self).__init__()
+        self.sequence_criterion = sequence_criterion
+        self.alpha_dim = alpha_dim
+        self.beta_dim = beta_dim
+        self.pep_dim = pep_dim
+        self.aa_dim = aa_dim
+        self.pos_dim = 1 if add_positional_encoding else 0
+        self.add_positional_encoding = add_positional_encoding
+        self.norm_factor = weight_seq + weight_kld + weight_triplet
+        self.weight_seq = weight_seq
+        self.base_weight_kld = weight_kld
+        self.weight_triplet = weight_triplet
+        self.weight_kld = self.base_weight_kld
+        self.weight_vae = weight_vae
+
+        self.kld_warm_up = warm_up
+        self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
+        self.norm_factor = (self.weight_triplet + self.weight_vae)
+        self.debug = debug
+        print(f'weights: vae, triplet: ', self.weight_vae, self.weight_triplet)
+
+    def forward(self, x_hat_alpha, x_true_alpha, x_hat_beta, x_true_beta, x_hat_pep, x_true_pep,
+                mu_joint, logvar_joint, triplet_labels=None, **kwargs):
+        # Reconstruction losses:
+        recon_loss_alpha = self.reconstruction_loss(x_hat_alpha, x_true_alpha, 'alpha')
+        recon_loss_beta = self.reconstruction_loss(x_hat_beta, x_true_beta, 'beta')
+        recon_loss_pep = self.reconstruction_loss(x_hat_pep, x_true_pep, 'pep')
+        reconstruction_loss = recon_loss_alpha + recon_loss_beta + recon_loss_pep
+
+        # KLD weight regime control
+        if self.counter < self.kld_warm_up:
+            # While in the warm-up phase, weight_kld is 0
+            self.weight_kld = 0
+        else:
+            # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
+            # until it reaches a minimum of the base weight / 5
+            self.weight_kld = max(
+                self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
+                self.base_weight_kld / 5)
+        kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar_joint - mu_joint.pow(2) - logvar_joint.exp()))
+        if self.debug:
+            print('seq_loss', reconstruction_loss)
+            print('kld_weight', self.weight_kld)
+            print('kld_loss', kld, '\n')
+
+        # This here should probably be changed : Triplet labels wouldn't exist for all of mu_joint
+        # Because of the tri-modality, technically we could have datapoints with missing peptide input (?)
+        triplet_loss = self.weight_triplet * self.triplet_loss(mu_joint, triplet_labels, **kwargs)
+        # Return them separately and sum later so that I can debug each component
+        return reconstruction_loss / self.norm_factor, kld / self.norm_factor, triplet_loss / self.norm_factor
+
+    def reconstruction_loss(self, x_hat, x_true, which):
+        x_hat_seq, positional_hat = self.slice_x(x_hat, which)
+        x_true_seq, positional_true = self.slice_x(x_true, which)
+        reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
+        if self.add_positional_encoding:
+            positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true)
+            reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
+
+        return reconstruction_loss
+
+    def slice_x(self, x_flat, which: str):
+        """
+        Slices and extracts // reshapes the sequence vector from a flattened tensor
+        Also extracts the positional encoding vector if used (?)
+        Args:
+            x:
+
+        Returns:
+
+        """
+        # The slicing part exist here as legacy code in case we want to add other features to the end of the vector
+        # In this case, we need to first slice the first part of the vector which is the sequence, then additionally
+        # slice the rest of the vector which should be whatever feature we add in
+        # Here, reshape to aa_dim+pos_dim no matter what, as pos_dim can be 0, and first set pos_enc to None
+        max_len = {'alpha': self.alpha_dim,
+                   'beta': self.beta_dim,
+                   'pep': self.pep_dim}[which]
+
+        sequence_tensor = x_flat[:, 0:(max_len * (self.aa_dim + self.pos_dim))].view(-1, max_len,
+                                                                                     (self.aa_dim + self.pos_dim))
+        positional_encoding_tensor = None
+        # Then, if self.pos_dim is not 0, further slice the tensor to recover each part
+        if self.add_positional_encoding:
+            positional_encoding_tensor = sequence_tensor[:, :, self.aa_dim:]
+            sequence_tensor = sequence_tensor[:, :, :self.aa_dim]
+        return sequence_tensor, positional_encoding_tensor
+
+
+def compute_cosine_distance(z_embedding: torch.Tensor, *args, **kwargs):
+    """
+    Computes a square cosine distance matrix (All vs ALl) for a given sample of latent Z
+    Args:
+        z_embedding (torch.Tensor): Latent embedding, dimension N x latent_dim
+        *args:
+        **kwargs:
+
+    Returns:
+        cosine_distance_matrix (torch.Tensor): Square tensor of dimension NxN containing pairwise cosine distances
+    """
     # Compute the dot product of the embedding matrix
     dot_product = torch.mm(z_embedding, z_embedding.t())
 
@@ -300,7 +403,8 @@ def reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
     # difference here for per element is that we don't take the mean(dim=0) and have to detach() from graph to do tolist()
     seq_accuracy = ((seq_true == seq_hat).float() * mask).sum(1) / true_lens
     # Assuming pos_accuracy are logits : sigmoid->threshold(0.5)->compare to true
-    pos_accuracy = ((F.sigmoid(positional_hat)>0.5).float()==positional_true).float().mean(dim=(1,2)) if positional_hat is not None else None
+    pos_accuracy = ((F.sigmoid(positional_hat) > 0.5).float() == positional_true).float().mean(
+        dim=(1, 2)) if positional_hat is not None else None
     if return_per_element:
         # Here give a per element accuracy (so that we have individual metric for each datapoint in a df)
         seq_accuracy = seq_accuracy.detach().cpu().tolist()

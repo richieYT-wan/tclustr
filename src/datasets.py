@@ -211,7 +211,7 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
 
         # TODO: fix this
         #   Quick & Dirty fix for triplet loss : Use PepWeights as binary mask to remove some losses
-        #   Set pepweights as where original_pep == pep, in BimodalVAELoss, use weights only for triplet
+        #   Set pepweights as where original_pep == pep, in TwoStageVAELoss, use weights only for triplet
         self.pep_weights = torch.from_numpy(self.df.apply(lambda x: x['original_peptide']==x['peptide'], axis=1).values).float().unsqueeze(1)
         print('xd')
         # Summary for Bimodal:

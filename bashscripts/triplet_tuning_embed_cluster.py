@@ -22,7 +22,7 @@ from src.torch_utils import load_checkpoint, save_model_full, load_model_full
 from src.models import FullTCRVAE
 from src.train_eval import predict_model
 from src.datasets import FullTCRDataset
-from src.metrics import BimodalVAELoss, compute_cosine_distance
+from src.metrics import TwoStageVAELoss, compute_cosine_distance
 from sklearn.metrics import roc_auc_score, precision_score
 import argparse
 from sklearn.preprocessing import MinMaxScaler
