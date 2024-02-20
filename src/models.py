@@ -614,23 +614,32 @@ class TrimodalPepTCRVAE(NetParent):
 
     # Here, either separate tensors and handle the split in train_eval
     # or a single tensor and handle the split here
-    def forward(self, x_alpha, x_beta, x_pep):
+    def forward(self, x_alpha, x_beta, x_pep, mask_alpha, mask_beta, mask_pep):
+        # Get each latent
         mu_alpha, logvar_alpha = self.vae_alpha.encode(x_alpha)
         mu_beta, logvar_beta = self.vae_alpha.encode(x_beta)
         mu_pep, logvar_pep = self.vae_alpha.encode(x_pep)
+
+        # Get the joint distribution from a product of experts to join the modalities
+        mu_joint, logvar_joint = self.product_of_experts([mu_alpha, mu_beta, mu_pep],
+                                                         [logvar_alpha, logvar_beta, logvar_pep])
+
+        # Use the masks to disable gradients for missing modalities
+        mu_alpha, logvar_alpha = self.mask_modality(mu_alpha, logvar_alpha, mask_alpha)
+        mu_beta, logvar_beta = self.mask_modality(mu_beta, logvar_beta, mask_beta)
+        mu_pep, logvar_pep = self.mask_modality(mu_pep, logvar_pep, mask_pep)
+        # Return the marginal distributions after the modality masking
         mus = [mu_alpha, mu_beta, mu_pep]
         logvars = [logvar_alpha, logvar_beta, logvar_pep]
-        # Get the joint distribution from a product of experts to join the modalities
-        mu_joint, logvar_joint = self.product_of_experts(mus,
-                                                         logvars)
-
         # Decode from the joint latent to capture information shared by the modalities
         z = self.reparameterise(mu_joint, logvar_joint)
+        # The decoding part should also handle the missing modalities somehow, i.e. disable gradients?
+        # Otherwise, it will be very easy overfit by having the decoder return only "XXXXXXX" ?
         recon_alpha = self.vae_alpha.decode(z)
         recon_beta = self.vae_beta.decode(z)
         recon_pep = self.vae_pep.decode(z)
 
-        # Maybe should also return the marginal distributions ?
+        # return the reconstructed, joint distribution and marginal distributions with masked modalities
         return recon_alpha, recon_beta, recon_pep, mu_joint, logvar_joint, mus, logvars
 
     @staticmethod
@@ -642,13 +651,17 @@ class TrimodalPepTCRVAE(NetParent):
 
     def reparameterise(self, mu, logvar):
         # During training, the reparameterisation leads to z = mu + std * eps
-        # During evaluation, the trick is disabled and z = mu
         if self.training:
             std = torch.exp(0.5 * logvar)
             epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
             return (epsilon * std) + mu
+        # During evaluation, the trick is disabled and z = mu
         else:
             return mu
+
+    @staticmethod
+    def mask_modality(mu, logvar, mask):
+        return torch.where(mask, mu, torch.zeros_like(mu)), torch.where(mask, logvar, torch.zeros_like(logvar))
 
     # TODO : change this to either have 3 reconstruct or use "which" to reconstruct either 3 seq
     def reconstruct_alpha(self, z):
