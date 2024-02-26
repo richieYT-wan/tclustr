@@ -713,7 +713,7 @@ def train_trimodal_step(model, criterion, optimizer, train_loader):
     alpha_true, beta_true, pep_true = [], [], []
     masks_alpha, masks_beta, masks_pep = [], [], []
     # Batch should be x_alpha, x_beta, x_pep, labels (triplet), +/- pep_weights
-    for batch in train_loader:
+    for i, batch in enumerate(train_loader):
         if train_loader.dataset.pep_weighted:
             x_alpha, x_beta, x_pep, mask_alpha, mask_beta, mask_pep, labels, pep_weights = batch
         else:
@@ -738,6 +738,17 @@ def train_trimodal_step(model, criterion, optimizer, train_loader):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        print('HERE', model.vae_beta.encoder[0].weight)
+        if any([model.vae_beta.encoder[0].weight.isnan().any(),
+                model.vae_alpha.encoder[0].weight.isnan().any(),
+                model.vae_pep.encoder[0].weight.isnan().any()]):
+            # Weights go from normal to suddenly nans
+            print(model.vae_beta.encoder[0].weight)
+            print(model.vae_alpha.encoder[0].weight)
+            print(model.vae_pep.encoder[0].weight)
+            print(i)
+            import sys
+            sys.exit(1)
         # Accumulate loss and save for metrics, multiplying by shape (and later dividing by nbatch) for normalization
         acum_total_loss += loss.item() * x_pep.shape[0]
         acum_total_recon_loss += recon_loss.item() * x_pep.shape[0]

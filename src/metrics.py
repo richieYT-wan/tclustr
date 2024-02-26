@@ -354,11 +354,14 @@ class TrimodalVAELoss(LossParent):
     def reconstruction_loss(self, x_hat, x_true, which, mask):
         x_hat_seq, positional_hat = self.slice_x(x_hat, which)
         x_true_seq, positional_true = self.slice_x(x_true, which)
+        # TODO Maybe here something is wrong with the sequence criterion that creates nans ?
+        # Maybe should not do torch.nanmean but use filter_modality and a custom value here (ex: 1.2345678e-8)
+        # --> should also maybe try and see if anywhere there's a problem with exploding loss or params
         reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
         reconstruction_loss = torch.nanmean(mask_modality(reconstruction_loss, mask, np.nan))
         if self.add_positional_encoding:
             positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true, reduction='none')
-            positional_loss = torch.mean(mask_modality(positional_loss, mask, np.nan))
+            positional_loss = torch.nanmean(mask_modality(positional_loss, mask, np.nan))
             reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
         return reconstruction_loss
 

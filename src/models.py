@@ -626,10 +626,19 @@ class TrimodalPepTCRVAE(NetParent):
         self.vae_pep = SequenceVAE(pep_dim, encoding, pad_scale, aa_dim, add_positional_encoding,
                                    activation, hidden_dim_pep, latent_dim)
 
+    def sanity_check(self):
+        if any([self.vae_beta.encoder[0].weight.isnan().any(),
+                self.vae_alpha.encoder[0].weight.isnan().any(),
+                self.vae_pep.encoder[0].weight.isnan().any()]):
+            print(self.vae_beta.encoder[0].weight)
+            print(self.vae_alpha.encoder[0].weight)
+            print(self.vae_pep.encoder[0].weight)
+
     # Here, either separate tensors and handle the split in train_eval
     # or a single tensor and handle the split here ; Or maybe the mask should be used in metrics / loss
     def forward(self, x_alpha, x_beta, x_pep):
         # Get each latent
+        self.sanity_check()
         mu_alpha, logvar_alpha = self.vae_alpha.encode(x_alpha)
         mu_beta, logvar_beta = self.vae_beta.encode(x_beta)
         mu_pep, logvar_pep = self.vae_pep.encode(x_pep)
@@ -649,9 +658,9 @@ class TrimodalPepTCRVAE(NetParent):
         recon_beta = self.vae_beta.decode(z)
         recon_pep = self.vae_pep.decode(z)
         if any([x.isnan().any() for x in [mu_alpha, mu_beta, mu_pep]]):
-            print(x_alpha, mu_alpha)
-            print(x_beta, mu_beta)
-            print(x_pep, mu_pep)
+            print('_alpha', x_alpha.isnan().any(), mu_alpha.isnan().any(), mu_alpha)
+            print('_beta', x_beta.isnan().any(), mu_beta.isnan().any(), mu_beta)
+            print('_pep', x_pep.isnan().any(), mu_pep.isnan().any(), mu_pep)
             import sys
             sys.exit(1)
         # return the reconstructed, joint distribution and marginal distributions with masked modalities
