@@ -1,11 +1,9 @@
 import pandas as pd
-from tqdm.auto import tqdm
 import os, sys
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 import wandb
-import math
 import torch
 from torch import optim
 from torch import cuda
@@ -15,11 +13,10 @@ from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
 from src.torch_utils import load_checkpoint, save_model_full, load_model_full
-from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
-from src.train_eval import twostage_train_eval_loops, predict_twostage, train_twostage_step, eval_twostage_step
-from src.datasets import BimodalTCRpMHCDataset
-from src.metrics import TwoStageVAELoss
-from sklearn.metrics import roc_auc_score, precision_score
+from src.models import TrimodalPepTCRVAE
+from src.train_eval import trimodal_train_eval_loops, predict_trimodal
+from src.datasets import TrimodalPepTCRDataset
+from src.metrics import TrimodalVAELoss
 import argparse
 
 
@@ -70,16 +67,13 @@ def args_parser():
     parser.add_argument('-mlb3', '--max_len_b3', dest='max_len_b3', type=int, default=23,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
-    parser.add_argument('-mlpep', '--max_len_pep', dest='max_len_pep', type=int, default=0,
+    parser.add_argument('-mlpep', '--max_len_pep', dest='max_len_pep', type=int, default=12,
                         help='Max seq length admitted for peptide. Set to 0 to disable adding peptide to the input')
     parser.add_argument('-enc', '--encoding', dest='encoding', type=str, default='BL50LO', required=False,
                         help='Which encoding to use: onehot, BL50LO, BL62LO, BL62FREQ (default = BL50LO)')
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
-    parser.add_argument('-pep_dim', '--pep_dim', dest='pep_dim', type=int, default=12,
-                        help='Max length for peptide encoding (default=12) to the classifier')
-
     parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=False,
                         help='Adding positional encoding to the sequence vector. False by default')
     """
@@ -92,16 +86,11 @@ def args_parser():
     parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
                         help='Which activation to use. Will map the correct nn.Module for the following keys:' \
                              '[selu, relu, leakyrelu, elu]')
-    parser.add_argument('-nhclf', '--n_hidden_clf', dest='n_hidden_clf', type=int, default=50,
-                        help='Number of hidden units in the Classifier. Default = 32')
+    # Not implemented as of now
     parser.add_argument('-do', dest='dropout', type=float, default=0.25,
                         help='Dropout percentage in the hidden layers (0. to disable)')
     parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=True,
                         help='Use batchnorm (True/False)')
-    parser.add_argument('-n_layers', dest='n_layers', type=int, default=1,
-                        help='Number of hidden layers. Default is 0. (Architecture is in_layer -> [hidden_layers]*n_layers -> out_layer)')
-    parser.add_argument('-pepenc', '--pep_encoding', dest='pep_encoding', type=str, default='categorical',
-                        help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical; Default = categorical)')
     """
     Training hyperparameters & args
     """
@@ -123,8 +112,7 @@ def args_parser():
                         help='Weight for the VAE term (reconstruction+KLD)')
     parser.add_argument('-lwtrp', '--weight_triplet',
                         dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
-    parser.add_argument('-lwclf', '--weight_classification', dest='weight_classification',
-                        type=float, default=1, help='weight for the classifier loss term')
+
     parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
                         help='Which distance metric to use [cosine, l2, l1]')
     parser.add_argument('-margin', dest='margin', default=None, type=float,
@@ -132,8 +120,6 @@ def args_parser():
     parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
                         help='Whether to do a warm-up period for the loss (without the KLD term). ' \
                              'Default = 10. Set to 0 if you want this disabled')
-    parser.add_argument('-wuclf', '--warm_up_clf', type=int, default=750,
-                        help='Set a warm-up period for the CLF loss')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
     parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
@@ -198,16 +184,19 @@ def main():
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    vae_keys = get_class_initcode_keys(FullTCRVAE, args)
-    clf_keys = get_class_initcode_keys(PeptideClassifier, args)
-    dataset_keys = get_class_initcode_keys(BimodalTCRpMHCDataset, args)
-    loss_keys = get_class_initcode_keys(TwoStageVAELoss, args)
-    vae_params = {k: args[k] for k in vae_keys}
-    clf_params = {k: args[k] for k in clf_keys}
-    clf_params['n_latent'] = vae_params['latent_dim']
-    clf_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
+    model_keys = get_class_initcode_keys(TrimodalPepTCRVAE, args)
+    dataset_keys = get_class_initcode_keys(TrimodalPepTCRDataset, args)
+    loss_keys = get_class_initcode_keys(TrimodalVAELoss, args)
+    model_params = {k: args[k] for k in model_keys}
+    # Manually update some model_params:
+    model_params['alpha_dim'] = sum([args[k] for k in ['max_len_a1', 'max_len_a2', 'max_len_a3']])
+    model_params['beta_dim'] = sum([args[k] for k in ['max_len_b1', 'max_len_b2', 'max_len_b3']])
+    model_params['pep_dim'] = args['max_len_pep']
+    hidden_dim = args['hidden_dim']
+    model_params['hidden_dim_alpha'] = hidden_dim
+    model_params['hidden_dim_beta'] = hidden_dim
+    model_params['hidden_dim_pep'] = hidden_dim//2
 
-    model_params = {k: args[k] for k in vae_keys + clf_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
     # loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
@@ -217,8 +206,8 @@ def main():
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
-    train_dataset = BimodalTCRpMHCDataset(train_df, **dataset_params)
-    valid_dataset = BimodalTCRpMHCDataset(valid_df, **dataset_params)
+    train_dataset = TrimodalPepTCRDataset(train_df, **dataset_params)
+    valid_dataset = TrimodalPepTCRDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
@@ -229,8 +218,8 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
-    criterion = TwoStageVAELoss(**loss_params)
+    model = TrimodalPepTCRVAE(**model_params)
+    criterion = TrimodalVAELoss(**loss_params)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
@@ -240,7 +229,7 @@ def main():
         wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_metrics = twostage_train_eval_loops(args['n_epochs'], args['tolerance'], model,
+    best_epoch, best_val_loss, best_val_metrics = trimodal_train_eval_loops(args['n_epochs'], args['tolerance'], model,
                                                                             criterion, optimizer, train_loader,
                                                                             valid_loader, checkpoint_filename, outdir)
 
@@ -282,7 +271,7 @@ def main():
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
                             dir_path=outdir)
-    valid_preds = predict_twostage(model, valid_dataset, valid_loader)
+    valid_preds = predict_trimodal(model, valid_dataset, valid_loader)
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
@@ -293,11 +282,11 @@ def main():
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_dataset = BimodalTCRpMHCDataset(test_df, **dataset_params)
+        test_dataset = TrimodalPepTCRDataset(test_df, **dataset_params)
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 
-        test_preds = predict_twostage(model, test_dataset, test_loader)
+        test_preds = predict_trimodal(model, test_dataset, test_loader)
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()
@@ -316,13 +305,11 @@ def main():
     best_dict.update(best_val_loss)
     best_dict.update(best_val_metrics)
     # reshape dict for saving
-    model_params = {'vae_kwargs': vae_params,
-                    'clf_kwargs': clf_params}
     save_model_full(model, checkpoint_filename, outdir,
                     best_dict=best_dict, dict_kwargs=model_params)
-    end = dt.now()
     load_model_full(checkpoint_filename, f'{checkpoint_filename.split(".pt")[-2]}_JSON_kwargs.json',
                     outdir)
+    end = dt.now()
     elapsed = divmod((end - start).seconds, 60)
     print(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
     sys.exit(0)

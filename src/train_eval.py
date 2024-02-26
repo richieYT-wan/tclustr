@@ -963,4 +963,27 @@ def trimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer, 
 
         # alpha_seq_accuracy, beta_seq_accuracy, should give weight to each and lower weight to pep, like 3,3,1 ?
         # loss conditions should be taken on the total loss
-        
+        loss_condition = valid_loss['total'] <= best_val_loss + tolerance
+        recon_condition = (3 * valid_metric['alpha_seq_accuracy'] + 3 * valid_metric['beta_seq_accuracy'] + valid_metric['pep_seq_accuracy']) / 7
+        recon_condition = recon_condition >= best_val_reconstruction - tolerance
+        if e > 1 and loss_condition and recon_condition:
+            best_epoch = e
+            best_val_loss = valid_loss['total']
+            # Taking a weighted mean here
+            best_val_reconstruction = (3 * valid_metric['alpha_seq_accuracy'] + 3 * valid_metric['beta_seq_accuracy'] + valid_metric['pep_seq_accuracy']) / 7
+            best_val_losses = valid_loss
+            best_val_metrics = valid_metric
+
+            best_dict = {'Best epoch': best_epoch, 'Best val loss': best_val_loss}
+            best_dict.update(valid_loss)
+            best_dict.update(valid_metric)
+            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+
+    last_filename = 'last_epoch_' + checkpoint_filename
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+
+    print(f'End of training cycles')
+    print(best_dict)
+    model = load_checkpoint(model, checkpoint_filename, outdir)
+    model.eval()
+    return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics

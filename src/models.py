@@ -613,7 +613,7 @@ class TrimodalPepTCRVAE(NetParent):
         (alpha, beta)
     """
     # Sum of the max len of each chains
-    def __int__(self, alpha_dim=7+8+22, beta_dim=6+7+23, pep_dim=12,
+    def __init__(self, alpha_dim=7+8+22, beta_dim=6+7+23, pep_dim=12,
                 encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
                 activation=nn.SELU(),
                 hidden_dim_alpha=64, hidden_dim_beta=64, hidden_dim_pep=32,
