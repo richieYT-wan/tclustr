@@ -206,6 +206,8 @@ def encode(sequence, max_len=None, encoding='onehot', pad_scale=None):
     """
     assert encoding in encoding_matrix_dict.keys(), f'Wrong encoding key {encoding} passed!' \
                                                     f'Should be any of {encoding_matrix_dict.keys()}'
+    if pad_scale is None:
+        pad_scale = 0 if encoding == 'onehot' else -20
     # One hot encode by setting 1 to positions where amino acid is present, 0 elsewhere
     size = len(sequence)
     blosum_matrix = encoding_matrix_dict[encoding]
@@ -225,14 +227,16 @@ def encode(sequence, max_len=None, encoding='onehot', pad_scale=None):
 
         tmp = np.zeros([size, len(AA_KEYS)], dtype=np.float32)
         for idx in range(size):
-            tmp[idx, :] = blosum_matrix[sequence[idx]]
-
+            if sequence[idx] in AA_KEYS:
+                tmp[idx, :] = blosum_matrix[sequence[idx]]
+            # TODO : Hotfix for Xs in input ; Should probably actually take the BLOSUM50 values instead
+            #        But this would mean that we need to expand the actual matrix size from 20 to 21 ...
+            elif sequence[idx] == 'X':
+                tmp[idx, :] = np.array([pad_scale]).repeat(20)
     # Padding if max_len is provided
     if max_len is not None and max_len > size:
         diff = int(max_len) - int(size)
         try:
-            if pad_scale is None:
-                pad_scale = 0 if encoding == 'onehot' else -20
             tmp = np.concatenate([tmp, pad_scale * np.ones([diff, len(AA_KEYS)], dtype=np.float32)],
                                  axis=0)
         except:

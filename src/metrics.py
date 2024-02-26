@@ -1,14 +1,9 @@
 import numpy as np
-import pandas as pd
-import sklearn
 import torch
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
-from torch import nn as nn
-
-from src.data_processing import verify_df, get_dataset, encoding_matrix_dict
-from src.utils import get_palette
+from src.torch_utils import mask_modality
 from torch import nn
 from torch.nn import functional as F
 
@@ -258,12 +253,18 @@ class TwoStageVAELoss(LossParent):
 
 
 class TrimodalVAELoss(LossParent):
-    def __init__(self, alpha_dim, beta_dim, pep_dim, sequence_criterion=nn.MSELoss(reduction='mean'),
+    """
+        Disabling some elements' loss term should be done here by using the masks
+        Keep the VAE model itself simple to only always return all modalities, unmasked
+    """
+
+    def __init__(self, alpha_dim, beta_dim, pep_dim, sequence_criterion=nn.MSELoss(reduction='none'),
                  aa_dim=20, add_positional_encoding=False,
-                 weight_seq=1, weight_kld=1e-2, weight_triplet=1, weight_vae=1,
+                 weight_seq=1, weight_kld=1e-2, weight_triplet=0, weight_vae=1,
                  dist_type='cosine', triplet_loss_margin=0.075,
                  debug=False, warm_up=15):
         super(TrimodalVAELoss, self).__init__()
+        assert sequence_criterion.reduction == 'none', f'Reduction mode should be "none" for sequence criterion! Got {sequence_criterion.reduction} instead.'
         self.sequence_criterion = sequence_criterion
         self.alpha_dim = alpha_dim
         self.beta_dim = beta_dim
@@ -285,11 +286,36 @@ class TrimodalVAELoss(LossParent):
         print(f'weights: vae, triplet: ', self.weight_vae, self.weight_triplet)
 
     def forward(self, x_hat_alpha, x_true_alpha, x_hat_beta, x_true_beta, x_hat_pep, x_true_pep,
-                mu_joint, logvar_joint, mus:list, logvars:list, triplet_labels=None, **kwargs):
+                mu_joint, logvar_joint, mus: list, logvars: list, mask_alpha, mask_beta, mask_pep,
+                triplet_labels=None, **kwargs):
+        """
+        Uses the masks to remove missing modalities for each loss term.
+        This masking behaviour is taken care of in the various functions doing the losses instead
+        of being explicitely laid out in the forward here
+        Args:
+            x_hat_alpha:
+            x_true_alpha:
+            x_hat_beta:
+            x_true_beta:
+            x_hat_pep:
+            x_true_pep:
+            mu_joint:
+            logvar_joint:
+            mus:
+            logvars:
+            mask_alpha:
+            mask_beta:
+            mask_pep:
+            triplet_labels:
+            **kwargs:
+
+        Returns:
+
+        """
         # Reconstruction losses:
-        recon_loss_alpha = self.reconstruction_loss(x_hat_alpha, x_true_alpha, 'alpha')
-        recon_loss_beta = self.reconstruction_loss(x_hat_beta, x_true_beta, 'beta')
-        recon_loss_pep = self.reconstruction_loss(x_hat_pep, x_true_pep, 'pep')
+        recon_loss_alpha = self.reconstruction_loss(x_hat_alpha, x_true_alpha, 'alpha', mask=mask_alpha)
+        recon_loss_beta = self.reconstruction_loss(x_hat_beta, x_true_beta, 'beta', mask=mask_beta)
+        recon_loss_pep = self.reconstruction_loss(x_hat_pep, x_true_pep, 'pep', mask=mask_pep)
         reconstruction_loss = recon_loss_alpha + recon_loss_beta + recon_loss_pep
 
         # KLD weight regime control ; Handles both the joint and marginal KLDs
@@ -302,11 +328,11 @@ class TrimodalVAELoss(LossParent):
             self.weight_kld = max(
                 self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
                 self.base_weight_kld / 5)
-        kld_joint = self.weight_kld * (-0.5 * torch.mean(1 + logvar_joint - mu_joint.pow(2) - logvar_joint.exp()))
-        kld_alpha = self.weight_kld * (-0.5 * torch.mean(1 + logvars[0] - mus[0].pow(2) - logvars[0].expt()))
-        kld_beta = self.weight_kld * (-0.5 * torch.mean(1 + logvars[1] - mus[1].pow(2) - logvars[1].expt()))
-        kld_pep = self.weight_kld * (-0.5 * torch.mean(1 + logvars[2] - mus[2].pow(2) - logvars[2].expt()))
-        kld_total = kld_joint + kld_alpha + kld_beta + kld_pep
+        kld_joint = self.kullback_leibler_divergence(mu_joint, logvar_joint, mask=None)
+        kld_alpha = self.kullback_leibler_divergence(mus[0], logvars[0], mask=mask_alpha)
+        kld_beta = self.kullback_leibler_divergence(mus[1], logvars[1], mask=mask_beta)
+        kld_pep = self.kullback_leibler_divergence(mus[2], logvars[2], mask=mask_pep)
+        kld_marginal = kld_alpha + kld_beta + kld_pep
         if self.debug:
             print('seq_loss', reconstruction_loss)
             print('kld_weight', self.weight_kld)
@@ -316,16 +342,23 @@ class TrimodalVAELoss(LossParent):
         # Because of the tri-modality, technically we could have datapoints with missing peptide input (?)
         triplet_loss = self.weight_triplet * self.triplet_loss(mu_joint, triplet_labels, **kwargs)
         # Return them separately and sum later so that I can debug each component
-        return reconstruction_loss / self.norm_factor, kld_total / self.norm_factor, triplet_loss / self.norm_factor
+        return reconstruction_loss / self.norm_factor, kld_joint / self.norm_factor, kld_marginal / self.norm_factor, triplet_loss / self.norm_factor
 
-    def reconstruction_loss(self, x_hat, x_true, which):
+    def kullback_leibler_divergence(self, mu, logvar, mask=None):
+        kld = 1 + logvar - mu.pow(2) - logvar.exp()
+        if mask is not None:
+            kld = mask_modality(kld, mask)
+        return self.weight_kld * (-0.5 * torch.mean(kld))
+
+    def reconstruction_loss(self, x_hat, x_true, which, mask):
         x_hat_seq, positional_hat = self.slice_x(x_hat, which)
         x_true_seq, positional_true = self.slice_x(x_true, which)
         reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
+        reconstruction_loss = torch.mean(mask_modality(reconstruction_loss, mask))
         if self.add_positional_encoding:
-            positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true)
+            positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true, reduction='none')
+            positional_loss = torch.mean(mask_modality(positional_loss, mask))
             reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
-
         return reconstruction_loss
 
     def slice_x(self, x_flat, which: str):
@@ -381,12 +414,29 @@ def compute_cosine_distance(z_embedding: torch.Tensor, *args, **kwargs):
     return cosine_distance_matrix
 
 
+def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False, modality_mask=None):
+    # Here concat the list in case we are given a list of tensors (as done in the train/valid batching system)
+    x_reconstructed = torch.cat(x_reconstructed) if type(x_reconstructed) == list else x_reconstructed
+    x_true = torch.cat(x_true) if type(x_true) == list else x_true
+    seq_hat, positional_hat = model.reconstruct_hat(x_reconstructed)
+    seq_true, positional_true = model.reconstruct_hat(x_true)
+    seq_accuracy, positional_accuracy = reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
+                                                                pad_index=20, return_per_element=return_per_element,
+                                                                modality_mask=modality_mask)
+    metrics = {'seq_accuracy': seq_accuracy, 'pos_accuracy': positional_accuracy}
+    if positional_accuracy is None:
+        del metrics['pos_accuracy']
+
+    return metrics
+
+
 # NOTE : Fixed version with the true acc
 # TODO : add thing for positional encoding
 def reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
-                            pad_index=20, return_per_element=False):
+                            pad_index=20, return_per_element=False, modality_mask=None):
     """
     Args:
+        mask:
         seq_true: ordinal vector of true sequence (Here, the number is to map back to an amino acid with AA_KEYS, with 20 = X)
         seq_hat: Same but reconstructed
         positional_true: positional encoding (true), shape is either 2D or flattened vector
@@ -401,22 +451,28 @@ def reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
                        Same as above, except it can be None if positional_hat is None (i.e. disabled)
 
     """
+    # Use modality_mask to do something
+
     # Compute the mask and true lengths
     mask = (seq_true != pad_index).float()
     true_lens = mask.sum(dim=1)
-    # difference here for per element is that we don't take the mean(dim=0) and have to detach() from graph to do tolist()
+    # difference here for per element is that we don't take the mean(dim=0) and
+    # have to detach() from graph to do tolist() ; Here is still per element
     seq_accuracy = ((seq_true == seq_hat).float() * mask).sum(1) / true_lens
     # Assuming pos_accuracy are logits : sigmoid->threshold(0.5)->compare to true
     pos_accuracy = ((F.sigmoid(positional_hat) > 0.5).float() == positional_true).float().mean(
         dim=(1, 2)) if positional_hat is not None else None
+    # fill with nans to ignore those datapoints
+    seq_accuracy = mask_modality(seq_accuracy, modality_mask, torch.nan)
+    pos_accuracy = mask_modality(pos_accuracy, modality_mask, torch.nan)
     if return_per_element:
         # Here give a per element accuracy (so that we have individual metric for each datapoint in a df)
         seq_accuracy = seq_accuracy.detach().cpu().tolist()
         pos_accuracy = pos_accuracy.detach().cpu().tolist() if positional_hat is not None else None
     else:
         # Here gives the mean accuracy of the model for all the datapoints
-        seq_accuracy = seq_accuracy.mean(dim=0).item()
-        pos_accuracy = pos_accuracy.mean(dim=0).item() if positional_hat is not None else None
+        seq_accuracy = seq_accuracy.nanmean(dim=0).item()
+        pos_accuracy = pos_accuracy.nanmean(dim=0).item() if positional_hat is not None else None
 
     return seq_accuracy, pos_accuracy
 

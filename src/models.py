@@ -207,6 +207,9 @@ class FullTCRVAE(NetParent):
             self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
         else:
             self.pad_scale = pad_scale
+
+        # TODO : Maybe should use -1 instead of -20 for pad values since that's the value for X in BL50LO ?
+        # Create the encoding matrix to recover / rebuild sequences
         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
         MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
         self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
@@ -599,7 +602,18 @@ class SequenceVAE(NetParent):
 
 
 class TrimodalPepTCRVAE(NetParent):
-    def __int__(self, alpha_dim, beta_dim, pep_dim,
+    """
+        In this current implementation, we consider the cases where the input can be paired and unpaired.
+        Peptide is always present, then the sequence input can either be : Alpha, Beta, Alpha+Beta, but
+        the paired case is still handled with the same two networks as the uni-modal cases, i.e. there is
+        not a separate VAE that handles a concatenated Alpha+Beta chain.
+        [See figure 1] To replicate SVAE from Svetlana's paper, would need to have 4 encoders
+        (alpha_joint, alpha_marg, beta_joint, beta_marg),
+        and 2 decoders
+        (alpha, beta)
+    """
+    # Sum of the max len of each chains
+    def __int__(self, alpha_dim=7+8+22, beta_dim=6+7+23, pep_dim=12,
                 encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
                 activation=nn.SELU(),
                 hidden_dim_alpha=64, hidden_dim_beta=64, hidden_dim_pep=32,
@@ -613,28 +627,24 @@ class TrimodalPepTCRVAE(NetParent):
                                    activation, hidden_dim_pep, latent_dim)
 
     # Here, either separate tensors and handle the split in train_eval
-    # or a single tensor and handle the split here
-    def forward(self, x_alpha, x_beta, x_pep, mask_alpha, mask_beta, mask_pep):
+    # or a single tensor and handle the split here ; Or maybe the mask should be used in metrics / loss
+    def forward(self, x_alpha, x_beta, x_pep):
         # Get each latent
         mu_alpha, logvar_alpha = self.vae_alpha.encode(x_alpha)
-        mu_beta, logvar_beta = self.vae_alpha.encode(x_beta)
-        mu_pep, logvar_pep = self.vae_alpha.encode(x_pep)
-
-        # Get the joint distribution from a product of experts to join the modalities
-        mu_joint, logvar_joint = self.product_of_experts([mu_alpha, mu_beta, mu_pep],
-                                                         [logvar_alpha, logvar_beta, logvar_pep])
-
-        # Use the masks to disable gradients for missing modalities
-        mu_alpha, logvar_alpha = self.mask_modality(mu_alpha, logvar_alpha, mask_alpha)
-        mu_beta, logvar_beta = self.mask_modality(mu_beta, logvar_beta, mask_beta)
-        mu_pep, logvar_pep = self.mask_modality(mu_pep, logvar_pep, mask_pep)
-        # Return the marginal distributions after the modality masking
+        mu_beta, logvar_beta = self.vae_beta.encode(x_beta)
+        mu_pep, logvar_pep = self.vae_pep.encode(x_pep)
+        # Return the marginal distributions
         mus = [mu_alpha, mu_beta, mu_pep]
         logvars = [logvar_alpha, logvar_beta, logvar_pep]
+        # Get the joint distribution from a product of experts to join the modalities
+        mu_joint, logvar_joint = self.product_of_experts(mus,
+                                                         logvars)
+
         # Decode from the joint latent to capture information shared by the modalities
         z = self.reparameterise(mu_joint, logvar_joint)
         # The decoding part should also handle the missing modalities somehow, i.e. disable gradients?
         # Otherwise, it will be very easy overfit by having the decoder return only "XXXXXXX" ?
+        # Also need to adapt the XXXXX thing for the accuracy computation ?
         recon_alpha = self.vae_alpha.decode(z)
         recon_beta = self.vae_beta.decode(z)
         recon_pep = self.vae_pep.decode(z)
@@ -659,9 +669,11 @@ class TrimodalPepTCRVAE(NetParent):
         else:
             return mu
 
-    @staticmethod
-    def mask_modality(mu, logvar, mask):
-        return torch.where(mask, mu, torch.zeros_like(mu)), torch.where(mask, logvar, torch.zeros_like(logvar))
+    def reconstruct_sequence(self, x_hat, which):
+        m = {'alpha':self.vae_alpha, 'beta':self.vae_beta, 'pep':self.vae_pep}[which]
+        sequence, positional_encoding = m.slice_x(x_hat)
+        return m.recover_sequences_blosum(sequence)
+
 
     # TODO : change this to either have 3 reconstruct or use "which" to reconstruct either 3 seq
     def reconstruct_alpha(self, z):

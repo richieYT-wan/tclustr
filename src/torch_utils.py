@@ -8,6 +8,34 @@ ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
 
 
+def mask_modality(tensor, mask, fill_value: float = 0.):
+    """
+    Check that the shapes match, and broadcast if needed in a very crude manner
+    Used for example to mask inputs or loss for datapoints with missing modalities
+    Assumes (and asserts) that mask has a dimensions <= tensor's dim
+    Args:
+        tensor: tensor to mask
+        mask: Binary mask, should be binary and at least have the same number of elements as tensor (shape[0])
+        fill_value (float): value with which to fill the masked version of the tensor. Use 0 when disabling gradients
+                            Could be another value to make it easier to mask a reconstructed sequence tensor.
+                            For example (ex set to -99) then use tensor[tensor!=-99] to index
+    Returns:
+        masked_tensor: same tensor but with some elements set to zero
+    """
+    assert len(mask.shape) <= len(tensor.shape) and mask.shape[0] == tensor.shape[
+        0], f'Check mask/tensor dimensions! Mask: {mask.shape} ; Tensor : {tensor.shape}'
+    if mask.shape != tensor.shape:
+        while len(mask.shape) < len(tensor.shape):
+            mask = mask.unsqueeze(1)
+
+    return torch.where(mask.bool(), tensor, torch.full_like(tensor, fill_value))
+
+
+def filter_modality(tensor, mask, fill_value=-99):
+    masked_tensor = mask_modality(tensor, mask, fill_value)
+    return masked_tensor[(masked_tensor != fill_value)[:, 0]]
+
+
 def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True):
     """
     Instantiate and loads a model directly from a checkpoint and json filename

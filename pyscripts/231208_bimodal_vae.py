@@ -17,7 +17,7 @@ from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_st
     get_dict_of_lists, get_class_initcode_keys
 from src.torch_utils import load_checkpoint, save_model_full, load_model_full
 from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
-from src.train_eval import bimodal_train_eval_loops, predict_bimodal, train_bimodal_step, eval_bimodal_step
+from src.train_eval import twostage_train_eval_loops, predict_twostage, train_twostage_step, eval_twostage_step
 from src.datasets import BimodalTCRpMHCDataset
 from src.metrics import TwoStageVAELoss
 from sklearn.metrics import roc_auc_score, precision_score
@@ -241,10 +241,9 @@ def main():
         wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_metrics = bimodal_train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                           criterion, optimizer, train_loader,
-                                                                           valid_loader,
-                                                                           checkpoint_filename, outdir)
+    best_epoch, best_val_loss, best_val_metrics = twostage_train_eval_loops(args['n_epochs'], args['tolerance'], model,
+                                                                            criterion, optimizer, train_loader,
+                                                                            valid_loader, checkpoint_filename, outdir)
 
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
@@ -284,7 +283,7 @@ def main():
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
                             dir_path=outdir)
-    valid_preds = predict_bimodal(model, valid_dataset, valid_loader)
+    valid_preds = predict_twostage(model, valid_dataset, valid_loader)
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
@@ -299,7 +298,7 @@ def main():
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 
-        test_preds = predict_bimodal(model, test_dataset, test_loader)
+        test_preds = predict_twostage(model, test_dataset, test_loader)
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()

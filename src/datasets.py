@@ -84,11 +84,10 @@ class FullTCRDataset(VAEDataset):
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
                  pep_weight_scale=3.8):
         super(FullTCRDataset, self).__init__()
-
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
             'All loops max_len are 0! No chains will be added'
-
+        self.pad_scale = pad_scale if pad_scale is not None else -20
         self.max_len_a1 = max_len_a1
         self.max_len_a2 = max_len_a2
         self.max_len_a3 = max_len_a3
@@ -212,8 +211,8 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
         # TODO: fix this
         #   Quick & Dirty fix for triplet loss : Use PepWeights as binary mask to remove some losses
         #   Set pepweights as where original_pep == pep, in TwoStageVAELoss, use weights only for triplet
-        self.pep_weights = torch.from_numpy(self.df.apply(lambda x: x['original_peptide']==x['peptide'], axis=1).values).float().unsqueeze(1)
-        print('xd')
+        self.pep_weights = torch.from_numpy(
+            self.df.apply(lambda x: x['original_peptide'] == x['peptide'], axis=1).values).float().unsqueeze(1)
         # Summary for Bimodal:
         # self.labels is overriden and uses original_peptide, for triplet loss
         # self.encoded_peps (used for the CLF) uses the pep_col, which is `peptide` by default (i.e. includes swapped neg)
@@ -293,9 +292,110 @@ class TrimodalPepTCRDataset(VAEDataset):
     Otherwise, could artificially increase data by removing randomly peptide labels
     """
 
-    def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
-                 add_positional_encoding=False, encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO',
+    def __init__(self, df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
+                 max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
+                 encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO',
                  pep_pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
-                 pep_col='peptide', label_col='binder', pep_weighted=False):
+                 pep_col='peptide', label_col='binder', pep_weighted=False, cat_method='pad_first'):
         super(TrimodalPepTCRDataset, self).__init__()
-        pass
+        assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
+                                         max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
+            'All loops max_len are 0! No chains will be added'
+        assert cat_method in ['cat_first', 'pad_first'], "cat_method should be 'cat_first' or 'pad_first'"
+
+        self.max_len_a1 = max_len_a1
+        self.max_len_a2 = max_len_a2
+        self.max_len_a3 = max_len_a3
+        self.max_len_b1 = max_len_b1
+        self.max_len_b2 = max_len_b2
+        self.max_len_b3 = max_len_b3
+        self.max_len_pep = max_len_pep
+        self.matrix_dim = 20
+        self.aa_dim = 20
+        # For now, disable positional encoding to make my life easier seeing how we have 3 separate encoders
+        # and thus shouldn't need to explicitely tell a model which chain is what
+        # self.add_positional_encoding = add_positional_encoding
+        mldict = {k: v for k, v in
+                  zip([a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col],
+                      [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])}
+        acols = [x for x in mldict if x.startswith('A') and mldict[x] > 0]
+        bcols = [x for x in mldict if x.startswith('B') and mldict[x] > 0]
+        # Cat first or pad first?
+        if cat_method == 'pad_first':
+            # This max length dict with colname:max_len is used to iterate
+            # but also to set the padding vector in pos encoding
+
+            # Filter DF based on seq max lengths
+            for seq_col, max_len, in mldict.items():
+                if max_len > 0:
+                    df['len_q'] = df[seq_col].apply(len)
+                    df = df.query('len_q <= @max_len')
+            self.df = df.drop(columns=['len_q']).reset_index(drop=True)
+            # Transform this to dictionary instead
+            x_seq = {}
+
+            # Building the sequence tensor and (if applicable) positional tensor as 2D tensor
+            # Then at the very end, stack, cat, flatten as needed
+            for seq_col, max_len in mldict.items():
+                if max_len > 0:
+                    seq_tensor = encode_batch(df[seq_col].values, max_len, encoding, pad_scale)
+                    x_seq[seq_col] = seq_tensor
+
+            # Concatenate all the tensors in the list `x_seq` into one tensor `x_seq`
+            # Need to concatenate each sub-sequences (A, B, pep) together
+            x_alpha = torch.cat([x_seq[k] for k in acols])
+            x_beta = torch.cat([x_seq[k] for k in bcols])
+            x_pep = x_seq[pep_col]
+        # do not use this for now (cat_first) !
+        elif cat_method == 'cat_first':
+            df['alpha_sequence'] = df[acols].sum(axis=1)
+            df['beta_sequence'] = df[bcols].sum(axis=1)
+            x_alpha = encode_batch(df['alpha_sequence'], sum([v for k, v in mldict if k in acols]),
+                                   encoding, pad_scale)
+            x_beta = encode_batch(df['beta_sequence'], sum([v for k, v in mldict if k in bcols]),
+                                  encoding, pad_scale)
+            x_pep = encode_batch(df[pep_col], max_len_pep,
+                                 encoding, pad_scale)
+        else:
+            raise ValueError('No proper cat method provided or all seqs empty')
+
+        self.x_alpha = x_alpha.flatten(start_dim=1)
+        self.x_beta = x_beta.flatten(start_dim=1)
+        self.x_pep = x_pep.flatten(start_dim=1)
+        # Create flags to filter modalities ; Don't use "input_type" from Mathias' dataset to make it more flexible
+
+        self.mask_alpha = torch.from_numpy(df[acols].sum(axis=1).apply(lambda x: not all([z == "X" for z in x])).values)
+        self.mask_beta = torch.from_numpy(df[bcols].sum(axis=1).apply(lambda x: not all([z == "X" for z in x])).values)
+        self.mask_pep = torch.from_numpy(df[pep_col].apply(lambda x: not all([z == "X" for z in x])).values)
+        self.df = df
+        self.len = len(df)
+
+        self.pep_weighted = pep_weighted
+        self.labels = torch.from_numpy(self.df[pep_col].map(PEP_MAP).values)
+        self.binder = torch.from_numpy(self.df[label_col].values).unsqueeze(1).float()
+        # TODO: fix this
+        #   Quick & Dirty fix for triplet loss : Use PepWeights as binary mask to remove some losses
+        #   Set pepweights as where original_pep == pep, in TwoStageVAELoss, use weights only for triplet
+        #   So that we don't learn triplet loss for swapped negatives
+        self.pep_weights = torch.from_numpy(
+            self.df.apply(lambda x: x['original_peptide'] == x['peptide'], axis=1).values).float().unsqueeze(1)
+
+    @override
+    def __getitem__(self, idx):
+        """
+        Args:
+            idx:
+
+        Returns:
+            tensors and masks
+        """
+        # TODO: Currently, the return order for pep_weighted is not unified across the various classes / types
+        #       Sometimes, it's returned last (in TwoStage and Trimodal), sometimes second to last (Triplet / normal)
+        if self.pep_weighted:
+            return self.x_alpha[idx], self.x_beta[idx], self.x_pep[idx], \
+                   self.mask_alpha[idx], self.mask_beta[idx], self.mask_pep[idx], \
+                   self.labels[idx], self.pep_weights[idx]
+        else:
+            return self.x_alpha[idx], self.x_beta[idx], self.x_pep[idx], \
+                   self.mask_alpha[idx], self.mask_beta[idx], self.mask_pep[idx], \
+                   self.labels[idx]
