@@ -908,7 +908,7 @@ def predict_trimodal(model, dataset, dataloader):
     alpha_true = mask_modality(torch.cat(alpha_true), masks_alpha, fill_value=dataset.pad_scale)
     metrics = model_reconstruction_stats(model.vae_alpha, alpha_reconstructed, alpha_true,
                                          return_per_element=True,
-                                         modality_mask=masks_alpha).items()
+                                         modality_mask=masks_alpha)
     alpha_reconstructed, alpha_true = model.reconstruct_sequence(alpha_reconstructed, 'alpha'), model.reconstruct_sequence(alpha_true, 'alpha')
     df['alpha_acc'] = metrics['seq_accuracy']
     df['alpha_recon'] = alpha_reconstructed
@@ -918,7 +918,7 @@ def predict_trimodal(model, dataset, dataloader):
     beta_true = mask_modality(torch.cat(beta_true), masks_beta, fill_value=dataset.pad_scale)
     metrics = model_reconstruction_stats(model.vae_beta, beta_reconstructed, beta_true,
                                                                           return_per_element=True,
-                                                                          modality_mask=masks_beta).items()
+                                                                          modality_mask=masks_beta)
     beta_reconstructed, beta_true = model.reconstruct_sequence(beta_reconstructed, 'beta'), model.reconstruct_sequence(beta_true, 'beta')
     df['beta_acc'] = metrics['seq_accuracy']
     df['beta_recon'] = beta_reconstructed
@@ -928,8 +928,8 @@ def predict_trimodal(model, dataset, dataloader):
     pep_true = mask_modality(torch.cat(pep_true), masks_pep, fill_value=dataset.pad_scale)
     metrics = model_reconstruction_stats(model.vae_pep, pep_reconstructed, pep_true,
                                                                          return_per_element=True,
-                                                                         modality_mask=masks_pep).items()
-    pep_reconstructed, pep_true = model.reconstruct_sequence(pep_reconstructed, 'pep'), model.reconstruct_sequence( pep_true, 'pep')
+                                                                         modality_mask=masks_pep)
+    pep_reconstructed, pep_true = model.reconstruct_sequence(pep_reconstructed, 'pep'), model.reconstruct_sequence(pep_true, 'pep')
     df['pep_acc'] = metrics['seq_accuracy']
     df['pep_recon'] = pep_reconstructed
     df['pep_true'] = pep_true

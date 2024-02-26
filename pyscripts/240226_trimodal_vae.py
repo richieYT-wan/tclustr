@@ -163,6 +163,8 @@ def main():
     # TODO: Restore valid kcv behaviour // or not
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
+    if args['debug']:
+        df = df.sample(frac=0.03)
     train_df = df.query('partition!=@args["fold"]')
     valid_df = df.query('partition==@args["fold"]')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
@@ -182,16 +184,16 @@ def main():
     mkdirs(outdir)
 
     # Def params so it's tidy
-
+    args['alpha_dim'] = sum([args[k] for k in ['max_len_a1', 'max_len_a2', 'max_len_a3']])
+    args['beta_dim'] = sum([args[k] for k in ['max_len_b1', 'max_len_b2', 'max_len_b3']])
+    args['pep_dim'] = args['max_len_pep']
     # Maybe this is better? Defining the various keys using the constructor's init arguments
     model_keys = get_class_initcode_keys(TrimodalPepTCRVAE, args)
     dataset_keys = get_class_initcode_keys(TrimodalPepTCRDataset, args)
     loss_keys = get_class_initcode_keys(TrimodalVAELoss, args)
     model_params = {k: args[k] for k in model_keys}
     # Manually update some model_params:
-    model_params['alpha_dim'] = sum([args[k] for k in ['max_len_a1', 'max_len_a2', 'max_len_a3']])
-    model_params['beta_dim'] = sum([args[k] for k in ['max_len_b1', 'max_len_b2', 'max_len_b3']])
-    model_params['pep_dim'] = args['max_len_pep']
+
     hidden_dim = args['hidden_dim']
     model_params['hidden_dim_alpha'] = hidden_dim
     model_params['hidden_dim_beta'] = hidden_dim
@@ -275,7 +277,7 @@ def main():
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
-    valid_seq_acc = valid_preds['seq_acc'].mean()
+    valid_seq_acc = (3 * valid_preds['alpha_acc'].mean() + 3 * valid_preds['beta_acc'].mean() + valid_preds['pep_acc'].mean()) / 7
 
     print(f'Final valid reconstruction accuracy: \t{valid_seq_acc:.3%}')
 

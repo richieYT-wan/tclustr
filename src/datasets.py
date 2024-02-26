@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from src.data_processing import encode_batch, batch_encode_cat, batch_positional_encode, V_MAP, J_MAP, PEP_MAP, \
-    encoding_matrix_dict
+    encoding_matrix_dict, PEP_MAP2
 from overrides import override
 
 
@@ -13,12 +13,13 @@ class VAEDataset(Dataset):
     Parent class so I don't have to re-declare the same bound methods
     """
 
-    def __init__(self, x=torch.empty([10, 1])):
+    def __init__(self, df, x=torch.empty([10, 1])):
         super(VAEDataset, self).__init__()
+        self.df = df
         self.x = x
 
     def __len__(self):
-        return len(self.x)
+        return len(self.df)
 
     def __getitem__(self, idx):
         return self.x[idx]
@@ -83,7 +84,7 @@ class FullTCRDataset(VAEDataset):
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
                  pep_weight_scale=3.8):
-        super(FullTCRDataset, self).__init__()
+        super(FullTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
             'All loops max_len are 0! No chains will be added'
@@ -297,12 +298,12 @@ class TrimodalPepTCRDataset(VAEDataset):
                  encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO',
                  pep_pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
                  pep_col='peptide', label_col='binder', pep_weighted=False, cat_method='pad_first'):
-        super(TrimodalPepTCRDataset, self).__init__()
+        super(TrimodalPepTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
             'All loops max_len are 0! No chains will be added'
         assert cat_method in ['cat_first', 'pad_first'], "cat_method should be 'cat_first' or 'pad_first'"
-
+        self.pad_scale = pad_scale
         self.max_len_a1 = max_len_a1
         self.max_len_a2 = max_len_a2
         self.max_len_a3 = max_len_a3
@@ -343,8 +344,8 @@ class TrimodalPepTCRDataset(VAEDataset):
 
             # Concatenate all the tensors in the list `x_seq` into one tensor `x_seq`
             # Need to concatenate each sub-sequences (A, B, pep) together
-            x_alpha = torch.cat([x_seq[k] for k in acols])
-            x_beta = torch.cat([x_seq[k] for k in bcols])
+            x_alpha = torch.cat([x_seq[k] for k in acols], dim=1)
+            x_beta = torch.cat([x_seq[k] for k in bcols], dim=1)
             x_pep = x_seq[pep_col]
         # do not use this for now (cat_first) !
         elif cat_method == 'cat_first':
@@ -371,7 +372,7 @@ class TrimodalPepTCRDataset(VAEDataset):
         self.len = len(df)
 
         self.pep_weighted = pep_weighted
-        self.labels = torch.from_numpy(self.df[pep_col].map(PEP_MAP).values)
+        self.labels = torch.from_numpy(self.df[pep_col].map(PEP_MAP2).values)
         self.binder = torch.from_numpy(self.df[label_col].values).unsqueeze(1).float()
         # TODO: fix this
         #   Quick & Dirty fix for triplet loss : Use PepWeights as binary mask to remove some losses

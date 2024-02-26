@@ -648,7 +648,12 @@ class TrimodalPepTCRVAE(NetParent):
         recon_alpha = self.vae_alpha.decode(z)
         recon_beta = self.vae_beta.decode(z)
         recon_pep = self.vae_pep.decode(z)
-
+        if any([x.isnan().any() for x in [mu_alpha, mu_beta, mu_pep]]):
+            print(x_alpha, mu_alpha)
+            print(x_beta, mu_beta)
+            print(x_pep, mu_pep)
+            import sys
+            sys.exit(1)
         # return the reconstructed, joint distribution and marginal distributions with masked modalities
         return recon_alpha, recon_beta, recon_pep, mu_joint, logvar_joint, mus, logvars
 

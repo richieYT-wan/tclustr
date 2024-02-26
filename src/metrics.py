@@ -312,11 +312,11 @@ class TrimodalVAELoss(LossParent):
         Returns:
 
         """
-        # Reconstruction losses:
-        recon_loss_alpha = self.reconstruction_loss(x_hat_alpha, x_true_alpha, 'alpha', mask=mask_alpha)
-        recon_loss_beta = self.reconstruction_loss(x_hat_beta, x_true_beta, 'beta', mask=mask_beta)
+        # Reconstruction losses ; Put more weight on alpha and beta because longer seq
+        recon_loss_alpha = 3 * self.reconstruction_loss(x_hat_alpha, x_true_alpha, 'alpha', mask=mask_alpha)
+        recon_loss_beta = 3 * self.reconstruction_loss(x_hat_beta, x_true_beta, 'beta', mask=mask_beta)
         recon_loss_pep = self.reconstruction_loss(x_hat_pep, x_true_pep, 'pep', mask=mask_pep)
-        reconstruction_loss = recon_loss_alpha + recon_loss_beta + recon_loss_pep
+        reconstruction_loss = (recon_loss_alpha + recon_loss_beta + recon_loss_pep) / 7
 
         # KLD weight regime control ; Handles both the joint and marginal KLDs
         if self.counter < self.kld_warm_up:
@@ -334,9 +334,10 @@ class TrimodalVAELoss(LossParent):
         kld_pep = self.kullback_leibler_divergence(mus[2], logvars[2], mask=mask_pep)
         kld_marginal = kld_alpha + kld_beta + kld_pep
         if self.debug:
+            print('counter', self.counter)
             print('seq_loss', reconstruction_loss)
             print('kld_weight', self.weight_kld)
-            print('kld_loss', kld_joint.round(4), kld_alpha.round(4), kld_beta.round(4), kld_pep.round(4), '\n')
+            print('kld_loss', kld_joint.round(decimals=4), kld_alpha.round(decimals=4), kld_beta.round(decimals=4), kld_pep.round(decimals=4), '\n')
 
         # This here should probably be changed : Triplet labels wouldn't exist for all of mu_joint
         # Because of the tri-modality, technically we could have datapoints with missing peptide input (?)
@@ -354,10 +355,10 @@ class TrimodalVAELoss(LossParent):
         x_hat_seq, positional_hat = self.slice_x(x_hat, which)
         x_true_seq, positional_true = self.slice_x(x_true, which)
         reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
-        reconstruction_loss = torch.mean(mask_modality(reconstruction_loss, mask))
+        reconstruction_loss = torch.nanmean(mask_modality(reconstruction_loss, mask, np.nan))
         if self.add_positional_encoding:
             positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true, reduction='none')
-            positional_loss = torch.mean(mask_modality(positional_loss, mask))
+            positional_loss = torch.mean(mask_modality(positional_loss, mask, np.nan))
             reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
         return reconstruction_loss
 
@@ -464,7 +465,7 @@ def reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
         dim=(1, 2)) if positional_hat is not None else None
     # fill with nans to ignore those datapoints
     seq_accuracy = mask_modality(seq_accuracy, modality_mask, torch.nan)
-    pos_accuracy = mask_modality(pos_accuracy, modality_mask, torch.nan)
+    pos_accuracy = mask_modality(pos_accuracy, modality_mask, torch.nan) if positional_hat is not None else None
     if return_per_element:
         # Here give a per element accuracy (so that we have individual metric for each datapoint in a df)
         seq_accuracy = seq_accuracy.detach().cpu().tolist()
