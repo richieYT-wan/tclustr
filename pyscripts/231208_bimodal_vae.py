@@ -179,6 +179,8 @@ def main():
     # Loading data and getting train/valid
     # TODO: Restore valid kcv behaviour // or not
     df = pd.read_csv(args['file'])
+    if args['debug']:
+        df = df.sample(frac=0.25)
     dfname = args['file'].split('/')[-1].split('.')[0]
     train_df = df.query('partition!=@args["fold"]')
     valid_df = df.query('partition==@args["fold"]')

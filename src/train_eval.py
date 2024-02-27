@@ -255,7 +255,7 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     # To normalize the mean accuracy thing depending on the amount of different metrics we are using
     # Only consider the sequence reconstruction, but report the positional enc reconstruction in the prints and saves
     # Because positional encoding reconstruction _should_ be trivial
-
+    intervals = (np.arange(0.2,1,0.2) * n_epochs).astype(int)
     best_dict = {}
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_model_step(model, criterion, optimizer, train_loader)
@@ -288,6 +288,14 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+
+        # Adding a new thing where we log the model every 10% of the epochs, could make it easier to re-train to a certain point ??
+        if e in intervals:
+            fn = f'epoch_{e}_interval_' + checkpoint_filename
+            savedict = {'epoch':e}
+            savedict.update(valid_loss)
+            savedict.update(valid_metric)
+            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
     last_filename = 'last_epoch_' + checkpoint_filename
     save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
@@ -504,12 +512,6 @@ def train_twostage_step(model, criterion, optimizer, train_loader):
         y_score.append(x_out.detach().cpu())
         y_true.append(binder.detach().cpu())
 
-    # TODO: Should be in train_eval_loops actually!
-    # Increment clf and criterion counter if warm_up_clf after a full epoch (all batches)
-    # if hasattr(model, 'warm_up_clf') and hasattr(criterion, 'warm_up_clf'):
-    #     if model.warm_up_clf > 0 and criterion.warm_up_clf > 0:
-    #         model.increment_counter()
-    #         criterion.increment_counter()
     y_score, y_true = [x for x in y_score if x is not None], [x for x in y_true if x is not None]
     # Normalize loss per batch
     acum_total_loss /= len(train_loader.dataset)
@@ -660,7 +662,7 @@ def twostage_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     best_val_loss, best_val_reconstruction, best_epoch, best_val_auc, best_agg_metric = 1000, 0., 1, 0.5, 0.5
     # "best_val_losses" is a dictionary of all the various split losses
     best_val_losses, best_val_metrics, best_dict = {}, {}, {}
-
+    intervals = (np.arange(0.2, 1, 0.2) * n_epochs).astype(int)
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_twostage_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_twostage_step(model, criterion, valid_loader)
@@ -690,6 +692,14 @@ def twostage_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+
+        # Adding a new thing where we log the model every 10% of the epochs, could make it easier to re-train to a certain point ??
+        if e in intervals:
+            fn = f'epoch_{e}_interval_' + checkpoint_filename
+            savedict = {'epoch': e}
+            savedict.update(valid_loss)
+            savedict.update(valid_metric)
+            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
     last_filename = 'last_epoch_' + checkpoint_filename
     save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
