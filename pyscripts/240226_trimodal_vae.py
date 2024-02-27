@@ -164,7 +164,7 @@ def main():
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
     if args['debug']:
-        df = df.sample(frac=0.1)
+        df = df.sample(frac=0.15)
     train_df = df.query('partition!=@args["fold"]')
     valid_df = df.query('partition==@args["fold"]')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs

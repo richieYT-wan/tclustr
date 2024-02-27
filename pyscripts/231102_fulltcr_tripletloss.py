@@ -80,6 +80,8 @@ def args_parser():
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
     parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=False,
                         help='Adding positional encoding to the sequence vector. False by default')
+    parser.add_argument('-posweight', '--positional_weighting', dest='positional_weighting', type=str2bool, default=False,
+                        help='Whether to use positional weighting in reconstruction loss to prioritize CDR3 chains.')
     """
     Models args 
     """

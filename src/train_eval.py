@@ -198,7 +198,7 @@ def predict_model(model, dataset,
 
     x_reconstructed = torch.cat(x_reconstructed)
     x_true = torch.cat(x_true)
-    metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=True)
+    metrics = model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=True, modality_mask=None)
 
     # In theory we don't care about the positional encoding reconstruction, I assume it's very good
     x_seq_recon, _ = model.slice_x(x_reconstructed)
@@ -738,7 +738,7 @@ def train_trimodal_step(model, criterion, optimizer, train_loader):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print('HERE', model.vae_beta.encoder[0].weight)
+        # print('HERE', model.vae_beta.encoder[0].weight)
         if any([model.vae_beta.encoder[0].weight.isnan().any(),
                 model.vae_alpha.encoder[0].weight.isnan().any(),
                 model.vae_pep.encoder[0].weight.isnan().any()]):

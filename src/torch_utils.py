@@ -33,7 +33,10 @@ def mask_modality(tensor, mask, fill_value: float = 0.):
 
 def filter_modality(tensor, mask, fill_value=-99):
     masked_tensor = mask_modality(tensor, mask, fill_value)
-    return masked_tensor[(masked_tensor != fill_value)[:, 0]]
+    new_mask = (masked_tensor != fill_value).bool()
+    while len(new_mask.shape) > 1:
+        new_mask = new_mask[:, 0]
+    return masked_tensor[new_mask]
 
 
 def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True):
