@@ -14,7 +14,7 @@ from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
-from src.torch_utils import load_checkpoint, save_model_full, load_model_full
+from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device
 from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
 from src.train_eval import twostage_train_eval_loops, predict_twostage, train_twostage_step, eval_twostage_step
 from src.datasets import BimodalTCRpMHCDataset
@@ -167,8 +167,8 @@ def main():
 
     # Redundant usage because clf and vae use a diff variable name (was useful before should probly be phased out now)
     args['n_latent'] = args['latent_dim']
-    if cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
+    if torch.cuda.is_available() and args['cuda']:
+        device = get_available_device()
     else:
         device = torch.device('cpu')
     print("Using : {}".format(device))

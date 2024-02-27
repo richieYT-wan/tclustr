@@ -8,6 +8,30 @@ ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
 
 
+def get_available_device():
+    # Check the number of available GPUs
+    num_gpus = torch.cuda.device_count()
+
+    if num_gpus == 0:
+        print("No GPUs available. Using CPU.")
+        return 'cpu'
+
+    print(f"Number of available GPUs: {num_gpus}")
+
+    # Check if GPUs are currently in use
+    in_use = [torch.cuda.memory_allocated(i) > 0 for i in range(num_gpus)]
+
+    # Select the first available GPU that is not in use
+    for i in range(num_gpus):
+        if not in_use[i]:
+            print(f"Using GPU {i}")
+            return f'cuda:{i}'
+
+    # If all GPUs are in use, fall back to CPU
+    print("All GPUs are in use. Using CPU.")
+    return 'cpu'
+
+
 def mask_modality(tensor, mask, fill_value: float = 0.):
     """
     Check that the shapes match, and broadcast if needed in a very crude manner

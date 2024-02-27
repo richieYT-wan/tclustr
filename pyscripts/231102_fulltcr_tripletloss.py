@@ -9,13 +9,12 @@ import wandb
 import math
 import torch
 from torch import optim
-from torch import cuda
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists
-from src.torch_utils import load_checkpoint, save_model_full
+from src.torch_utils import load_checkpoint, save_model_full, get_available_device
 from src.models import FullTCRVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import TCRSpecificDataset
@@ -149,7 +148,7 @@ def main():
     args = vars(args_parser())
     seed = args['seed'] if args['fold'] is None else args['fold']
     if torch.cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
+        device = get_available_device()
     else:
         device = torch.device('cpu')
     print("Using : {}".format(device))
