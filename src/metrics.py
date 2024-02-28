@@ -54,11 +54,12 @@ class VAELoss(LossParent):
         self.positional_weighting = positional_weighting
         if positional_weighting:
             # take 2d weights (sum_lens, 1), and broadcast using torch.mul so it takes less memory
-            alpha_weights = torch.cat([torch.full([max_len_a1 + max_len_a2, 1], 0.5),
-                                       torch.full([max_len_a3, 1], 1.5)], dim=0)
-            beta_weights = torch.cat([torch.full([max_len_b1 + max_len_b2, 1], 0.5),
-                                      torch.full([max_len_b3, 1], 1.5)], dim=0)
-            pep_weights = torch.full([max_len_pep, 1], 0.5)
+            # Set weights for CDR3 to 3x while cdr1,2,pep weights are at 1
+            alpha_weights = torch.cat([torch.full([max_len_a1 + max_len_a2, 1], 1),
+                                       torch.full([max_len_a3, 1], 3)], dim=0)
+            beta_weights = torch.cat([torch.full([max_len_b1 + max_len_b2, 1], 1),
+                                      torch.full([max_len_b3, 1], 3)], dim=0)
+            pep_weights = torch.full([max_len_pep, 1], 1)
             self.positional_weights = torch.cat([alpha_weights, beta_weights, pep_weights], dim=0)
             assert self.positional_weights.shape == (max_len, 1), 'wrong shape for pos weights'
 
