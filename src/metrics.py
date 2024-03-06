@@ -64,7 +64,7 @@ class VAELoss(LossParent):
             beta_weights = torch.cat([torch.full([max_len_b1 + max_len_b2, 1], 1),
                                       torch.full([max_len_b3, 1], 3)], dim=0)
             pep_weights = torch.full([max_len_pep, 1], 1)
-            self.positional_weights = torch.cat([alpha_weights, beta_weights, pep_weights], dim=0)
+            self.positional_weights = torch.cat([alpha_weights, beta_weights, pep_weights], dim=0).to(self.device)
             assert self.positional_weights.shape == (max_len, 1), 'wrong shape for pos weights'
 
         self.max_len = max_len
@@ -80,6 +80,13 @@ class VAELoss(LossParent):
         self.debug = debug
         self.kld_warm_up = warm_up
         print(f'Weights: seq, kld_base: ', self.weight_seq, self.base_weight_kld)
+
+
+    def to(self, device):
+        super(VAELoss, self).to(device)
+        self.device=device
+        if self.positional_weighting:
+            self.positional_weights = self.positional_weights.to(device)
 
     def reconstruction_loss(self, x_hat, x):
         x_hat_seq, positional_hat = self.slice_x(x_hat)
@@ -156,30 +163,6 @@ class VAELoss(LossParent):
         Returns:
 
         """
-        # x_hat_seq, positional_hat = self.slice_x(x_hat)
-        # x_true_seq, positional_true = self.slice_x(x)
-        # reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
-        #
-        # if self.add_positional_encoding:
-        #     # TODO Should maybe add a weight here to minimize this part because it's easy
-        #     #      For now, try to use weight = 1/100 weight_seq ?
-        #     # Here use 1e-4
-        #     positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true)
-        #     reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
-        #
-        # # KLD weight regime control
-        # if self.counter < self.kld_warm_up:
-        #     # While in the warm-up phase, weight_kld is 0
-        #     self.weight_kld = 0
-        # else:
-        #     # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
-        #     # until it reaches a minimum of the base weight / 5
-        #     self.weight_kld = max(
-        #         self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
-        #         self.base_weight_kld / 5)
-        #
-        # kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
-
         # Refactoring : Use the newly made self methods in forward
         reconstruction_loss = self.reconstruction_loss(x_hat, x)
         kld = self.kullback_leibler_divergence(mu, logvar)
