@@ -19,6 +19,7 @@ class LossParent(nn.Module):
         super(LossParent, self).__init__()
         self.counter = 0
         self.debug = debug
+        self.device = 'cpu'
 
     def increment_counter(self):
         "one level of children modules ; If we get too many might need to have a recursive method somewhere"
@@ -27,6 +28,9 @@ class LossParent(nn.Module):
             if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
                 c.increment_counter()
 
+    def to(self, device):
+        super(LossParent, self).to(device)
+        self.device = device
 
 class VAELoss(LossParent):
     """
