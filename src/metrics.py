@@ -90,13 +90,11 @@ class VAELoss(LossParent):
         self.device=device
         if self.positional_weighting:
             self.positional_weights = self.positional_weights.to(device)
-            print('In VAE loss self pos weights', self.positional_weights.device)
 
     def reconstruction_loss(self, x_hat, x):
         x_hat_seq, positional_hat = self.slice_x(x_hat)
         x_true_seq, positional_true = self.slice_x(x)
         reconstruction_loss = self.sequence_criterion(x_hat_seq, x_true_seq)
-        print('reconloss', reconstruction_loss.device)
         # if positional weighting, then multiply the loss to give larger/smaller gradients w.r.t. chains and positions
         if self.positional_weighting:
             reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
@@ -287,12 +285,10 @@ class TwoStageVAELoss(LossParent):
             #       i.e. : Triplet is only trained with positive points, whereas the rest are trained with all the losses
             classification_loss = (self.weight_classification * self.classification_loss(x_out,
                                                                                          binder_labels)).mean() / self.norm_factor
-            print('done warmup clf', classification_loss.device)
             if self.debug:
                 print('clf pep weights, loss', weights[:10], classification_loss)
         else:
             classification_loss = torch.tensor([0], device=self.device)
-            print('warmupclf', classification_loss.device)
 
         return recon_loss, kld_loss, triplet_loss, classification_loss
 

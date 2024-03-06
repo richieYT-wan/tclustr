@@ -236,11 +236,8 @@ def main():
     torch.manual_seed(args["fold"])
     model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
     model.to(device)
-    print('model', model.device)
     criterion = TwoStageVAELoss(**loss_params)
     criterion.to(device)
-    print(' criterion in bimodal', criterion.device)
-    print('criterion pos weights', criterion.vae_loss.positional_weights.device)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
