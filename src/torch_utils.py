@@ -19,7 +19,7 @@ def get_available_device():
     print(f"Number of available GPUs: {num_gpus}")
 
     # Check if GPUs are currently in use
-    in_use = [torch.cuda.memory_allocated(i) > 0 for i in range(num_gpus)]
+    in_use = [torch.cuda.memory_allocated(i) > 100 for i in range(num_gpus)]
 
     # Select the first available GPU that is not in use
     for i in range(num_gpus):

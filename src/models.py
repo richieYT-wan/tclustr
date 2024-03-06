@@ -781,6 +781,10 @@ class StandardizerSequence(nn.Module):
             else:
                 return x
 
+    def to(self, device):
+        super(StandardizerSequence, self).to(device)
+        self.mu = self.mu.to(device)
+        self.sigma = self.sigma.to(device)
 
 class StandardizerSequenceVector(nn.Module):
     def __init__(self, input_dim=20, max_len=12):
@@ -812,6 +816,10 @@ class StandardizerSequenceVector(nn.Module):
             self.sigma.data.copy_(torch.ones((self.max_len, self.input_dim)))
             self.fitted.data = torch.tensor(False)
 
+    def to(self, device):
+        super(StandardizerSequenceVector, self).to(device)
+        self.mu = self.mu.to(device)
+        self.sigma = self.sigma.to(device)
 
 class StandardizerFeatures(nn.Module):
     def __init__(self, n_feats=2):
@@ -848,6 +856,10 @@ class StandardizerFeatures(nn.Module):
             self.sigma.data.copy(torch.ones(self.n_feats))
             self.fitted.data = torch.tensor(False)
 
+    def to(self, device):
+        super(StandardizerFeatures, self).to(device)
+        self.mu = self.mu.to(device)
+        self.sigma = self.sigma.to(device)
 
 class StdBypass(nn.Module):
     def __init__(self, **kwargs):
