@@ -216,7 +216,7 @@ def main():
     model = FullTCRVAE(**model_params)
     model.to(device)
     criterion = CombinedVAELoss(**loss_params)
-    model.to(device)
+    criterion.to(device)
     optimizer = optim.Adam(model.parameters(), **optim_params)
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
     if args['log_wandb']:
