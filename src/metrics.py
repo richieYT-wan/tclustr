@@ -31,6 +31,9 @@ class LossParent(nn.Module):
     def to(self, device):
         super(LossParent, self).to(device)
         self.device = device
+        for c in self.children():
+            if hasattr(c, 'device') and hasattr(c, 'to'):
+                c.to(device)
 
 class VAELoss(LossParent):
     """
