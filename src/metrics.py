@@ -287,10 +287,13 @@ class TwoStageVAELoss(LossParent):
             #       i.e. : Triplet is only trained with positive points, whereas the rest are trained with all the losses
             classification_loss = (self.weight_classification * self.classification_loss(x_out,
                                                                                          binder_labels)).mean() / self.norm_factor
+            print('done warmup clf', classification_loss.device)
             if self.debug:
                 print('clf pep weights, loss', weights[:10], classification_loss)
         else:
-            classification_loss = torch.tensor([0])
+            classification_loss = torch.tensor([0], device=self.device)
+            print('warmupclf', classification_loss.device)
+
         return recon_loss, kld_loss, triplet_loss, classification_loss
 
     def increment_counter(self):
