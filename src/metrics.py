@@ -87,11 +87,13 @@ class VAELoss(LossParent):
         self.device=device
         if self.positional_weighting:
             self.positional_weights = self.positional_weights.to(device)
+            print('In VAE loss self pos weights', self.positional_weights.device)
 
     def reconstruction_loss(self, x_hat, x):
         x_hat_seq, positional_hat = self.slice_x(x_hat)
         x_true_seq, positional_true = self.slice_x(x)
         reconstruction_loss = self.sequence_criterion(x_hat_seq, x_true_seq)
+        print('reconloss', reconstruction_loss.device)
         # if positional weighting, then multiply the loss to give larger/smaller gradients w.r.t. chains and positions
         if self.positional_weighting:
             reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
