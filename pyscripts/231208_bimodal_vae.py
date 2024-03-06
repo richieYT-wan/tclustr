@@ -235,6 +235,7 @@ def main():
     # instantiate objects
     torch.manual_seed(args["fold"])
     model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
+    model.to(device)
     criterion = TwoStageVAELoss(**loss_params)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
