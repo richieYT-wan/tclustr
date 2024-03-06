@@ -6,9 +6,6 @@ import numpy as np
 from src.data_processing import get_positional_encoding, encoding_matrix_dict
 import math
 
-# TODO CUDA
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-
 
 class NetParent(nn.Module):
     """

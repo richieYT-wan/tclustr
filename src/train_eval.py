@@ -477,6 +477,7 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
 def train_twostage_step(model, criterion, optimizer, train_loader):
     assert type(train_loader.sampler) == torch.utils.data.RandomSampler, 'TrainLoader should use RandomSampler!'
     model.train()
+    print('there', model.device)
     acum_total_loss, acum_recon_loss, acum_kld_loss, acum_triplet_loss, acum_clf_loss = 0, 0, 0, 0, 0
     x_reconstructed, x_true, y_score, y_true = [], [], [], []
     # Here, didn't check for class of dataset whether it is TCRSpecificDataset or issubclass of TCRSpecificDataset,
@@ -492,7 +493,7 @@ def train_twostage_step(model, criterion, optimizer, train_loader):
         x, x_pep, label, binder, pep_weights = x.to(model.device), x_pep.to(model.device), label.to(
             model.device), binder.to(
             model.device), pep_weights.to(model.device)
-
+        print(x.device)
         x_hat, mu, logvar, x_out = model(x, x_pep)
 
         recon_loss, kld_loss, triplet_loss, clf_loss = criterion(x_hat, x, mu, logvar, mu, label, x_out, binder,
