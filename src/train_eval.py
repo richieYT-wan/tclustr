@@ -662,6 +662,7 @@ def twostage_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     # "best_val_losses" is a dictionary of all the various split losses
     best_val_losses, best_val_metrics, best_dict = {}, {}, {}
     intervals = (np.arange(0.2, 1, 0.2) * n_epochs).astype(int)
+
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_twostage_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_twostage_step(model, criterion, valid_loader)

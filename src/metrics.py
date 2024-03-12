@@ -35,6 +35,7 @@ class LossParent(nn.Module):
             if hasattr(c, 'device') and hasattr(c, 'to'):
                 c.to(device)
 
+
 class VAELoss(LossParent):
     """
     No fucking annealing, just some basic stuff for now
@@ -84,10 +85,9 @@ class VAELoss(LossParent):
         self.kld_warm_up = warm_up
         print(f'Weights: seq, kld_base: ', self.weight_seq, self.base_weight_kld)
 
-
     def to(self, device):
         super(VAELoss, self).to(device)
-        self.device=device
+        self.device = device
         if self.positional_weighting:
             self.positional_weights = self.positional_weights.to(device)
 
@@ -227,7 +227,8 @@ class CombinedVAELoss(LossParent):
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
                                 add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up, positional_weighting=positional_weighting)
+                                weight_kld=weight_kld, debug=debug, warm_up=warm_up,
+                                positional_weighting=positional_weighting)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
@@ -256,7 +257,8 @@ class TwoStageVAELoss(LossParent):
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
                                 add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up, positional_weighting=positional_weighting)
+                                weight_kld=weight_kld, debug=debug, warm_up=warm_up,
+                                positional_weighting=positional_weighting)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.classification_loss = nn.BCEWithLogitsLoss(reduction='none')
         self.weight_triplet = float(weight_triplet)

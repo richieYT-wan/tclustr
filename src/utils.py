@@ -12,11 +12,10 @@ import string
 from datetime import datetime as dt
 
 
-def epoch_counter(model, criterion):
-    if hasattr(model, 'counter') and hasattr(model, 'increment_counter'):
-        model.increment_counter()
-    if hasattr(criterion, 'counter') and hasattr(criterion, 'increment_counter'):
-        criterion.increment_counter()
+def epoch_counter(*inputs):
+    for x in inputs:
+        if hasattr(x, 'counter') and hasattr(x, 'increment_counter'):
+            x.increment_counter()
 
 
 def get_loss_metric_text(epoch, train_loss, valid_loss, train_metric, valid_metric):

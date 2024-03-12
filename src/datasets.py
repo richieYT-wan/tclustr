@@ -17,6 +17,7 @@ class VAEDataset(Dataset):
         super(VAEDataset, self).__init__()
         self.df = df
         self.x = x
+        self.counter = 0
 
     def __len__(self):
         return len(self.df)
@@ -30,6 +31,12 @@ class VAEDataset(Dataset):
     def get_dataloader(self, batch_size, sampler, **kwargs):
         dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
         return dataloader
+
+    def increment_counter(self):
+        self.counter += 1
+        # for c in self.children():
+        #     if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
+        #         c.increment_counter()
 
 
 class CDR3BetaDataset(VAEDataset):
@@ -178,18 +185,18 @@ class TCRSpecificDataset(FullTCRDataset):
             return self.x[idx], self.labels[idx]
 
 
-class BimodalTCRpMHCDataset(TCRSpecificDataset):
+class TwoStageTCRpMHCDataset(TCRSpecificDataset):
 
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO',
                  pep_pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
                  pep_col='peptide', label_col='binder', pep_weighted=False, pep_weight_scale=3.8):
-        super(BimodalTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
-                                                    max_len_b3, max_len_pep=max_len_pep,
-                                                    add_positional_encoding=add_positional_encoding, encoding=encoding,
-                                                    pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
-                                                    b1_col=b1_col, b2_col=b2_col, b3_col=b3_col,
-                                                    pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale)
+        super(TwoStageTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
+                                                     max_len_b3, max_len_pep=max_len_pep,
+                                                     add_positional_encoding=add_positional_encoding, encoding=encoding,
+                                                     pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
+                                                     b1_col=b1_col, b2_col=b2_col, b3_col=b3_col,
+                                                     pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale)
         assert pep_encoding in ['categorical'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
@@ -400,3 +407,158 @@ class TrimodalPepTCRDataset(VAEDataset):
             return self.x_alpha[idx], self.x_beta[idx], self.x_pep[idx], \
                    self.mask_alpha[idx], self.mask_beta[idx], self.mask_pep[idx], \
                    self.labels[idx]
+
+
+class MultimodalPepTCRDataset(VAEDataset):
+    def __init__(self, df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
+                 max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
+                 encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
+                 b3_col='B3',
+                 pep_col='peptide', add_positional_encoding=False, label_col='binder', pep_weighted=False, ):
+        super(MultimodalPepTCRDataset, self).__init__(df)
+        assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
+                                         max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
+            'All loops max_len are 0! No chains will be added'
+        df_tcr_only = df.query('input_type=="tcr"')
+        df_pep_only = df.query('input_type=="pep"')
+        df_pep_tcr = df.query('input_type=="tcr_pep"')
+        self.pad_scale = pad_scale
+        self.max_len_a1 = max_len_a1
+        self.max_len_a2 = max_len_a2
+        self.max_len_a3 = max_len_a3
+        self.max_len_b1 = max_len_b1
+        self.max_len_b2 = max_len_b2
+        self.max_len_b3 = max_len_b3
+        self.max_len_pep = max_len_pep
+        self.matrix_dim = 20
+        self.aa_dim = 20
+        tcr_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
+        # Max len pep == 0 to encode only TCR
+        df_tcr_only, x_tcr_marg, x_tcr_matrix_dim = _encode_chains(df_tcr_only, encoding, pad_scale,
+                                                                   a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
+                                                                   pep_col,
+                                                                   max_len_a1, max_len_a2, max_len_a3,
+                                                                   max_len_b1, max_len_b2, max_len_b3,
+                                                                   max_len_pep=0,
+                                                                   add_positional_encoding=add_positional_encoding)
+        # max_len chains == 0 to encode only pep
+        df_pep_only, x_pep_marg, x_pep_matrix_dim = _encode_chains(df_pep_only, encoding, pad_scale,
+                                                                   a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
+                                                                   pep_col,
+                                                                   max_len_a1=0, max_len_a2=0, max_len_a3=0,
+                                                                   max_len_b1=0, max_len_b2=0, max_len_b3=0,
+                                                                   max_len_pep=max_len_pep,
+                                                                   add_positional_encoding=add_positional_encoding)
+        # Set all chains to their ml and encode and slice
+        df_pep_tcr, x_tcr_pep_joint, x_tcrpep_matrix_dim = _encode_chains(df_pep_tcr, encoding, pad_scale,
+                                                                          a1_col, a2_col, a3_col, b1_col, b2_col,
+                                                                          b3_col,
+                                                                          pep_col,
+                                                                          max_len_a1, max_len_a2, max_len_a3,
+                                                                          max_len_b1, max_len_b2, max_len_b3,
+                                                                          max_len_pep, add_positional_encoding)
+        x_tcr_joint = x_tcr_pep_joint[:, :tcr_len, :]
+        x_pep_joint = x_tcr_pep_joint[:, tcr_len:, :]
+        self.x_tcr_marg = x_tcr_marg
+        self.x_pep_marg = x_pep_marg
+        self.x_tcr_joint = x_tcr_joint
+        self.x_pep_joint = x_pep_joint
+        # Saving the various number of sample and dfs for various purposes
+        self.n_paired = len(df_pep_tcr)
+        self.n_tcr_marg = len(df_tcr_only)
+        self.n_pep_marg = len(df_pep_only)
+        self.df_tcr_only = df_tcr_only
+        self.df_pep_only = df_pep_only
+        self.df_pep_tcr = df_pep_tcr
+        # initializing some random sub-sampled index
+        self.tcr_indices = _randindex(self.n_tcr_marg, self.n_paired, random_state=0)
+        self.pep_indices = _randindex(self.n_pep_marg, self.n_paired, random_state=0)
+
+        # self.pep_weights = torch.from_numpy(
+        #     self.df.apply(lambda x: x['original_peptide'] == x['peptide'], axis=1).values).float().unsqueeze(1)
+
+    @override
+    def __getitem__(self, idx):
+        """
+        Uses renewed self.tcr/pep_indices at each epoch to do the subsampling part to match self.n_paired
+        Args:
+            idx:
+        Returns:
+            tensors:  x_tcr_marg, x_pep_marg, x_tcr_joint, x_pep_joint
+        """
+        return self.x_tcr_marg[self.tcr_indices[idx]], self.x_pep_marg[self.pep_indices[idx]], \
+               self.x_tcr_joint[idx], self.x_pep_joint[idx]
+
+    @override
+    def __len__(self):
+        return self.n_paired
+
+    @override
+    def increment_counter(self):
+        self.counter += 1
+        # update random sample, using current counter as random_state to keep the sampling reproducible
+        self.tcr_indices = _randindex(self.n_tcr_marg, self.n_paired, random_state=self.counter)
+        self.pep_indices = _randindex(self.n_pep_marg, self.n_paired, random_state=self.counter)
+
+
+def _encode_chains(df, encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col,
+                   max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep,
+                   add_positional_encoding=False):
+    mldict = {k: v for k, v in
+              zip([a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col],
+                  [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])}
+    # Filter DF based on seq max lengths
+    for seq_col, max_len, in mldict.items():
+        if max_len > 0:
+            df['len_q'] = df[seq_col].apply(len)
+            df = df.query('len_q <= @max_len')
+    df = df.drop(columns=['len_q']).reset_index(drop=True)
+    x_seq = []
+    x_pos = []
+    # I put this shit here because PyCharm is being an asshole with the if scope + global statement squiggly fucking line
+    pad_values = {}
+    if add_positional_encoding:
+        # Selected columns are those whose maxlen>0 (i.e. are used)
+        selected_columns = [k for k, v in mldict.items() if v > 0]
+        # Pre-setting the left-right pad tuples depending on which columns are used
+        max_lens_values = [mldict[k] for k in selected_columns]
+        pad_values = {k: (sum(max_lens_values[:i]), sum(max_lens_values) - sum(max_lens_values[:i])) \
+                      for i, k in enumerate(selected_columns)}
+
+    # Building the sequence tensor and (if applicable) positional tensor as 2D tensor
+    # Then at the very end, stack, cat, flatten as needed
+    for seq_col, max_len in mldict.items():
+        if max_len > 0:
+            seq_tensor = encode_batch(df[seq_col].values, max_len, encoding, pad_scale)
+            x_seq.append(seq_tensor)
+            if add_positional_encoding:
+                pos_tensor = batch_positional_encode(df[seq_col].values, pad_values[seq_col])
+                x_pos.append(pos_tensor)
+
+    # Concatenate all the tensors in the list `x_seq` into one tensor `x_seq`
+    x_seq = torch.cat(x_seq, dim=1)
+    matrix_dim = 20
+    if add_positional_encoding:
+        # Stack the `x_pos` tensors in the list together into a single tensor along dimension 2 (n_chains)
+        matrix_dim += len(x_pos)
+        x_pos = torch.stack(x_pos, dim=2)
+        # Add the pos encode to the seq tensor (N, sum(ML), 20) -> (N, sum(ML), 20+n_chains)
+        x_seq = torch.cat([x_seq, x_pos], dim=2)
+
+    return df, x_seq, matrix_dim
+
+
+def _randindex(data_size, n_samples, random_state=None):
+    """
+    Randomizes a set of indices to sample each epoch for the multimodal case where we subsample the other modalities
+    Args:
+        data_size:
+        n_samples:
+
+    Returns:
+        indices (torch.tensor)
+    """
+    if random_state is not None:
+        torch.manual_seed(random_state)
+        np.random.seed(random_state)
+    return torch.randperm(data_size)[:n_samples]

@@ -17,7 +17,7 @@ from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_st
 from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device
 from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
 from src.train_eval import twostage_train_eval_loops, predict_twostage, train_twostage_step, eval_twostage_step
-from src.datasets import BimodalTCRpMHCDataset
+from src.datasets import TwoStageTCRpMHCDataset
 from src.metrics import TwoStageVAELoss
 from sklearn.metrics import roc_auc_score, precision_score
 import argparse
@@ -205,7 +205,7 @@ def main():
     # Maybe this is better? Defining the various keys using the constructor's init arguments
     vae_keys = get_class_initcode_keys(FullTCRVAE, args)
     clf_keys = get_class_initcode_keys(PeptideClassifier, args)
-    dataset_keys = get_class_initcode_keys(BimodalTCRpMHCDataset, args)
+    dataset_keys = get_class_initcode_keys(TwoStageTCRpMHCDataset, args)
     loss_keys = get_class_initcode_keys(TwoStageVAELoss, args)
     vae_params = {k: args[k] for k in vae_keys}
     clf_params = {k: args[k] for k in clf_keys}
@@ -222,8 +222,8 @@ def main():
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
-    train_dataset = BimodalTCRpMHCDataset(train_df, **dataset_params)
-    valid_dataset = BimodalTCRpMHCDataset(valid_df, **dataset_params)
+    train_dataset = TwoStageTCRpMHCDataset(train_df, **dataset_params)
+    valid_dataset = TwoStageTCRpMHCDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
@@ -300,7 +300,7 @@ def main():
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_dataset = BimodalTCRpMHCDataset(test_df, **dataset_params)
+        test_dataset = TwoStageTCRpMHCDataset(test_df, **dataset_params)
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 
