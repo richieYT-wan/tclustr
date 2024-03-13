@@ -13,6 +13,7 @@ class Encoder(NetParent):
     Encoder class ;
     Should probly not have reparameterise here because that should always be done after PoE in this set-up
     """
+
     def __init__(self, max_len, aa_dim, pos_dim, encoding, pad_scale, activation, hidden_dim, latent_dim):
         super(Encoder, self).__init__()
         self.aa_dim = aa_dim
@@ -28,13 +29,13 @@ class Encoder(NetParent):
         else:
             self.pad_scale = pad_scale
 
-        self.fc_decode = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
+        self.fc_encode = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
                                        nn.Linear(input_dim // 2, hidden_dim), activation)
         self.fc_mu = nn.Linear(hidden_dim, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
 
     def forward(self, x):
-        x = self.fc_decode(x.flatten(start_dim=1))
+        x = self.fc_encode(x.flatten(start_dim=1))
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
         return mu, logvar
@@ -72,6 +73,7 @@ class Encoder(NetParent):
         else:
             return mu
 
+
 class Decoder(NetParent):
     def __init__(self, max_len, aa_dim, pos_dim, encoding, pad_scale, activation, hidden_dim, latent_dim):
         super(Decoder, self).__init__()
@@ -88,9 +90,9 @@ class Decoder(NetParent):
         else:
             self.pad_scale = pad_scale
 
-        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                     nn.Linear(hidden_dim, input_dim // 2), activation,
-                                     nn.Linear(input_dim // 2, input_dim))
+        self.fc_decode = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+                                       nn.Linear(hidden_dim, input_dim // 2), activation,
+                                       nn.Linear(input_dim // 2, input_dim))
 
         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
         MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
@@ -168,13 +170,14 @@ class BSSVAE(NetParent):
     """
 
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
-                 max_len_pep=0, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
-                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64):
+                 max_len_pep=12, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
+                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64,
+                 reparameterise_order='before'):
         super(BSSVAE, self).__init__()
 
         max_len_tcr = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
         pos_dim_tcr = sum([int(mlx) > 0 for mlx in
-                           [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep]]) \
+                           [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3]]) \
             if add_positional_encoding else 0
 
         # The "side" encoders (marginal only, Ztcr and Zpep)
@@ -196,7 +199,20 @@ class BSSVAE(NetParent):
         self.pep_decoder = Decoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
                                    hidden_dim_pep, latent_dim)
 
-    def forward(self, x_tcr_marg, x_pep_marg, x_tcr_joint, x_pep_joint):
+    def forward(self, x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg):
+        """
+        # TODO: At some point: refactor, probably return a dictionary instead because this is bound to be wrong with list orders...
+        Args:
+            x_tcr_marg:
+            x_tcr_joint:
+            x_pep_joint:
+            x_pep_marg:
+
+        Returns:
+            recons (list[torch.Tensor]): [recon_tcr_marg, recon_tcr_joint, recon_pep_marg, recon_pep_joint]
+            mus (list[torch.Tensor]): [mu_tcr_poe, mu_pep_poe, mu_joint_poe]
+            logvars (list[torch.Tensor]): [logvar_tcr_poe, logvar_pep_poe, logvar_joint_poe]
+        """
         #####################################################
         # BOTTOM HALF OF THE GRAPH ; ENCODING PART WITH POE #
         #####################################################
@@ -206,37 +222,48 @@ class BSSVAE(NetParent):
         mu_tcr_marg, logvar_tcr_marg = self.marg_tcr_encoder(x_tcr_marg)
         mu_pep_marg, logvar_pep_marg = self.marg_pep_encoder(x_pep_marg)
         # The "joint" TCR / Pep inputs are those coming from the paired input
-        mu_tcr_joint, logvar_tcr_joint = self.marg_tcr_encoder(x_tcr_joint)
-        mu_pep_joint, logvar_pep_joint = self.marg_pep_encoder(x_pep_joint)
-
-        # Joining latent (Zs) with Product of Experts
+        mu_tcr_joint, logvar_tcr_joint = self.joint_tcr_encoder(x_tcr_joint)
+        mu_pep_joint, logvar_pep_joint = self.joint_pep_encoder(x_pep_joint)
+        # latent (Zs) with Product of Experts MARGINAL
         # Z_tcr
-        mu_tcr_poe, logvar_tcr_poe = self.product_of_experts([mu_tcr_marg, mu_tcr_joint],
-                                                             [logvar_tcr_marg, logvar_tcr_joint])
+        mu_tcr_poe_marg, logvar_tcr_poe_marg = self.product_of_experts([mu_tcr_marg, mu_tcr_joint],
+                                                                       [logvar_tcr_marg, logvar_tcr_joint])
         # Z_pep
-        mu_pep_poe, logvar_pep_poe = self.product_of_experts([mu_pep_marg, mu_pep_joint],
-                                                             [logvar_pep_marg, logvar_pep_joint])
+        mu_pep_poe_marg, logvar_pep_poe_marg = self.product_of_experts([mu_pep_marg, mu_pep_joint],
+                                                                       [logvar_pep_marg, logvar_pep_joint])
+        # LATENT with PoE JOINT (tcr_joint, pep_joint)
         # Z_tcr,pep
-        mu_joint_poe, logvar_joint_poe = self.product_of_experts([mu_pep_joint, mu_tcr_joint],
-                                                                 [logvar_pep_joint, logvar_tcr_joint])
+        mu_joint_poe, logvar_joint_poe = self.product_of_experts([mu_tcr_joint, mu_pep_joint],
+                                                                 [logvar_tcr_joint, logvar_pep_joint])
 
         #####################################################
         # UPPER HALF OF THE GRAPH  ; DECODING PART WITH POE #
         #####################################################
 
         # Get 3 latents (2 marginals and 1 joint)
-        z_tcr_marg = self.reparameterise(mu_tcr_poe, logvar_tcr_poe)
-        z_pep_marg = self.reparameterise(mu_pep_poe, logvar_pep_poe)
+        z_tcr_marg = self.reparameterise(mu_tcr_poe_marg, logvar_tcr_poe_marg)
         z_joint = self.reparameterise(mu_joint_poe, logvar_joint_poe)
+        z_pep_marg = self.reparameterise(mu_pep_poe_marg, logvar_pep_poe_marg)
         # Get 4 reconstruction (1 from each Marginal->PoE, 2 from joint(tcr+pep))
         recon_tcr_marg = self.tcr_decoder(z_tcr_marg)
-        recon_pep_marg = self.pep_decoder(z_pep_marg)
         recon_tcr_joint = self.tcr_decoder(z_joint)
         recon_pep_joint = self.pep_decoder(z_joint)
-        # Return all outputs
-        recons = [recon_tcr_marg, recon_tcr_joint, recon_pep_marg, recon_pep_joint]
-        mus = [mu_tcr_poe, mu_pep_poe, mu_joint_poe]
-        logvars = [logvar_tcr_poe, logvar_pep_poe, logvar_joint_poe]
+        recon_pep_marg = self.pep_decoder(z_pep_marg)
+
+        # Return all outputs using dictionaries for splitting modalities it's tidier than lists
+        recons = {'tcr_marg': recon_tcr_marg,
+                  'tcr_joint': recon_tcr_joint,
+                  'pep_joint': recon_pep_joint,
+                  'pep_marg': recon_pep_marg}
+        mus = {'mu_tcr_marg': mu_tcr_poe_marg,
+               'mu_joint': mu_joint_poe,
+               'mu_pep_marg': mu_pep_poe_marg}
+        logvars = {'logvar_tcr_marg': logvar_tcr_poe_marg,
+                   'logvar_joint': logvar_joint_poe,
+                   'logvar_pep_marg': logvar_pep_poe_marg}
+        # recons = [recon_tcr_marg, recon_tcr_joint, recon_pep_joint, recon_pep_marg]
+        # mus = [mu_tcr_poe_marg, mu_joint_poe, mu_pep_poe_marg]
+        # logvars = [logvar_tcr_poe_marg, logvar_joint_poe, logvar_pep_poe_marg]
         return recons, mus, logvars
 
     @staticmethod
@@ -263,6 +290,7 @@ class BSSVAE(NetParent):
     def embed(self, x_a, x_b, which):
         """
         Not the best way but assumes the following:
+        # TODO: This is wrong for the marginal cases!! FIX IT
         if marg :
             x_a = marg, x_b = joint
         if joint:
@@ -273,7 +301,6 @@ class BSSVAE(NetParent):
             which:
 
         Returns:
-
         """
         if which == 'tcr':
             mu_a, logvar_a = self.marg_tcr_encoder(x_a)
@@ -288,6 +315,27 @@ class BSSVAE(NetParent):
         mu, logvar = self.product_of_experts([mu_a, mu_b], [logvar_a, logvar_b])
         z = self.reparameterise(mu, logvar)
         return z
+
+    def forward_marginal(self, x, which):
+        if which == 'tcr':
+            mu_marg, logvar_marg = self.marg_tcr_encoder(x)
+            mu_joint, logvar_joint = self.joint_tcr_encoder(x)
+        elif which == 'pep':
+            mu_marg, logvar_marg = self.marg_pep_encoder(x)
+            mu_joint, logvar_joint = self.joint_pep_encoder(x)
+        mu, logvar = self.product_of_experts([mu_marg, mu_joint], [logvar_marg, logvar_joint])
+        z = self.reparameterise(mu, logvar)
+        x_hat = self.tcr_decoder(z) if which == 'tcr' else self.pep_decoder(z)
+        return x_hat, z
+
+    def forward_joint(self, x_tcr, x_pep):
+        mu_tcr, logvar_tcr = self.joint_tcr_encoder(x_tcr)
+        mu_pep, logvar_pep = self.joint_pep_encoder(x_pep)
+        mu, logvar = self.product_of_experts([mu_tcr, mu_pep], [logvar_tcr, logvar_pep])
+        z = self.reparameterise(mu, logvar)
+        x_hat_tcr = self.tcr_decoder(z)
+        x_hat_pep = self.pep_decoder(z)
+        return x_hat_tcr, x_hat_pep, z
 
     def sample_latent(self, n_samples):
         z = torch.randn((n_samples, self.latent_dim)).to(device=self.encoder[0].weight.device)

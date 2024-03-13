@@ -433,6 +433,7 @@ class MultimodalPepTCRDataset(VAEDataset):
         self.matrix_dim = 20
         self.aa_dim = 20
         tcr_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
+        self.max_len_tcr = tcr_len
         # Max len pep == 0 to encode only TCR
         df_tcr_only, x_tcr_marg, x_tcr_matrix_dim = _encode_chains(df_tcr_only, encoding, pad_scale,
                                                                    a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
@@ -459,6 +460,7 @@ class MultimodalPepTCRDataset(VAEDataset):
                                                                           max_len_pep, add_positional_encoding)
         x_tcr_joint = x_tcr_pep_joint[:, :tcr_len, :]
         x_pep_joint = x_tcr_pep_joint[:, tcr_len:, :]
+        # Save each modality into a tensor and use sub-sampling
         self.x_tcr_marg = x_tcr_marg
         self.x_pep_marg = x_pep_marg
         self.x_tcr_joint = x_tcr_joint
@@ -479,15 +481,18 @@ class MultimodalPepTCRDataset(VAEDataset):
 
     @override
     def __getitem__(self, idx):
+        # TODO : Do "predict" mode where we return ALL instances for the marginal in a way that makes sense
         """
         Uses renewed self.tcr/pep_indices at each epoch to do the subsampling part to match self.n_paired
         Args:
             idx:
         Returns:
-            tensors:  x_tcr_marg, x_pep_marg, x_tcr_joint, x_pep_joint
+            tensors:  x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg (follows the order of graph left to right)
         """
-        return self.x_tcr_marg[self.tcr_indices[idx]], self.x_pep_marg[self.pep_indices[idx]], \
-               self.x_tcr_joint[idx], self.x_pep_joint[idx]
+        return self.x_tcr_marg[self.tcr_indices[idx]], \
+               self.x_tcr_joint[idx], \
+               self.x_pep_joint[idx], \
+               self.x_pep_marg[self.pep_indices[idx]]
 
     @override
     def __len__(self):

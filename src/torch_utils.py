@@ -8,6 +8,40 @@ ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
 
 
+def paired_batch_generator(x_tensor_a, x_tensor_b, batch_size):
+    """
+    Generator that yields sequential batches from x_tensor, correctly handling the last batch.
+
+    Args:
+    - x_tensor (Tensor): The input tensor.
+    - batch_size (int): The size of each batch.
+
+    Yields:
+    - Tensor: A batch of data.
+    """
+    assert x_tensor_a.size(0)==x_tensor_b.size(0), f'Size mismatch! {x_tensor_a.size(0)}, {x_tensor_b.size(0)}'
+    num_samples = x_tensor_a.size(0)
+    for start_idx in range(0, num_samples, batch_size):
+        # This automatically adjusts to return all remaining data for the last batch
+        yield x_tensor_a[start_idx:start_idx + batch_size], x_tensor_b[start_idx:start_idx+batch_size]
+
+def batch_generator(x_tensor, batch_size):
+    """
+    Generator that yields sequential batches from x_tensor, correctly handling the last batch.
+
+    Args:
+    - x_tensor (Tensor): The input tensor.
+    - batch_size (int): The size of each batch.
+
+    Yields:
+    - Tensor: A batch of data.
+    """
+    num_samples = x_tensor.size(0)
+    for start_idx in range(0, num_samples, batch_size):
+        # This automatically adjusts to return all remaining data for the last batch
+        yield x_tensor[start_idx:start_idx + batch_size]
+
+
 def get_available_device():
     # Check the number of available GPUs
     num_gpus = torch.cuda.device_count()

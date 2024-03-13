@@ -13,10 +13,10 @@ from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
 from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device
-from src.models import TrimodalPepTCRVAE
-from src.multimodal_train_eval import predict_trimodal, trimodal_train_eval_loops
-from src.datasets import TrimodalPepTCRDataset
-from src.metrics import TrimodalVAELoss
+from src.multimodal_models import BSSVAE
+from src.multimodal_train_eval import predict_multimodal, multimodal_train_eval_loops
+from src.datasets import MultimodalPepTCRDataset
+from src.metrics import BSSVAELoss
 import argparse
 
 
@@ -79,10 +79,12 @@ def args_parser():
     """
     Models args 
     """
-    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=128,
-                        help='Number of hidden units in the VAE. Default = 128')
-    parser.add_argument('-nl', '--latent_dim', dest='latent_dim', type=int, default=64,
-                        help='Size of the latent dimension. Default = 64')
+    parser.add_argument('-nhtcr', '--hidden_dim_tcr', dest='hidden_dim_tcr', type=int, default=200,
+                        help='Number of hidden units in the VAE. Default = 200')
+    parser.add_argument('-nhpep', '--hidden_dim_pep', dest='hidden_dim_pep', type=int, default=200,
+                        help='Number of hidden units in the VAE. Default = 200')
+    parser.add_argument('-nl', '--latent_dim', dest='latent_dim', type=int, default=100,
+                        help='Size of the latent dimension. Default = 100')
     parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
                         help='Which activation to use. Will map the correct nn.Module for the following keys:' \
                              '[selu, relu, leakyrelu, elu]')
@@ -100,26 +102,30 @@ def args_parser():
                         help='Weight decay for the optimizer. Default = 1e-4')
     parser.add_argument('-bs', '--batch_size', dest='batch_size', type=int, default=512, required=False,
                         help='Batch size for mini-batch optimization')
-    parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=2000, required=False,
+    parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=5000, required=False,
                         help='Number of epochs to train')
     parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=1e-5, required=False,
                         help='Tolerance for loss variation to log best model')
     parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=1,
                         help='Which beta to use for the seq reconstruction term in the loss')
-    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1e-2,
-                        help='Which weight to use for the KLD term in the loss')
-    parser.add_argument('-lwvae', '--weight_vae', dest='weight_vae', default=1, type=float,
-                        help='Weight for the VAE term (reconstruction+KLD)')
-    parser.add_argument('-lwtrp', '--weight_triplet',
-                        dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
-
-    parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
-                        help='Which distance metric to use [cosine, l2, l1]')
-    parser.add_argument('-margin', dest='margin', default=None, type=float,
-                        help='Margin for the triplet loss (Default is None and will have the default behaviour depending on the distance type)')
-    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
+    parser.add_argument('-lwkld_n', '--weight_kld_n', dest='weight_kld_n', type=float, default=1e-2,
+                        help='Which weight to use for the KLD (normal) term in the loss')
+    parser.add_argument('-lwkld_z', '--weight_kld_z', dest='weight_kld_z', type=float, default=1,
+                        help='Which weight to use for the KLD (Latent) term in the loss')
+    # parser.add_argument('-lwtrp', '--weight_triplet',
+    #                     dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
+    # parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
+    #                     help='Which distance metric to use [cosine, l2, l1]')
+    # parser.add_argument('-margin', dest='margin', default=None, type=float,
+    #                     help='Margin for the triplet loss (Default is None and will have the default behaviour depending on the distance type)')
+    parser.add_argument('-wukld', '--warm_up_kld', dest='warm_up_kld', type=int, default=10,
                         help='Whether to do a warm-up period for the loss (without the KLD term). ' \
                              'Default = 10. Set to 0 if you want this disabled')
+    parser.add_argument('-kldts', '--kld_tahn_scale', dest='kld_tahn_scale', type=float, default=0.1,
+                        help='Scale for the TanH annealing in the KLD_n term')
+    parser.add_argument('-fp', '--flat_phase', dest='flat_phase', default=None, type=int,
+                        help='If used, the duration (in epochs) of the "flat phase" in the KLD annealing')
+
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
     parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
@@ -158,7 +164,8 @@ def main():
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
     args['activation'] = {'selu': nn.SELU(), 'relu': nn.ReLU(),
-                          'leakyrelu': nn.LeakyReLU(), 'elu': nn.ELU()}[args['activation']]
+                          'leakyrelu': nn.LeakyReLU(),
+                          'elu': nn.ELU()}[args['activation']]
     # Loading data and getting train/valid
     # TODO: Restore valid kcv behaviour // or not
     df = pd.read_csv(args['file'])
@@ -184,32 +191,22 @@ def main():
     mkdirs(outdir)
 
     # Def params so it's tidy
-    args['alpha_dim'] = sum([args[k] for k in ['max_len_a1', 'max_len_a2', 'max_len_a3']])
-    args['beta_dim'] = sum([args[k] for k in ['max_len_b1', 'max_len_b2', 'max_len_b3']])
-    args['pep_dim'] = args['max_len_pep']
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_keys = get_class_initcode_keys(TrimodalPepTCRVAE, args)
-    dataset_keys = get_class_initcode_keys(TrimodalPepTCRDataset, args)
-    loss_keys = get_class_initcode_keys(TrimodalVAELoss, args)
+    model_keys = get_class_initcode_keys(BSSVAE, args)
+    dataset_keys = get_class_initcode_keys(MultimodalPepTCRDataset, args)
+    loss_keys = get_class_initcode_keys(BSSVAELoss, args)
+    # Get params from args
     model_params = {k: args[k] for k in model_keys}
-    # Manually update some model_params:
-
-    hidden_dim = args['hidden_dim']
-    model_params['hidden_dim_alpha'] = hidden_dim
-    model_params['hidden_dim_beta'] = hidden_dim
-    model_params['hidden_dim_pep'] = hidden_dim//2
-
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
-    # loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     # Dumping args to file
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
-    train_dataset = TrimodalPepTCRDataset(train_df, **dataset_params)
-    valid_dataset = TrimodalPepTCRDataset(valid_df, **dataset_params)
+    train_dataset = MultimodalPepTCRDataset(train_df, **dataset_params)
+    valid_dataset = MultimodalPepTCRDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
@@ -220,9 +217,9 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = TrimodalPepTCRVAE(**model_params)
+    model = BSSVAE(**model_params)
     model.to(device)
-    criterion = TrimodalVAELoss(**loss_params)
+    criterion = BSSVAELoss(**loss_params)
     criterion.to(device)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
@@ -233,9 +230,10 @@ def main():
         wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_metrics = trimodal_train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                            criterion, optimizer, train_loader,
-                                                                            valid_loader, checkpoint_filename, outdir)
+    best_epoch, best_val_loss, best_val_metrics = multimodal_train_eval_loops(args['n_epochs'], model,
+                                                                               criterion, optimizer, train_loader,
+                                                                               valid_loader, checkpoint_filename, outdir,
+                                                                               args['tolerance'])
 
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
@@ -275,22 +273,22 @@ def main():
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
                             dir_path=outdir)
-    valid_preds = predict_trimodal(model, valid_dataset, valid_loader)
+    valid_preds = predict_multimodal(model, valid_dataset, valid_loader.batch_size)
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
-    valid_seq_acc = (3 * valid_preds['alpha_acc'].mean() + 3 * valid_preds['beta_acc'].mean() + valid_preds['pep_acc'].mean()) / 7
+    valid_seq_acc = valid_preds['seq_acc'].mean()
 
     print(f'Final valid reconstruction accuracy: \t{valid_seq_acc:.3%}')
 
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_dataset = TrimodalPepTCRDataset(test_df, **dataset_params)
+        test_dataset = MultimodalPepTCRDataset(test_df, **dataset_params)
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 
-        test_preds = predict_trimodal(model, test_dataset, test_loader)
+        test_preds = predict_multimodal(model, test_dataset, test_loader.batch_size)
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()
