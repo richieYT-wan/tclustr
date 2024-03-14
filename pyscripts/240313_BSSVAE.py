@@ -270,8 +270,9 @@ def main():
     pkl_dump(valid_losses_dict, f'{outdir}/valid_losses_{fold_filename}.pkl')
     pkl_dump(train_metrics_dict, f'{outdir}/train_metrics_{fold_filename}.pkl')
     pkl_dump(valid_metrics_dict, f'{outdir}/valid_metrics_{fold_filename}.pkl')
+    # Here plot the whole thing disable warm-up printing
     plot_vae_loss_accs(losses_dict, accs_dict, unique_filename, outdir,
-                       dpi=300, palette='gnuplot2_r', warm_up=args['warm_up_kld'])
+                       dpi=120, palette='gnuplot2_r', warm_up=0)
 
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
