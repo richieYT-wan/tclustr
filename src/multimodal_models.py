@@ -231,7 +231,6 @@ class BSSVAE(NetParent):
 
         # "order" : marg tcr -> marg pep -> joint (tcr -> pep)
         # Running each encoder-decoder pair to get reconstructed, mu, logvars
-        print(self.device, x_tcr_marg.device)
         mu_tcr_marg, logvar_tcr_marg = self.marg_tcr_encoder(x_tcr_marg)
         mu_pep_marg, logvar_pep_marg = self.marg_pep_encoder(x_pep_marg)
         # The "joint" TCR / Pep inputs are those coming from the paired input
