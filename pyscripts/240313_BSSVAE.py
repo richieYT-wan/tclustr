@@ -172,8 +172,10 @@ def main():
     dfname = args['file'].split('/')[-1].split('.')[0]
     if args['debug']:
         df = df.sample(frac=0.15)
-    train_df = df.query('partition!=@args["fold"]')
-    valid_df = df.query('partition==@args["fold"]')
+
+    fold=args["fold"]
+    train_df = df.query('partition!=@fold')
+    valid_df = df.query('partition==@fold')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     if args['log_wandb']:
