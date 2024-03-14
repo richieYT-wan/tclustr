@@ -1,15 +1,3 @@
-
-# Define the characters that can be used
-characters="abcdefghjklmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ0123456789"
-# Generate a random index between 0 and 61 (total number of characters)
-index=$((RANDOM % 60))
-# Get the character at the generated index
-first_char="${characters:index:1}"
-# Generate the remaining 4 characters as a combination of the defined characters
-rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
-# Combine the first and remaining characters
-random_string="${first_char}${rest_chars}"
-
 source /home/people/riwa/anaconda3/etc/profile.d/conda.sh
 source activate cuda
 
