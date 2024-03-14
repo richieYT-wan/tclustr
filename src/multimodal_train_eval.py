@@ -2,6 +2,7 @@ import torch
 import math
 from tqdm.auto import tqdm
 import numpy as np
+import pandas as pd
 from torch.utils.data import DataLoader
 from src.datasets import MultimodalPepTCRDataset
 from src.multimodal_models import BSSVAE
@@ -340,8 +341,8 @@ def train_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, optimizer, train
         # TODO: Could return a single dict with the pre-summed values later
         recon_loss_marg, recon_loss_joint, kld_loss_marg, kld_loss_joint = criterion(batch, recons, mus, logvars)
         # Sum because those are dicts of two k:v pairs
-        recon_loss_marg, recon_loss_joint = sum(recon_loss_marg.values), sum(recon_loss_joint.values)
-        kld_loss_marg, kld_loss_joint = sum(kld_loss_marg.values), sum(kld_loss_joint.values)
+        recon_loss_marg, recon_loss_joint = sum(recon_loss_marg.values()), sum(recon_loss_joint.values())
+        kld_loss_marg, kld_loss_joint = sum(kld_loss_marg.values()), sum(kld_loss_joint.values())
         # Sum & update
         loss = recon_loss_marg + recon_loss_joint + kld_loss_marg + kld_loss_joint
         optimizer.zero_grad()
@@ -411,8 +412,8 @@ def eval_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, valid_loader):
             # Batch is `trues` ; Criterion takes list+dicts and returns dicts
             recon_loss_marg, recon_loss_joint, kld_loss_marg, kld_loss_joint = criterion(batch, recons, mus, logvars)
             # Sum because those are dicts of two k:v pairs
-            recon_loss_marg, recon_loss_joint = sum(recon_loss_marg.values), sum(recon_loss_joint.values)
-            kld_loss_marg, kld_loss_joint = sum(kld_loss_marg.values), sum(kld_loss_joint.values)
+            recon_loss_marg, recon_loss_joint = sum(recon_loss_marg.values()), sum(recon_loss_joint.values())
+            kld_loss_marg, kld_loss_joint = sum(kld_loss_marg.values()), sum(kld_loss_joint.values())
             # Sum & update
             loss = recon_loss_marg + recon_loss_joint + kld_loss_marg + kld_loss_joint
             # Accumulating normalized loss
@@ -507,7 +508,7 @@ def predict_multimodal(model: BSSVAE, dataset: MultimodalPepTCRDataset, batch_si
         for batch in batch_generator(dataset.x_pep_marg, batch_size):
             x_true_pep_marg.append(batch)
             batch = batch.to(model.device)
-            x_hat, z = model.forward_marginal(batch, which='tcr')
+            x_hat, z = model.forward_marginal(batch, which='pep')
             x_recon_pep_marg.append(x_hat.detach().cpu())
             z_latent.append(z.detach().cpu())
 
@@ -519,7 +520,7 @@ def predict_multimodal(model: BSSVAE, dataset: MultimodalPepTCRDataset, batch_si
         pep_df['seq_recon'] = seq_hat_recon
         pep_df['seq_acc'] = metrics['seq_accuracy']
         # Joint/Paired data part
-        for batch in paired_batch_generator(dataset.x_tcr_joint, dataset.x_pep_marg, batch_size):
+        for batch in paired_batch_generator(dataset.x_tcr_joint, dataset.x_pep_joint, batch_size):
             x_true_tcr_joint.append(batch[0])
             x_true_pep_joint.append(batch[1])
             batch = [b.to(model.device) for b in batch]
@@ -544,12 +545,12 @@ def predict_multimodal(model: BSSVAE, dataset: MultimodalPepTCRDataset, batch_si
         accs = [(mlt * tcr_acc + mlt * pep_acc) / (mlt + mlp) for tcr_acc, pep_acc in
                 zip(metrics_tcr['seq_accuracy'],
                     metrics_pep['seq_accuracy'])]
-        pep_df['seq_true'] = seq_hat_true
-        pep_df['seq_recon'] = seq_hat_recon
-        pep_df['seq_acc'] = accs
+        paired_df['seq_true'] = seq_true
+        paired_df['seq_recon'] = seq_recon
+        paired_df['seq_acc'] = accs
 
-    results_df = torch.cat([tcr_df, pep_df, paired_df])
-    results_df[[f'z_{i}' for i in range(model.latent_dim)]] = z_latent
+    results_df = pd.concat([tcr_df, pep_df, paired_df])
+    results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
     return results_df
 
 

@@ -529,15 +529,15 @@ class BSSVAELoss(LossParent):
         kld_pep_normal = self.kld_normal(mus['pep_marg'], logvars['pep_marg'])
 
         if self.debug:
-            print('#' * 15, ' DEBUG ', '#' * 15)
-            print('recon_tcr_marg', f'{recon_tcr_marg:.4f}')
-            print('recon_tcr_joint', f'{recon_tcr_joint:.4f}')
-            print('recon_pep_marg', f'{recon_pep_marg:.4f}')
-            print('recon_pep_joint', f'{recon_pep_joint:.4f}')
-            print('kld_tcr_normal', f'{kld_tcr_normal:.4f}')
-            print('kld_pep_normal', f'{kld_pep_normal:.4f}')
-            print('kld_tcr_joint', f'{kld_tcr_joint:.4f}')
-            print('kld_pep_joint', f'{kld_pep_joint:.4f}')
+            print('\n', '#' * 15, ' DEBUG ', '#' * 15)
+            print('recon_tcr_marg\t', f'{recon_tcr_marg.item():.4f}')
+            print('recon_tcr_joint\t', f'{recon_tcr_joint.item():.4f}')
+            print('recon_pep_marg\t', f'{recon_pep_marg.item():.4f}')
+            print('recon_pep_joint\t', f'{recon_pep_joint.item():.4f}')
+            print('kld_tcr_normal\t', f'{kld_tcr_normal.item():.4f}')
+            print('kld_pep_normal\t', f'{kld_pep_normal.item():.4f}')
+            print('kld_tcr_joint\t', f'{kld_tcr_joint.item():.4f}')
+            print('kld_pep_joint\t', f'{kld_pep_joint.item():.4f}')
             print(self.weight_seq, self.weight_kld_n, self.weight_kld_z, self.positional_weighting)
 
         return {'tcr_marg': recon_tcr_marg,
@@ -562,11 +562,8 @@ class BSSVAELoss(LossParent):
         x_hat_seq, positional_hat = self.slice_x(x_hat, which)
         x_true_seq, positional_true = self.slice_x(x, which)
         reconstruction_loss = self.sequence_criterion(x_hat_seq, x_true_seq)
-        if self.positional_weighting:
-            reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
-
         # if positional weighting, then multiply the loss to give larger/smaller gradients w.r.t. chains and positions
-        if self.positional_weighting:
+        if self.positional_weighting and which == 'tcr':
             reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
 
         # Here, take the mean before checking for positional encoding because we have un-reduced loss
@@ -598,7 +595,7 @@ class BSSVAELoss(LossParent):
         sigma2_squared = logvar_2.exp()
         kld = 0.5 * torch.sum(
             logvar_1 - logvar_2 - 1 + sigma2_squared / sigma1_squared + (mu_2 - mu_1).pow(2) / sigma1_squared, dim=-1)
-        return self.weight_kld_z * kld
+        return self.weight_kld_z * kld.mean()
 
     def kld_normal(self, mu, logvar):
         kld = 1 + logvar - mu.pow(2) - logvar.exp()
@@ -709,8 +706,8 @@ def reconstruct_and_compute_accuracy(model, x_true, x_recon):
         x_recon = torch.cat(x_recon)
 
     metrics = model_reconstruction_stats(model, x_recon, x_true, return_per_element=True)
-    x_seq_recon = model.slice_x(x_recon, which='tcr')
-    x_seq_true = model.slice_x(x_true, which='tcr')
+    x_seq_recon, pos_recon = model.slice_x(x_recon)
+    x_seq_true, pos_true = model.slice_x(x_true)
     seq_hat_recon = model.recover_sequences_blosum(x_seq_recon)
     seq_hat_true = model.recover_sequences_blosum(x_seq_true)
     return seq_hat_true, seq_hat_recon, metrics

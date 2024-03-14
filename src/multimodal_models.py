@@ -179,6 +179,18 @@ class BSSVAE(NetParent):
         pos_dim_tcr = sum([int(mlx) > 0 for mlx in
                            [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3]]) \
             if add_positional_encoding else 0
+        self.latent_dim = latent_dim
+        self.activation = activation
+        self.hidden_dim_tcr = hidden_dim_tcr
+        self.hidden_dim_pep = hidden_dim_pep
+        self.add_positional_encoding = add_positional_encoding
+        self.max_len_tcr = max_len_tcr
+        self.max_len_pep = max_len_pep
+        self.encoding = encoding
+        self.pad_scale = pad_scale
+        self.aa_dim = aa_dim
+        self.matrix_dim_tcr = aa_dim + pos_dim_tcr
+        self.matrix_dim_pep = aa_dim
 
         # The "side" encoders (marginal only, Ztcr and Zpep)
         self.marg_tcr_encoder = Encoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
@@ -255,12 +267,12 @@ class BSSVAE(NetParent):
                   'tcr_joint': recon_tcr_joint,
                   'pep_joint': recon_pep_joint,
                   'pep_marg': recon_pep_marg}
-        mus = {'mu_tcr_marg': mu_tcr_poe_marg,
-               'mu_joint': mu_joint_poe,
-               'mu_pep_marg': mu_pep_poe_marg}
-        logvars = {'logvar_tcr_marg': logvar_tcr_poe_marg,
-                   'logvar_joint': logvar_joint_poe,
-                   'logvar_pep_marg': logvar_pep_poe_marg}
+        mus = {'tcr_marg': mu_tcr_poe_marg,
+               'joint': mu_joint_poe,
+               'pep_marg': mu_pep_poe_marg}
+        logvars = {'tcr_marg': logvar_tcr_poe_marg,
+                   'joint': logvar_joint_poe,
+                   'pep_marg': logvar_pep_poe_marg}
         # recons = [recon_tcr_marg, recon_tcr_joint, recon_pep_joint, recon_pep_marg]
         # mus = [mu_tcr_poe_marg, mu_joint_poe, mu_pep_poe_marg]
         # logvars = [logvar_tcr_poe_marg, logvar_joint_poe, logvar_pep_poe_marg]
