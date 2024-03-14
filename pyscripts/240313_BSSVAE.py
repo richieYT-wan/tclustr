@@ -125,7 +125,8 @@ def args_parser():
                         help='Scale for the TanH annealing in the KLD_n term')
     parser.add_argument('-fp', '--flat_phase', dest='flat_phase', default=None, type=int,
                         help='If used, the duration (in epochs) of the "flat phase" in the KLD annealing')
-
+    parser.add_argument('-kld_dec', dest='kld_decrease', type=float, default=5e-3,
+                        help="KLD_N linear decrease rate per epoch")
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
     parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,

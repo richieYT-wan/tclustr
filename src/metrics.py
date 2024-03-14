@@ -450,7 +450,7 @@ class BSSVAELoss(LossParent):
     def __init__(self, max_len_a1=7, max_len_a2=8, max_len_a3=22, max_len_b1=6, max_len_b2=7, max_len_b3=23,
                  max_len_pep=12, aa_dim=20, add_positional_encoding=False, positional_weighting=True,
                  sequence_criterion=nn.MSELoss(reduction='none'), weight_seq=1, weight_kld_z=1, weight_kld_n=1e-2,
-                 kld_warm_up=100, kld_tanh_scale=0.1, flat_phase=None, debug=False):
+                 kld_warm_up=100, kld_tanh_scale=0.1, kld_decrease=5e-3, flat_phase=None, debug=False):
         # TODO: Define pep_weighted?
         super(BSSVAELoss, self).__init__()
         # Using none reduction to apply weight per chain
@@ -487,6 +487,7 @@ class BSSVAELoss(LossParent):
         self.weight_kld_n = 0
         self.kld_tanh_scale = kld_tanh_scale
         self.kld_warm_up = kld_warm_up
+        self.kld_decrease = kld_decrease
         self.flat_phase = kld_warm_up // 3 if flat_phase is None else flat_phase
         self.debug = debug
 
@@ -635,7 +636,7 @@ class BSSVAELoss(LossParent):
         elif self.counter > self.kld_warm_up + self.flat_phase:
             self.weight_kld_n = max(
                 self.base_weight_kld_n - (
-                        5e-3 * self.base_weight_kld_n * (self.counter - (self.kld_warm_up + self.flat_phase))),
+                        self.kld_decrease * self.base_weight_kld_n * (self.counter - (self.kld_warm_up + self.flat_phase))),
                 self.base_weight_kld_n / 5)
 
     def _tanh_annealing(self):
