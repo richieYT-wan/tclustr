@@ -173,7 +173,7 @@ def main():
     if args['debug']:
         df = df.sample(frac=0.15)
 
-    fold=args["fold"]
+    fold = args["fold"]
     train_df = df.query('partition!=@fold')
     valid_df = df.query('partition==@fold')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs

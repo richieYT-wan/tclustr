@@ -29,6 +29,8 @@ class LossParent(nn.Module):
     def to(self, device):
         super(LossParent, self).to(device)
         self.device = device
+        if self.positional_weighting:
+            self.positional_weights = self.positional_weights.to(device)
         for c in self.children():
             if hasattr(c, 'device') and hasattr(c, 'to'):
                 c.to(device)
