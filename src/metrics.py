@@ -662,9 +662,9 @@ class BSSVAELoss(LossParent):
             weight: kld_weight_n at current epoch
         """
 
-        shift = warm_up / 3 if shift is None else shift
+        shift = 2 * warm_up / 3 if shift is None else shift
         return base_weight * (
-                1 + math.tanh(scale * (counter - 2 * shift / 3))) / 2
+                1 + math.tanh(scale * (counter - shift))) / 2
         #
         # return self.base_weight_kld_n * (
         #         1 + math.tanh(self.kld_tanh_scale * (self.counter - 2 * self.kld_warm_up / 3))) / 2

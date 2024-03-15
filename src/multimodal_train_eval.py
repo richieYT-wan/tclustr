@@ -594,7 +594,7 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             best_dict = {'Best epoch': best_epoch, 'Best val loss': best_val_loss}
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
-            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)  
+            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
     last_filename = 'last_epoch_' + checkpoint_filename
     save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)

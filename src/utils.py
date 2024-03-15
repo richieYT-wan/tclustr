@@ -9,7 +9,29 @@ import seaborn as sns
 from sklearn.model_selection import KFold
 import secrets
 import string
+import torch
 from datetime import datetime as dt
+
+
+def plot_tanh_annealing(n_epochs, base_weight, scale, warm_up, shift=None):
+    x = torch.arange(0, n_epochs, 1)
+    shift = 2 * warm_up // 3 if shift is None else shift
+    y = (base_weight) * (1 + torch.tanh(scale * (x - shift)))/2
+    middle = torch.where(y==0.5*base_weight)[0].item()
+    last_zero = torch.where(y>=1e-6)[0][0].item()
+    plt.plot(x.numpy()[:int(0.15*n_epochs)], y.numpy()[:int(0.15*n_epochs)])
+    plt.axvline(y.argmax().item(), c='k', ls='--', lw=0.5,
+                label=f'max at {y.argmax().item()}')
+    plt.axvline(last_zero, c='g', ls='--', lw=0.5,
+                label=f'>1e-6 at {last_zero}')
+    plt.axvline(middle, c='m', ls=':', lw=0.5,
+                label=f'mid at {middle}')
+    plt.legend()
+    plt.title("Scaled Tanh Weight Factor")
+    plt.xlabel("Epoch")
+    plt.ylabel("Weight Factor")
+    plt.grid(True)
+    plt.show()
 
 
 def epoch_counter(*inputs):
@@ -117,7 +139,7 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
                  c='k', label=f'Best loss epoch {best_val_loss_epoch}')
     a[1].axvline(x=best_val_accs_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
                  c='k', label=f'Best accs epoch {best_val_accs_epoch}')
-    if max_acc<=0.6:
+    if max_acc <= 0.6:
         ylim1 = [0, 1.]
     a[1].set_ylim(ylim1)
     a[0].set_title('Losses')
