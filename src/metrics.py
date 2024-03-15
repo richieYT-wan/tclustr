@@ -481,10 +481,11 @@ class BSSVAELoss(LossParent):
 
         # KLD part
         # Used to do the KLD between Z_marg and Z_joint ; I guess this part should't need a warm-up
-        self.weight_kld_z = weight_kld_z
+        self.base_weight_kld_z = weight_kld_z
         # Used to do the KLD between Z_marg and N(0,1) & Parameters for KLD warm-up and annealing
         self.base_weight_kld_n = weight_kld_n
         self.weight_kld_n = 0
+        self.weight_kld_z = 0
         self.kld_tanh_scale = kld_tanh_scale
         self.kld_warm_up = kld_warm_up
         self.kld_decrease = kld_decrease
@@ -628,18 +629,25 @@ class BSSVAELoss(LossParent):
         """
         # TanH warm-up phase
         if self.counter <= self.kld_warm_up:
-            self.weight_kld_n = self._tanh_annealing()
+            self.weight_kld_n = self._tanh_annealing(self.counter, self.base_weight_kld_n,
+                                                     self.kld_tanh_scale, self.kld_warm_up,
+                                                     shift=None)
+            # using hard-coded parameters for the KLD_z annealing
+            self.weight_kld_z = self._tanh_annealing(self.counter, self.base_weight_kld_z,
+                                                     0.8, 50)
         # "flat" phase : No need to update
         if self.kld_warm_up < self.counter <= (self.kld_warm_up + self.flat_phase):
             self.weight_kld_n = self.base_weight_kld_n
-        # Start to decrease weight once counter > warm_up+flat phase
+            self.weight_kld_z = self.base_weight_kld_z
+        # Start to decrease weight once counter > warm_up+flat phase for KLD_N
+        # No decrease for KLD_Z
         elif self.counter > self.kld_warm_up + self.flat_phase:
             self.weight_kld_n = max(
                 self.base_weight_kld_n - (
                         self.kld_decrease * self.base_weight_kld_n * (self.counter - (self.kld_warm_up + self.flat_phase))),
                 self.base_weight_kld_n / 5)
 
-    def _tanh_annealing(self):
+    def _tanh_annealing(self, counter, base_weight, scale, warm_up, shift=None):
         """
         epoch_shift sets the epoch at which weight==weight/2, should be set at warm_up//2
         Only updates self.weight_kld as current weight, doesn't return anything
@@ -653,8 +661,13 @@ class BSSVAELoss(LossParent):
         Returns:
             weight: kld_weight_n at current epoch
         """
-        return self.base_weight_kld_n * (
-                1 + math.tanh(self.kld_tanh_scale * (self.counter - 2 * self.kld_warm_up / 3))) / 2
+
+        shift = warm_up / 3 if shift is None else shift
+        return base_weight * (
+                1 + math.tanh(scale * (counter - 2 * shift / 3))) / 2
+        #
+        # return self.base_weight_kld_n * (
+        #         1 + math.tanh(self.kld_tanh_scale * (self.counter - 2 * self.kld_warm_up / 3))) / 2
 
     @override
     def increment_counter(self):

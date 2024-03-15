@@ -571,10 +571,15 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
         valid_metrics.append(valid_metric)
         train_losses.append(train_loss)
         valid_losses.append(valid_loss)
-        # Periodic prints for tracking
+        # Periodic prints for tracking and saves
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs:
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
+            fn = f'epoch_{e}_interval_' + checkpoint_filename
+            savedict = {'epoch': e}
+            savedict.update(valid_loss)
+            savedict.update(valid_metric)
+            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
         loss_condition = valid_loss['total'] <= best_val_loss + tolerance
         recon_condition = valid_metric['mean_seq_accuracy'] >= best_val_reconstruction - tolerance
@@ -589,14 +594,7 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             best_dict = {'Best epoch': best_epoch, 'Best val loss': best_val_loss}
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
-            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
-
-        if e in intervals:
-            fn = f'epoch_{e}_interval_' + checkpoint_filename
-            savedict = {'epoch': e}
-            savedict.update(valid_loss)
-            savedict.update(valid_metric)
-            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
+            save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)  
 
     last_filename = 'last_epoch_' + checkpoint_filename
     save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
