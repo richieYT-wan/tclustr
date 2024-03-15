@@ -17,15 +17,20 @@ def plot_tanh_annealing(n_epochs, base_weight, scale, warm_up, shift=None):
     x = torch.arange(0, n_epochs, 1)
     shift = 2 * warm_up // 3 if shift is None else shift
     y = (base_weight) * (1 + torch.tanh(scale * (x - shift)))/2
-    middle = torch.where(y==0.5*base_weight)[0].item()
+    p50 = torch.where(y==0.5*base_weight)[0].item()
     last_zero = torch.where(y>=1e-6)[0][0].item()
+    max_ish = torch.where(y>=0.99*base_weight)[0][0].item()
+    p25 = torch.where(y>=.25*base_weight)[0][0].item()
     plt.plot(x.numpy()[:int(0.15*n_epochs)], y.numpy()[:int(0.15*n_epochs)])
-    plt.axvline(y.argmax().item(), c='k', ls='--', lw=0.5,
-                label=f'max at {y.argmax().item()}')
-    plt.axvline(last_zero, c='g', ls='--', lw=0.5,
+    plt.axvline(max_ish, c='k', ls='--', lw=0.5,
+                label=f'99% at {max_ish}')
+    plt.axvline(last_zero, c='g', ls=':', lw=0.25,
                 label=f'>1e-6 at {last_zero}')
-    plt.axvline(middle, c='m', ls=':', lw=0.5,
-                label=f'mid at {middle}')
+    plt.axvline(p50, c='m', ls=':', lw=0.5,
+                label=f'50% at {p50}')
+    plt.axvline(p25, c='c', ls=':', lw=0.5,
+                label=f'25% at {p25}')
+
     plt.legend()
     plt.title("Scaled Tanh Weight Factor")
     plt.xlabel("Epoch")

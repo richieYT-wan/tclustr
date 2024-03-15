@@ -29,7 +29,7 @@ class VAEDataset(Dataset):
         return self
 
     def get_dataloader(self, batch_size, sampler, **kwargs):
-        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
+        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self),  **kwargs)
         return dataloader
 
     def increment_counter(self):

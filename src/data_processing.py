@@ -26,6 +26,7 @@ CNN_FEATS = ['EL_ratio', 'anchor_mutation', 'delta_VHSE1', 'delta_VHSE3', 'delta
 
 def _init(DATADIR):
     #### ==== CONST (blosum, multiprocessing, keys, etc) ==== ####
+    # TODO : remove this
     VAL = math.floor(4 + (multiprocessing.cpu_count() / 1.5))
     N_CORES = VAL if VAL <= multiprocessing.cpu_count() else int(multiprocessing.cpu_count() - 2)
 
