@@ -485,7 +485,7 @@ class BSSVAELoss(LossParent):
         # Used to do the KLD between Z_marg and N(0,1) & Parameters for KLD warm-up and annealing
         self.base_weight_kld_n = weight_kld_n
         self.weight_kld_n = 0
-        self.weight_kld_z = 0
+        self.weight_kld_z = 1
         self.kld_tanh_scale = kld_tanh_scale
         self.kld_warm_up = kld_warm_up
         self.kld_decrease = kld_decrease
@@ -633,8 +633,8 @@ class BSSVAELoss(LossParent):
                                                      self.kld_tanh_scale, self.kld_warm_up,
                                                      shift=None)
             # using hard-coded parameters for the KLD_z annealing
-            self.weight_kld_z = self._tanh_annealing(self.counter, self.base_weight_kld_z,
-                                                     0.8, 50)
+            self.weight_kld_z = self.base_weight_kld_z #self._tanh_annealing(self.counter, self.base_weight_kld_z,
+                                              #       0.8, 50)
         # "flat" phase : No need to update
         if self.kld_warm_up < self.counter <= (self.kld_warm_up + self.flat_phase):
             self.weight_kld_n = self.base_weight_kld_n
