@@ -29,7 +29,7 @@ class VAEDataset(Dataset):
         return self
 
     def get_dataloader(self, batch_size, sampler, **kwargs):
-        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self),  **kwargs)
+        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
         return dataloader
 
     def increment_counter(self):
@@ -413,7 +413,7 @@ class MultimodalPepTCRDataset(VAEDataset):
     def __init__(self, df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
                  max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
-                 b3_col='B3', pair_only = False,
+                 b3_col='B3', pair_only=False, return_pair=False,
                  pep_col='peptide', add_positional_encoding=False, label_col='binder', pep_weighted=False, ):
         super(MultimodalPepTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
@@ -428,6 +428,9 @@ class MultimodalPepTCRDataset(VAEDataset):
             df_tcr_only = df.query('input_type=="tcr"')
             df_pep_only = df.query('input_type=="pep"')
             df_pep_tcr = df.query('input_type=="tcr_pep"')
+
+        self.pair_only = pair_only
+        self.return_pair = return_pair
 
         self.pad_scale = pad_scale
         self.max_len_a1 = max_len_a1
@@ -496,7 +499,13 @@ class MultimodalPepTCRDataset(VAEDataset):
         Returns:
             tensors:  x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg (follows the order of graph left to right)
         """
-        return self.x_tcr_marg[self.tcr_indices[idx]], \
+        if self.pair_only:
+            if self.return_pair:
+                return self.x_tcr_joint[idx], self.x_pep_joint[idx]
+            else:
+                return self.x_tcr_joint[idx], self.x_tcr_joint[idx], self.x_pep_joint[idx], self.x_pep_joint[idx]
+        else:
+            return self.x_tcr_marg[self.tcr_indices[idx]], \
                self.x_tcr_joint[idx], \
                self.x_pep_joint[idx], \
                self.x_pep_marg[self.pep_indices[idx]]

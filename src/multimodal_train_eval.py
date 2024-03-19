@@ -9,8 +9,9 @@ from src.multimodal_models import BSSVAE
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full, mask_modality, \
     filter_modality, batch_generator, paired_batch_generator
 from src.utils import epoch_counter, get_loss_metric_text
-from src.metrics import reconstruction_accuracy, get_metrics, model_reconstruction_stats, BSSVAELoss, \
+from src.metrics import reconstruction_accuracy, get_metrics, model_reconstruction_stats, \
     reconstruct_and_compute_accuracy
+from src.multimodal_metrics import BSSVAELoss
 from torch import cuda
 from torch.nn import functional as F
 

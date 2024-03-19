@@ -171,8 +171,7 @@ class BSSVAE(NetParent):
 
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
                  max_len_pep=12, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
-                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64,
-                 reparameterise_order='before'):
+                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64):
         super(BSSVAE, self).__init__()
 
         max_len_tcr = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
@@ -354,6 +353,161 @@ class BSSVAE(NetParent):
         return z
 
     # Reconstruction QOL methods
+    def slice_x(self, x, which):
+        if which == 'tcr':
+            return self.tcr_decoder.slice_x(x)
+        elif which == 'pep':
+            return self.pep_decoder.slice_x(x)
+
+    def reconstruct(self, z, which):
+        if which == 'tcr':
+            return self.tcr_decoder.reconstruct(z)
+        elif which == 'pep':
+            return self.pep_decoder.reconstruct(z)
+
+    def recover_indices(self, seq_tensor):
+        # Simply call one of the children to do this ; this doesn't need/affect weights
+        # and is simply a tensor2seq reconstruction
+        return self.tcr_decoder.recover_indices(seq_tensor)
+
+    def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
+        """
+        Args:
+            seq_tensor:
+            AA_KEYS:
+
+        Returns: list_of_sequences (list of str)
+
+        """
+        return self.tcr_decoder.recover_sequences_blosum(seq_tensor, AA_KEYS)
+
+    def reconstruct_hat(self, x_hat, which):
+        """
+        Args:
+            x_hat:
+            which:
+
+        Returns:
+            seq_idx, positional_encoding
+        """
+        if which == 'tcr':
+            return self.tcr_decoder.reconstruct_hat(x_hat)
+        elif which == 'pep':
+            return self.pep_decoder.reconstruct_hat(x_hat)
+
+    def to(self, device):
+        self.device = device
+        for c in self.children():
+            if hasattr(c, 'device') and hasattr(c, 'to'):
+                c.to(device)
+
+
+class JMVAE(NetParent):
+    def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
+                 max_len_pep=12, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
+                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64):
+        super(JMVAE, self).__init__()
+        max_len_tcr = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
+        pos_dim_tcr = sum([int(mlx) > 0 for mlx in
+                           [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3]]) \
+            if add_positional_encoding else 0
+        self.latent_dim = latent_dim
+        self.activation = activation
+        self.hidden_dim_tcr = hidden_dim_tcr
+        self.hidden_dim_pep = hidden_dim_pep
+        self.add_positional_encoding = add_positional_encoding
+        self.max_len_tcr = max_len_tcr
+        self.max_len_pep = max_len_pep
+        self.encoding = encoding
+        self.pad_scale = pad_scale
+        self.aa_dim = aa_dim
+        self.matrix_dim_tcr = aa_dim + pos_dim_tcr
+        self.matrix_dim_pep = aa_dim
+
+        # Triple encoder setup, with a joint (TCRpep concatenated) encoder
+        # The "side" encoders (marginal only, Ztcr and Zpep)
+        self.marg_tcr_encoder = Encoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
+                                        hidden_dim_tcr, latent_dim)
+        # pos_dim_pep is 0, "useless" to encode positional encoding for a single chain
+        self.marg_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
+                                        hidden_dim_pep, latent_dim)
+        self.joint_encoder = Encoder(max_len_tcr + max_len_pep, aa_dim, pos_dim_tcr + 0, encoding, pad_scale,
+                                     activation, hidden_dim_tcr, latent_dim)
+
+        # Dual decoders that are shared among modalities
+        self.tcr_decoder = Decoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
+                                   hidden_dim_tcr, latent_dim)
+        self.pep_decoder = Decoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
+                                   hidden_dim_pep, latent_dim)
+
+    def forward(self, x_tcr_marg, x_pep_marg):
+        """
+        assumes these are flattened tensors coming from MultimodalPepTCRDataset
+        TODO: ADD A FLAG TO MULTIMODAL DATASET CLASS TO RETURN ONLY MARGINALS
+              Could only work if Add_positional encoding is FALSE
+        Doing it this way so that I can re-use the dataset without extra coding
+        TODO: Add a flag in the multimodal to return / save only marginal and concatenate here in a self.method
+              Create a function here to reshape and concat tcr/pep joint and flatten again
+              ONLY PASS TWO ELEMENTS TO CUDA to make it faster
+        """
+
+        mu_tcr_marg, logvar_tcr_marg = self.marg_tcr_encoder(x_tcr_marg)
+        z_tcr_marg = self.reparameterise(mu_tcr_marg, logvar_tcr_marg)
+
+        mu_pep_marg, logvar_pep_marg = self.marg_pep_encoder(x_pep_marg)
+        z_pep_marg = self.reparameterise(mu_pep_marg, logvar_pep_marg)
+
+        x_joint = self.join_tcr_pep(x_tcr_marg, x_pep_marg)
+        mu_joint, logvar_joint = self.joint_encoder(x_joint)
+        z_joint = self.reparameterise(mu_joint, logvar_joint)
+
+        recon_tcr_marg = self.tcr_decoder(z_tcr_marg)
+        recon_pep_marg = self.pep_decoder(z_pep_marg)
+
+        recon_tcr_joint = self.tcr_decoder(z_joint)
+        recon_pep_joint = self.pep_decoder(z_joint)
+
+        recons = {'tcr_marg': recon_tcr_marg,
+                  'tcr_joint': recon_tcr_joint,
+                  'pep_joint': recon_pep_joint,
+                  'pep_marg': recon_pep_marg}
+        mus = {'tcr_marg': mu_tcr_marg,
+               'joint': mu_joint,
+               'pep_marg': mu_pep_marg}
+        logvars = {'tcr_marg': logvar_tcr_marg,
+                   'joint': logvar_joint,
+                   'pep_marg': logvar_pep_marg}
+
+        return recons, mus, logvars
+
+    def join_tcr_pep(self, x_tcr, x_pep):
+        return torch.cat([x_tcr.view(-1, self.max_len_tcr, self.matrix_dim_tcr),
+                          x_pep.view(-1, self.max_len_pep, self.aa_dim)], dim=1).flatten(start_dim=1)
+
+    def reparameterise(self, mu, logvar):
+        # During training, the reparameterisation leads to z = mu + std * eps
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            epsilon = torch.empty_like(mu).normal_(mean=0, std=1)
+            return (epsilon * std) + mu
+        # During evaluation, the trick is disabled and z = mu
+        else:
+            return mu
+
+    def forward_joint(self, x_tcr, x_pep):
+        x_joint = self.join_tcr_pep(x_tcr, x_pep)
+        mu_joint, logvar_joint = self.joint_encoder(x_joint)
+        z_joint = self.reparameterise(mu_joint, logvar_joint)
+        x_hat_tcr = self.tcr_decoder(z_joint)
+        x_hat_pep = self.pep_decoder(z_joint)
+        return x_hat_tcr, x_hat_pep, z_joint
+
+    def forward_marginal(self, x, which):
+        mu, logvar = self.marg_tcr_encoder(x) if which == 'tcr' else self.marg_pep_encoder(x)
+        z = self.reparameterise(mu, logvar)
+        x_hat = self.tcr_decoder(z) if which == 'tcr' else self.pep_decoder(z)
+        return x_hat, z
+
     def slice_x(self, x, which):
         if which == 'tcr':
             return self.tcr_decoder.slice_x(x)
