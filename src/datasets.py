@@ -503,7 +503,6 @@ class MultimodalPepTCRDataset(VAEDataset):
             if self.return_pair:
                 return self.x_tcr_joint[idx], self.x_pep_joint[idx]
             else:
-                print('here')
                 return self.x_tcr_joint[idx], self.x_tcr_joint[idx], self.x_pep_joint[idx], self.x_pep_joint[idx]
         else:
             return self.x_tcr_marg[self.tcr_indices[idx]], \
