@@ -413,15 +413,22 @@ class MultimodalPepTCRDataset(VAEDataset):
     def __init__(self, df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
                  max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
-                 b3_col='B3',
+                 b3_col='B3', pair_only = False,
                  pep_col='peptide', add_positional_encoding=False, label_col='binder', pep_weighted=False, ):
         super(MultimodalPepTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
             'All loops max_len are 0! No chains will be added'
-        df_tcr_only = df.query('input_type=="tcr"')
-        df_pep_only = df.query('input_type=="pep"')
-        df_pep_tcr = df.query('input_type=="tcr_pep"')
+
+        if pair_only:
+            df_tcr_only = df.query('input_type=="tcr_pep"')
+            df_pep_only = df.query('input_type=="tcr_pep"')
+            df_pep_tcr = df.query('input_type=="tcr_pep"')
+        else:
+            df_tcr_only = df.query('input_type=="tcr"')
+            df_pep_only = df.query('input_type=="pep"')
+            df_pep_tcr = df.query('input_type=="tcr_pep"')
+
         self.pad_scale = pad_scale
         self.max_len_a1 = max_len_a1
         self.max_len_a2 = max_len_a2

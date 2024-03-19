@@ -20,11 +20,12 @@ def paired_batch_generator(x_tensor_a, x_tensor_b, batch_size):
     Yields:
     - Tensor: A batch of data.
     """
-    assert x_tensor_a.size(0)==x_tensor_b.size(0), f'Size mismatch! {x_tensor_a.size(0)}, {x_tensor_b.size(0)}'
+    assert x_tensor_a.size(0) == x_tensor_b.size(0), f'Size mismatch! {x_tensor_a.size(0)}, {x_tensor_b.size(0)}'
     num_samples = x_tensor_a.size(0)
     for start_idx in range(0, num_samples, batch_size):
         # This automatically adjusts to return all remaining data for the last batch
-        yield x_tensor_a[start_idx:start_idx + batch_size], x_tensor_b[start_idx:start_idx+batch_size]
+        yield x_tensor_a[start_idx:start_idx + batch_size], x_tensor_b[start_idx:start_idx + batch_size]
+
 
 def batch_generator(x_tensor, batch_size):
     """
@@ -98,7 +99,7 @@ def filter_modality(tensor, mask, fill_value=-99):
     return masked_tensor[new_mask]
 
 
-def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True):
+def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True, **kwargs):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
     Args:
@@ -108,7 +109,7 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
     Returns:
 
     """
-    dict_kwargs = load_json(json_filename, dir_path)
+    dict_kwargs = load_json(json_filename, dir_path, **kwargs)
     assert 'constructor' in dict_kwargs.keys(), f'No constructor class name provided in the dict_kwargs keys! {dict_kwargs.keys()}'
     constructor = dict_kwargs.pop('constructor')
     if 'activation' in dict_kwargs:
@@ -119,7 +120,7 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
                 if l == 'activation':
                     dict_kwargs[k]['activation'] = eval(dict_kwargs[k]['activation'])()
     model = eval(constructor)(**dict_kwargs)
-    model = load_checkpoint(model, checkpoint_filename, dir_path, verbose)
+    model = load_checkpoint(model, checkpoint_filename, dir_path, verbose, **kwargs)
     if return_json:
         return model, dict_kwargs
     else:
@@ -156,7 +157,7 @@ def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', v
         f'and JSON at {os.path.abspath(os.path.join(dir_path, json_filename))}')
 
 
-def load_json(filename, dir_path=None):
+def load_json(filename, dir_path=None, **kwargs):
     """
     Loads a dictionary from a .json file and returns it
     Args:
@@ -228,7 +229,7 @@ def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './'
         print(f'Model saved at {os.path.abspath(savepath)}')
 
 
-def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True):
+def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True, **kwargs):
     """
     Loads a model
     Args:
@@ -242,7 +243,7 @@ def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True):
     if dir_path is not None:
         filename = os.path.join(dir_path, filename)
     try:
-        checkpoint = torch.load(filename)
+        checkpoint = torch.load(filename, **kwargs)
         if 'best' in checkpoint.keys():
             best = checkpoint.pop('best')
             if verbose:

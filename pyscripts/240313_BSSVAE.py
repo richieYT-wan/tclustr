@@ -48,7 +48,8 @@ def args_parser():
                         help='Name of the column containing B3 sequences (inputs)')
     parser.add_argument('-b3', '--b3_col', dest='b3_col', default='B3', type=str, required=False,
                         help='Name of the column containing B3 sequences (inputs)')
-
+    parser.add_argument('-pair_only', dest='pair_only', default=False, type=str2bool, required=False,
+                        help='Whether to "trick" and use the paired_only data')
     parser.add_argument('-mla1', '--max_len_a1', dest='max_len_a1', type=int, default=7,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
