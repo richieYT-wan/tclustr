@@ -450,7 +450,8 @@ class BSSVAELoss(LossParent):
     def __init__(self, max_len_a1=7, max_len_a2=8, max_len_a3=22, max_len_b1=6, max_len_b2=7, max_len_b3=23,
                  max_len_pep=12, aa_dim=20, add_positional_encoding=False, positional_weighting=True,
                  sequence_criterion=nn.MSELoss(reduction='none'), weight_seq=1, weight_kld_z=1, weight_kld_n=1e-2,
-                 kld_warm_up=100, kld_tanh_scale=0.1, kld_decrease=5e-3, flat_phase=None, debug=False):
+                 add_kld_n_joint=False, kld_warm_up=100, kld_tanh_scale=0.1, kld_decrease=5e-3, flat_phase=None,
+                 debug=False):
         # TODO: Define pep_weighted?
         super(BSSVAELoss, self).__init__()
         # Using none reduction to apply weight per chain
@@ -484,6 +485,7 @@ class BSSVAELoss(LossParent):
         self.base_weight_kld_z = weight_kld_z
         # Used to do the KLD between Z_marg and N(0,1) & Parameters for KLD warm-up and annealing
         self.base_weight_kld_n = weight_kld_n
+        self.add_kld_n_joint = add_kld_n_joint
         self.weight_kld_n = 0
         self.weight_kld_z = 1
         self.kld_tanh_scale = kld_tanh_scale
@@ -532,6 +534,8 @@ class BSSVAELoss(LossParent):
         kld_pep_joint = self.kld_latent(mus['pep_marg'], logvars['pep_marg'], mus['joint'], logvars['joint'])
         kld_pep_normal = self.kld_normal(mus['pep_marg'], logvars['pep_marg'])
 
+        kld_n_joint = self.kld_normal(mus['joint'], logvars['joint']) if self.add_kld_n_joint else torch.tensor([0.], requires_grad=True)
+
         if self.debug:
             print('\n', '#' * 15, ' DEBUG ', '#' * 15)
             print('recon_tcr_marg\t', f'{recon_tcr_marg.item():.4f}')
@@ -544,14 +548,12 @@ class BSSVAELoss(LossParent):
             print('kld_pep_joint\t', f'{kld_pep_joint.item():.4f}')
             print(self.weight_seq, self.weight_kld_n, self.weight_kld_z, self.positional_weighting)
 
-        return {'tcr_marg': recon_tcr_marg,
-                'pep_marg': recon_pep_marg}, \
-               {'tcr_joint': recon_tcr_joint,
-                'pep_joint': recon_pep_joint}, \
-               {'tcr_normal': kld_tcr_normal,
-                'pep_normal': kld_pep_normal}, \
-               {'tcr_joint': kld_tcr_joint,
-                'pep_joint': kld_pep_joint}
+        recon_loss_marg = {'tcr_marg': recon_tcr_marg, 'pep_marg': recon_pep_marg}
+        recon_loss_joint = {'tcr_joint': recon_tcr_joint, 'pep_joint': recon_pep_joint}
+        kld_loss_normal = {'tcr_normal': kld_tcr_normal, 'pep_normal': kld_pep_normal, 'joint_normal':kld_n_joint}
+        kld_loss_latent = {'tcr_joint': kld_tcr_joint, 'pep_joint': kld_pep_joint}
+
+        return recon_loss_marg, recon_loss_joint, kld_loss_normal, kld_loss_latent
 
     def reconstruction_loss(self, x_hat, x, which):
         """
@@ -645,7 +647,7 @@ class BSSVAELoss(LossParent):
             self.weight_kld_n = max(
                 self.base_weight_kld_n - (
                         self.kld_decrease * self.base_weight_kld_n * (self.counter - (self.kld_warm_up + self.flat_phase))),
-                self.base_weight_kld_n / 5)
+                self.base_weight_kld_n / 4)
 
     def _tanh_annealing(self, counter, base_weight, scale, warm_up, shift=None):
         """

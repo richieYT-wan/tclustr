@@ -113,6 +113,8 @@ def args_parser():
                         help='Which weight to use for the KLD (normal) term in the loss')
     parser.add_argument('-lwkld_z', '--weight_kld_z', dest='weight_kld_z', type=float, default=1,
                         help='Which weight to use for the KLD (Latent) term in the loss')
+    parser.add_argument('-addkldn', '--add_kld_n_joint', dest='add_kld_n_joint', type=str2bool, default=False,
+                        help='Add one more KLD term from Z_joint to N(0,1)')
     # parser.add_argument('-lwtrp', '--weight_triplet',
     #                     dest='weight_triplet', type=float, default=1, help='Weight for the triplet loss term')
     # parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,

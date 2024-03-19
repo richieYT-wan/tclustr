@@ -339,12 +339,12 @@ def train_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, optimizer, train
         # Batch is `trues` ; Criterion takes list+dicts and returns dicts
         # Might be useful for debugging purposes to return dicts
         # TODO: Could return a single dict with the pre-summed values later
-        recon_loss_marg, recon_loss_joint, kld_loss_marg, kld_loss_joint = criterion(batch, recons, mus, logvars)
+        recon_loss_marg, recon_loss_joint, kld_loss_normal, kld_loss_latent = criterion(batch, recons, mus, logvars)
         # Sum because those are dicts of two k:v pairs
         recon_loss_marg, recon_loss_joint = sum(recon_loss_marg.values()), sum(recon_loss_joint.values())
-        kld_loss_marg, kld_loss_joint = sum(kld_loss_marg.values()), sum(kld_loss_joint.values())
+        kld_loss_normal, kld_loss_latent = sum(kld_loss_normal.values()), sum(kld_loss_latent.values())
         # Sum & update
-        loss = recon_loss_marg + recon_loss_joint + kld_loss_marg + kld_loss_joint
+        loss = recon_loss_marg + recon_loss_joint + kld_loss_normal + kld_loss_latent
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -352,8 +352,8 @@ def train_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, optimizer, train
         acum_total_loss += loss.item() * len(batch)
         acum_recon_marg += recon_loss_marg.item() * len(batch)
         acum_recon_joint += recon_loss_joint.item() * len(batch)
-        acum_kld_marg += kld_loss_marg.item() * len(batch)
-        acum_kld_joint += kld_loss_joint.item() * len(batch)
+        acum_kld_marg += kld_loss_normal.item() * len(batch)
+        acum_kld_joint += kld_loss_latent.item() * len(batch)
         # Saving reconstruction to assess accuracy
         tcr_marg_recon.append(recons['tcr_marg'].detach().cpu())
         tcr_joint_recon.append(recons['tcr_joint'].detach().cpu())
@@ -410,18 +410,18 @@ def eval_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, valid_loader):
             batch = [x.to(model.device) for x in batch]
             recons, mus, logvars = model(*batch)
             # Batch is `trues` ; Criterion takes list+dicts and returns dicts
-            recon_loss_marg, recon_loss_joint, kld_loss_marg, kld_loss_joint = criterion(batch, recons, mus, logvars)
+            recon_loss_marg, recon_loss_joint, kld_loss_normal, kld_loss_latent = criterion(batch, recons, mus, logvars)
             # Sum because those are dicts of two k:v pairs
             recon_loss_marg, recon_loss_joint = sum(recon_loss_marg.values()), sum(recon_loss_joint.values())
-            kld_loss_marg, kld_loss_joint = sum(kld_loss_marg.values()), sum(kld_loss_joint.values())
+            kld_loss_normal, kld_loss_latent = sum(kld_loss_normal.values()), sum(kld_loss_latent.values())
             # Sum & update
-            loss = recon_loss_marg + recon_loss_joint + kld_loss_marg + kld_loss_joint
+            loss = recon_loss_marg + recon_loss_joint + kld_loss_normal + kld_loss_latent
             # Accumulating normalized loss
             acum_total_loss += loss.item() * len(batch)
             acum_recon_marg += recon_loss_marg.item() * len(batch)
             acum_recon_joint += recon_loss_joint.item() * len(batch)
-            acum_kld_marg += kld_loss_marg.item() * len(batch)
-            acum_kld_joint += kld_loss_joint.item() * len(batch)
+            acum_kld_marg += kld_loss_normal.item() * len(batch)
+            acum_kld_joint += kld_loss_latent.item() * len(batch)
             # Saving reconstruction to assess accuracy
             tcr_marg_recon.append(recons['tcr_marg'].detach().cpu())
             tcr_joint_recon.append(recons['tcr_joint'].detach().cpu())
@@ -561,7 +561,6 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
     save_checkpoint(model, checkpoint_filename, dir_path=outdir, verbose=False, best_dict=None)
     best_val_loss, best_val_reconstruction, best_epoch = 1000, 0, 0
     train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
-    intervals = (np.arange(0.2, 1, 0.2) * n_epochs).astype(int)
 
     for e in tqdm(range(1, n_epochs+1), desc='epochs', leave=False):
         train_loss, train_metric = train_multimodal_step(model, criterion, optimizer, train_loader)
@@ -575,7 +574,7 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs:
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
-            fn = f'epoch_{e}_interval_' + checkpoint_filename
+            fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best','')
             savedict = {'epoch': e}
             savedict.update(valid_loss)
             savedict.update(valid_metric)
