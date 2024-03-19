@@ -1,19 +1,17 @@
 import torch
+from torch.utils.data import SequentialSampler
 import math
 from tqdm.auto import tqdm
+from typing import Union
 import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
 from src.datasets import MultimodalPepTCRDataset
-from src.multimodal_models import BSSVAE
-from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full, mask_modality, \
-    filter_modality, batch_generator, paired_batch_generator
+from src.multimodal_models import BSSVAE, JMVAE
+from src.torch_utils import save_checkpoint, load_checkpoint, mask_modality, batch_generator, paired_batch_generator
 from src.utils import epoch_counter, get_loss_metric_text
-from src.metrics import reconstruction_accuracy, get_metrics, model_reconstruction_stats, \
-    reconstruct_and_compute_accuracy
-from src.multimodal_metrics import BSSVAELoss
-from torch import cuda
-from torch.nn import functional as F
+from src.metrics import model_reconstruction_stats, reconstruct_and_compute_accuracy
+from src.multimodal_metrics import BSSVAELoss, JMVAELoss
 
 
 def eval_trimodal_step(model, criterion, valid_loader):
@@ -322,7 +320,8 @@ def trimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer, 
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics
 
 
-def train_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, optimizer, train_loader):
+def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELoss, JMVAELoss], optimizer,
+                          train_loader):
     model.train()
     acum_total_loss, acum_recon_marg, acum_recon_joint, acum_kld_marg, acum_kld_joint = 0, 0, 0, 0, 0
     tcr_marg_recon, tcr_joint_recon, pep_marg_recon, pep_joint_recon = [], [], [], []
@@ -395,7 +394,7 @@ def train_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, optimizer, train
     return train_loss, train_metrics
 
 
-def eval_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, valid_loader):
+def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELoss, JMVAELoss], valid_loader):
     model.eval()
     acum_total_loss, acum_recon_marg, acum_recon_joint, acum_kld_marg, acum_kld_joint = 0, 0, 0, 0, 0
     tcr_marg_recon, tcr_joint_recon, pep_marg_recon, pep_joint_recon = [], [], [], []
@@ -467,7 +466,9 @@ def eval_multimodal_step(model: BSSVAE, criterion: BSSVAELoss, valid_loader):
     return valid_loss, valid_metrics
 
 
-def predict_multimodal(model: BSSVAE, dataset: MultimodalPepTCRDataset, batch_size):
+def predict_multimodal(model: Union[BSSVAE, JMVAE],
+                       dataset: MultimodalPepTCRDataset,
+                       batch_size):
     """
     Here, it uses dataset and not dataloader in order to return the entire DF with the missing modalities!
     So it doesn't use dataloader because dataloader sub-samples the missing modalities based on epochs and we want the full thing
@@ -479,79 +480,122 @@ def predict_multimodal(model: BSSVAE, dataset: MultimodalPepTCRDataset, batch_si
         predictions_df
     """
     model.eval()
-    z_latent = []
-    x_recon_tcr_marg, x_true_tcr_marg = [], []
-    x_recon_pep_marg, x_true_pep_marg = [], []
-    x_recon_tcr_joint, x_true_tcr_joint = [], []
-    x_recon_pep_joint, x_true_pep_joint = [], []
-    # Original df, re-ordered
-    tcr_df = dataset.df_tcr_only.copy()
-    pep_df = dataset.df_pep_only.copy()
-    paired_df = dataset.df_pep_tcr.copy()
-    mlt = dataset.max_len_tcr
-    mlp = dataset.max_len_pep
     with torch.no_grad():
-        # marginal TCR first
-        for batch in batch_generator(dataset.x_tcr_marg, batch_size):
-            # Pre saves true_vector to avoid detaching and cpu later
-            x_true_tcr_marg.append(batch)
-            batch = batch.to(model.device)
-            x_hat, z = model.forward_marginal(batch, which='tcr')
-            x_recon_tcr_marg.append(x_hat.detach().cpu())
-            z_latent.append(z.detach().cpu())
-        # Concat, reconstruct, metrics
-        seq_hat_true, seq_hat_recon, metrics = reconstruct_and_compute_accuracy(model.tcr_decoder, x_true_tcr_marg,
-                                                                                x_recon_tcr_marg)
-        tcr_df['seq_true'] = seq_hat_true
-        tcr_df['seq_recon'] = seq_hat_recon
-        tcr_df['seq_acc'] = metrics['seq_accuracy']
-        # Marginal Peptide part
-        for batch in batch_generator(dataset.x_pep_marg, batch_size):
-            x_true_pep_marg.append(batch)
-            batch = batch.to(model.device)
-            x_hat, z = model.forward_marginal(batch, which='pep')
-            x_recon_pep_marg.append(x_hat.detach().cpu())
-            z_latent.append(z.detach().cpu())
+        z_latent = []
+        x_recon_tcr_marg, x_true_tcr_marg = [], []
+        x_recon_pep_marg, x_true_pep_marg = [], []
+        x_recon_tcr_joint, x_true_tcr_joint = [], []
+        x_recon_pep_joint, x_true_pep_joint = [], []
+        # Original df, re-ordered
+        paired_df = dataset.df_pep_tcr.copy()
+        mlt = dataset.max_len_tcr
+        mlp = dataset.max_len_pep
+        # THIS PART FOR BSSVAE
+        if type(model) == BSSVAE:
+            tcr_df = dataset.df_tcr_only.copy()
+            pep_df = dataset.df_pep_only.copy()
+            # marginal TCR first
+            for batch in batch_generator(dataset.x_tcr_marg, batch_size):
+                # Pre saves true_vector to avoid detaching and cpu later
+                x_true_tcr_marg.append(batch)
+                batch = batch.to(model.device)
+                x_hat, z = model.forward_marginal(batch, which='tcr')
+                x_recon_tcr_marg.append(x_hat.detach().cpu())
+                z_latent.append(z.detach().cpu())
+            # Concat, reconstruct, metrics
+            seq_hat_true, seq_hat_recon, metrics = reconstruct_and_compute_accuracy(model.tcr_decoder, x_true_tcr_marg,
+                                                                                    x_recon_tcr_marg)
+            tcr_df['seq_true'] = seq_hat_true
+            tcr_df['seq_recon'] = seq_hat_recon
+            tcr_df['seq_acc'] = metrics['seq_accuracy']
+            # Marginal Peptide part
+            for batch in batch_generator(dataset.x_pep_marg, batch_size):
+                x_true_pep_marg.append(batch)
+                batch = batch.to(model.device)
+                x_hat, z = model.forward_marginal(batch, which='pep')
+                x_recon_pep_marg.append(x_hat.detach().cpu())
+                z_latent.append(z.detach().cpu())
 
-        x_recon_pep_marg = torch.cat(x_recon_pep_marg)
-        x_true_pep_marg = torch.cat(x_true_pep_marg)
-        seq_hat_true, seq_hat_recon, metrics = reconstruct_and_compute_accuracy(model.pep_decoder, x_true_pep_marg,
-                                                                                x_recon_pep_marg)
-        pep_df['seq_true'] = seq_hat_true
-        pep_df['seq_recon'] = seq_hat_recon
-        pep_df['seq_acc'] = metrics['seq_accuracy']
-        # Joint/Paired data part
-        for batch in paired_batch_generator(dataset.x_tcr_joint, dataset.x_pep_joint, batch_size):
-            x_true_tcr_joint.append(batch[0])
-            x_true_pep_joint.append(batch[1])
-            batch = [b.to(model.device) for b in batch]
-            x_hat_tcr, x_hat_pep, z = model.forward_joint(*batch)
-            x_recon_tcr_joint.append(x_hat_tcr.detach().cpu())
-            x_recon_pep_joint.append(x_hat_pep.detach().cpu())
-            z_latent.append(z.detach().cpu())
+            x_recon_pep_marg = torch.cat(x_recon_pep_marg)
+            x_true_pep_marg = torch.cat(x_true_pep_marg)
+            seq_hat_true, seq_hat_recon, metrics = reconstruct_and_compute_accuracy(model.pep_decoder, x_true_pep_marg,
+                                                                                    x_recon_pep_marg)
+            pep_df['seq_true'] = seq_hat_true
+            pep_df['seq_recon'] = seq_hat_recon
+            pep_df['seq_acc'] = metrics['seq_accuracy']
+            # Joint/Paired data part
+            for batch in paired_batch_generator(dataset.x_tcr_joint, dataset.x_pep_joint, batch_size):
+                x_true_tcr_joint.append(batch[0])
+                x_true_pep_joint.append(batch[1])
+                batch = [b.to(model.device) for b in batch]
+                x_hat_tcr, x_hat_pep, z = model.forward_joint(*batch)
+                x_recon_tcr_joint.append(x_hat_tcr.detach().cpu())
+                x_recon_pep_joint.append(x_hat_pep.detach().cpu())
+                z_latent.append(z.detach().cpu())
 
-        seq_hat_true_tcr, seq_hat_recon_tcr, metrics_tcr = reconstruct_and_compute_accuracy(
-            model.tcr_decoder,
-            x_true_tcr_joint,
-            x_recon_tcr_joint)
-        seq_hat_true_pep, seq_hat_recon_pep, metrics_pep = reconstruct_and_compute_accuracy(
-            model.pep_decoder,
-            x_true_pep_joint,
-            x_recon_pep_joint)
-        # concatenate the strings TCR-PEP for true and recon
-        seq_true = [a + b for a, b in zip(seq_hat_true_tcr, seq_hat_true_pep)]
-        seq_recon = [a + b for a, b in zip(seq_hat_recon_tcr, seq_hat_recon_pep)]
-        # Do a weighted mean based on sequence length
+            seq_hat_true_tcr, seq_hat_recon_tcr, metrics_tcr = reconstruct_and_compute_accuracy(
+                model.tcr_decoder,
+                x_true_tcr_joint,
+                x_recon_tcr_joint)
+            seq_hat_true_pep, seq_hat_recon_pep, metrics_pep = reconstruct_and_compute_accuracy(
+                model.pep_decoder,
+                x_true_pep_joint,
+                x_recon_pep_joint)
+            # concatenate the strings TCR-PEP for true and recon
+            seq_true = [a + b for a, b in zip(seq_hat_true_tcr, seq_hat_true_pep)]
+            seq_recon = [a + b for a, b in zip(seq_hat_recon_tcr, seq_hat_recon_pep)]
+            # Do a weighted mean based on sequence length
 
-        accs = [(mlt * tcr_acc + mlt * pep_acc) / (mlt + mlp) for tcr_acc, pep_acc in
-                zip(metrics_tcr['seq_accuracy'],
-                    metrics_pep['seq_accuracy'])]
-        paired_df['seq_true'] = seq_true
-        paired_df['seq_recon'] = seq_recon
-        paired_df['seq_acc'] = accs
+            accs = [(mlt * tcr_acc + mlt * pep_acc) / (mlt + mlp) for tcr_acc, pep_acc in
+                    zip(metrics_tcr['seq_accuracy'],
+                        metrics_pep['seq_accuracy'])]
+            paired_df['seq_true'] = seq_true
+            paired_df['seq_recon'] = seq_recon
+            paired_df['seq_acc'] = accs
+            results_df = pd.concat([tcr_df, pep_df, paired_df])
+            results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
 
-    results_df = pd.concat([tcr_df, pep_df, paired_df])
-    results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
+        elif type(model) == JMVAE and dataset.pair_only and dataset.return_pair:
+            loader = dataset.get_dataloader(batch_size, SequentialSampler)
+            for batch in loader:
+                x_true_tcr_joint.append(batch[0])
+                x_true_pep_joint.append(batch[1])
+                batch = [b.to(model.device) for b in batch]
+                recons, mus, _ = model(*batch)
+                x_recon_tcr_marg.append(recons['tcr_marg'].detach().cpu())
+                x_recon_tcr_joint.append(recons['tcr_joint'].detach().cpu())
+                x_recon_pep_joint.append(recons['pep_joint'].detach().cpu())
+                x_recon_pep_marg.append(recons['pep_marg'].detach().cpu())
+                z_latent.append(mus['joint'])
+
+            tcr_marg_true, tcr_marg_recon, tcr_marg_metrics = reconstruct_and_compute_accuracy(model.tcr_decoder,
+                                                                                               x_true_tcr_joint23, x_recon_tcr_marg)
+            _, tcr_joint_recon, tcr_joint_metrics = reconstruct_and_compute_accuracy(model.tcr_decoder,
+                                                                                      x_true_tcr_joint, x_recon_tcr_joint)
+            pep_marg_true, pep_marg_recon, pep_marg_metrics = reconstruct_and_compute_accuracy(model.pep_decoder,
+                                                                                               x_true_pep_joint23, x_recon_pep_marg)
+            _, pep_joint_recon, pep_joint_metrics = reconstruct_and_compute_accuracy(model.pep_decoder,
+                                                                                      x_true_pep_joint, x_recon_pep_joint)
+            results_df = paired_df.copy(deep=True)
+            results_df['tcr_true'] = tcr_marg_true
+            results_df['tcr_marg_recon'] = tcr_marg_recon
+            results_df['tcr_joint_recon'] = tcr_joint_recon
+            results_df['tcr_marg_acc'] = tcr_marg_metrics['seq_accuracy']
+            results_df['tcr_joint_acc'] = tcr_joint_metrics['seq_accuracy']
+
+            results_df['pep_true'] = pep_marg_true
+            results_df['pep_marg_recon'] = pep_marg_recon
+            results_df['pep_joint_recon'] = pep_joint_recon
+            results_df['pep_marg_acc'] = pep_marg_metrics['seq_accuracy']
+            results_df['pep_joint_acc'] = pep_joint_metrics['seq_accuracy']
+
+            results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
+
+        else:
+            raise ValueError(
+                'Discrepancies between model types and dataset paired/unpaired behaviour!! Check your inputs ; JMVAE expects return_pair.' \
+                f'model {model.__class__.__name__}, Dataset pair only : {dataset.pair_only}, Dataset return pair: {dataset.return_pair}')
+
     return results_df
 
 
@@ -563,7 +607,7 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
     best_val_loss, best_val_reconstruction, best_epoch = 1000, 0, 0
     train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
 
-    for e in tqdm(range(1, n_epochs+1), desc='epochs', leave=False):
+    for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_multimodal_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_multimodal_step(model, criterion, valid_loader)
         epoch_counter(model, criterion, train_loader, valid_loader)
@@ -575,7 +619,7 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs:
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
-            fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best','')
+            fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
             savedict = {'epoch': e}
             savedict.update(valid_loss)
             savedict.update(valid_metric)

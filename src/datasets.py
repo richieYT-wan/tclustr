@@ -420,6 +420,9 @@ class MultimodalPepTCRDataset(VAEDataset):
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
             'All loops max_len are 0! No chains will be added'
 
+        self.pair_only = pair_only
+        self.return_pair = return_pair
+
         if pair_only:
             df_tcr_only = df.query('input_type=="tcr_pep"')
             df_pep_only = df.query('input_type=="tcr_pep"')
@@ -429,8 +432,6 @@ class MultimodalPepTCRDataset(VAEDataset):
             df_pep_only = df.query('input_type=="pep"')
             df_pep_tcr = df.query('input_type=="tcr_pep"')
 
-        self.pair_only = pair_only
-        self.return_pair = return_pair
 
         self.pad_scale = pad_scale
         self.max_len_a1 = max_len_a1
