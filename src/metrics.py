@@ -534,7 +534,9 @@ class BSSVAELoss(LossParent):
         kld_pep_joint = self.kld_latent(mus['pep_marg'], logvars['pep_marg'], mus['joint'], logvars['joint'])
         kld_pep_normal = self.kld_normal(mus['pep_marg'], logvars['pep_marg'])
 
-        kld_n_joint = self.kld_normal(mus['joint'], logvars['joint']) if self.add_kld_n_joint else torch.tensor([0.], requires_grad=True)
+        kld_n_joint = self.kld_normal(mus['joint'], logvars['joint']) if self.add_kld_n_joint else torch.tensor([0.],
+                                                                                                                device=mus['joint'].device,
+                                                                                                                requires_grad=True)
 
         if self.debug:
             print('\n', '#' * 15, ' DEBUG ', '#' * 15)
