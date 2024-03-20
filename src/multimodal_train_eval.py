@@ -329,10 +329,16 @@ def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELo
 
     for batch in train_loader:
         # Pre-saves input prior to setting to device, so we don't have to detach+cpu
-        tcr_marg_true.append(batch[0])
-        tcr_joint_true.append(batch[1])
-        pep_joint_true.append(batch[2])
-        pep_marg_true.append(batch[3])
+        if train_loader.dataset.return_pair:
+            tcr_marg_true.append(batch[0])
+            tcr_joint_true.append(batch[0])
+            pep_joint_true.append(batch[1])
+            pep_marg_true.append(batch[1])
+        else:
+            tcr_marg_true.append(batch[0])
+            tcr_joint_true.append(batch[1])
+            pep_joint_true.append(batch[2])
+            pep_marg_true.append(batch[3])
         # Assumes batch = [x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg]
         batch = [x.to(model.device) for x in batch]
         recons, mus, logvars = model(*batch)
@@ -402,10 +408,16 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
     with torch.no_grad():
         for batch in valid_loader:
             # Pre-saves input prior to setting to device so we don't have to detach+cpu
-            tcr_marg_true.append(batch[0])
-            tcr_joint_true.append(batch[1])
-            pep_joint_true.append(batch[2])
-            pep_marg_true.append(batch[3])
+            if valid_loader.dataset.return_pair:
+                tcr_marg_true.append(batch[0])
+                tcr_joint_true.append(batch[0])
+                pep_joint_true.append(batch[1])
+                pep_marg_true.append(batch[1])
+            else:
+                tcr_marg_true.append(batch[0])
+                tcr_joint_true.append(batch[1])
+                pep_joint_true.append(batch[2])
+                pep_marg_true.append(batch[3])
             # Assumes batch = [x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg]
             batch = [x.to(model.device) for x in batch]
             recons, mus, logvars = model(*batch)
@@ -590,6 +602,10 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             results_df['pep_joint_acc'] = pep_joint_metrics['seq_accuracy']
 
             results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
+            # Taking a weighted mean between the 2x2 modalities
+            results_df['seq_acc'] = [(0.35 * a) + (0.35 * b) + (0.15 * c) + (0.15 * d) for a, b, c, d in
+                                     zip(tcr_marg_metrics['seq_accuracy'], tcr_joint_metrics['seq_accuracy'],
+                                         pep_marg_metrics['seq_accuracy'], pep_joint_metrics['seq_accuracy'])]
 
         else:
             raise ValueError(

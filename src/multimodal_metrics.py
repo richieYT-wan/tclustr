@@ -20,7 +20,7 @@ class MultimodalLossParent(LossParent):
         self.max_len_pep = max_len_pep
         self.weight_seq = 1
         self.base_weight_kld_n = weight_kld_n
-        self.weight_kld_n = weight_kld_n
+        self.weight_kld_n = 0
         self.base_weight_kld_z = weight_kld_z
         self.weight_kld_z = weight_kld_z
         self.kld_warm_up = kld_warm_up

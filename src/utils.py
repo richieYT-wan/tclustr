@@ -21,6 +21,46 @@ def make_filename(args):
     unique_filename = f'{get_datetime_string()}_{args["out"]}{connector}KFold_{kf}_{rid}'
     return unique_filename, kf, rid, connector
 
+
+def plot_criterion_annealing(n_epochs, criterion, xlim=0.9):
+    x = torch.arange(n_epochs)
+    y = []
+    for i in range(n_epochs):
+        y.append(criterion.weight_kld_n)
+        criterion.increment_counter()
+    y = torch.tensor(y)
+    print(y)
+    # return y
+    base_weight = criterion.base_weight_kld_n
+    p50 = torch.where((y < 0.5025 * base_weight) & (y > 0.4975 * base_weight))[0]
+    if len(p50)>1 :
+        p50 = p50[0].item()
+    last_1m6 = torch.where(y >= 1e-6)[0][0].item()
+    last_1m4 = torch.where(y >= 1e-4)[0][0].item()
+    max_ish = torch.where(y >= 0.99 * base_weight)[0][0].item()
+    p25 = torch.where(y >= .25 * base_weight)[0][0].item()
+    f,ax = plt.subplots(1,1, figsize=(7,3))
+
+    ax.plot(x.numpy()[:int(xlim * n_epochs)], y.numpy()[:int(xlim * n_epochs)])
+    ax.axvline(max_ish, c='k', ls='--', lw=0.5,
+                label=f'99% at {max_ish}')
+    ax.axvline(last_1m6, c='g', ls=':', lw=0.25,
+                label=f'>1e-6 at {last_1m6}')
+    ax.axvline(last_1m4, c='g', ls=':', lw=0.25,
+                label=f'>1e-4 at {last_1m4}')
+    ax.axvline(p50, c='m', ls=':', lw=0.5,
+                label=f'50% at {p50}')
+    ax.axvline(p25, c='c', ls=':', lw=0.5,
+                label=f'25% at {p25}')
+
+    plt.legend()
+    plt.title("Scaled Tanh Weight Factor")
+    plt.xlabel("Epoch")
+    plt.ylabel("Weight Factor")
+    plt.grid(True)
+    plt.show()
+    return y
+
 def plot_tanh_annealing(n_epochs, base_weight, scale, warm_up, shift=None):
     x = torch.arange(0, n_epochs, 1)
     shift = 2 * warm_up // 3 if shift is None else shift
@@ -147,7 +187,8 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
         if len(v) == 0 or all([val == 0 for val in v]): continue
         max_acc = max(max_acc, max(v))
         a[1].plot(v[warm_up:], label=k)
-        if (("valid" in k and "acc" in k) and ("mean" in k or "seq" in k or "tcr" in k)) or k == 'valid_seq_accuracy' or k == 'valid_auc':
+        if (("valid" in k and "acc" in k) and (
+                "mean" in k or "seq" in k or "tcr" in k)) or k == 'valid_seq_accuracy' or k == 'valid_auc':
             best_val_accs_epoch = v.index(max(v))
     a[0].set_ylim(ylim0)
     a[0].axvline(x=best_val_loss_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
