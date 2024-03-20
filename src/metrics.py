@@ -484,17 +484,27 @@ def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_elemen
     return metrics
 
 
-def reconstruct_and_compute_accuracy(model, x_true, x_recon):
+def reconstruct_and_compute_accuracy(model, x_true, x_recon, recon_only=False):
     if type(x_true) != torch.Tensor and type(x_true) == list:
         x_true = torch.cat(x_true)
         x_recon = torch.cat(x_recon)
+    # do recon_only for when we need to cat the TCR and pep
 
-    metrics = model_reconstruction_stats(model, x_recon, x_true, return_per_element=True)
+    metrics = {'seq_accuracy': [0] * len(x_true)} if recon_only else model_reconstruction_stats(model, x_recon, x_true,
+                                                                                                return_per_element=True)
     x_seq_recon, pos_recon = model.slice_x(x_recon)
     x_seq_true, pos_true = model.slice_x(x_true)
     seq_hat_recon = model.recover_sequences_blosum(x_seq_recon)
     seq_hat_true = model.recover_sequences_blosum(x_seq_true)
     return seq_hat_true, seq_hat_recon, metrics
+
+
+def get_acc_list_string(strings_1, strings_2):
+    return [get_acc_single_string(s1, s2) for s1, s2 in zip(strings_1, strings_2)]
+
+
+def get_acc_single_string(s1, s2):
+    return sum([int(x1 == x2) for x1, x2 in zip(s1, s2) if x1 != 'X' and x2 != 'X']) / len(s2.replace('X', ''))
 
 
 # NOTE : Fixed version with the true acc

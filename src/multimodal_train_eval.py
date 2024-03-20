@@ -10,7 +10,7 @@ from src.datasets import MultimodalPepTCRDataset
 from src.multimodal_models import BSSVAE, JMVAE
 from src.torch_utils import save_checkpoint, load_checkpoint, mask_modality, batch_generator, paired_batch_generator
 from src.utils import epoch_counter, get_loss_metric_text
-from src.metrics import model_reconstruction_stats, reconstruct_and_compute_accuracy
+from src.metrics import model_reconstruction_stats, reconstruct_and_compute_accuracy, get_acc_list_string
 from src.multimodal_metrics import BSSVAELoss, JMVAELoss
 
 
@@ -548,19 +548,20 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             seq_hat_true_tcr, seq_hat_recon_tcr, metrics_tcr = reconstruct_and_compute_accuracy(
                 model.tcr_decoder,
                 x_true_tcr_joint,
-                x_recon_tcr_joint)
+                x_recon_tcr_joint, recon_only=True)
             seq_hat_true_pep, seq_hat_recon_pep, metrics_pep = reconstruct_and_compute_accuracy(
                 model.pep_decoder,
                 x_true_pep_joint,
-                x_recon_pep_joint)
+                x_recon_pep_joint, recon_only=True)
             # concatenate the strings TCR-PEP for true and recon
             seq_true = [a + b for a, b in zip(seq_hat_true_tcr, seq_hat_true_pep)]
             seq_recon = [a + b for a, b in zip(seq_hat_recon_tcr, seq_hat_recon_pep)]
-            # Do a weighted mean based on sequence length
 
-            accs = [(mlt * tcr_acc + mlt * pep_acc) / (mlt + mlp) for tcr_acc, pep_acc in
-                    zip(metrics_tcr['seq_accuracy'],
-                        metrics_pep['seq_accuracy'])]
+            accs = get_acc_list_string(seq_true, seq_recon)
+            # this is WRONG because we are not using the true lengths but also considering the pad length
+            # accs = [(mlt * tcr_acc + mlp * pep_acc) / (mlt + mlp) for tcr_acc, pep_acc in
+            #         zip(metrics_tcr['seq_accuracy'],
+            #             metrics_pep['seq_accuracy'])]
             paired_df['seq_true'] = seq_true
             paired_df['seq_recon'] = seq_recon
             paired_df['seq_acc'] = accs
