@@ -692,6 +692,7 @@ class SequenceVAE(NetParent):
         return seq_idx, positional_encoding
 
 
+# TODO : CONVERT "TRIMODAL PEPTCRVAE" TO VAEVAE (Wu & Goodman 2019)
 class TrimodalPepTCRVAE(NetParent):
     """
         In this current implementation, we consider the cases where the input can be paired and unpaired.

@@ -326,8 +326,9 @@ class BSSVAELoss(MultimodalLossParent):
             kld_losses_joint (dict): dict of KLD (latent, i.e. joint) loss tensors, i.e. Joint.
                                order: [kld_tcr_joint, kld_pep_joint]
         """
-        recon_tcr_marg = self.reconstruction_loss(recons['tcr_marg'], trues[0], which='tcr')
-        recon_tcr_joint = self.reconstruction_loss(recons['tcr_joint'], trues[1], which='tcr')
+        # Arbitrarily upweight TCR loss 3:1
+        recon_tcr_marg = 3 * self.reconstruction_loss(recons['tcr_marg'], trues[0], which='tcr')
+        recon_tcr_joint = 3 * self.reconstruction_loss(recons['tcr_joint'], trues[1], which='tcr')
         recon_pep_joint = self.reconstruction_loss(recons['pep_joint'], trues[2], which='pep')
         recon_pep_marg = self.reconstruction_loss(recons['pep_marg'], trues[3], which='pep')
 
