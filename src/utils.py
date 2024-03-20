@@ -12,6 +12,15 @@ import torch
 from datetime import datetime as dt
 
 
+def make_filename(args):
+    connector = '' if args["out"] == '' else '_'
+    kf = '-1' if args["fold"] is None else args['fold']
+    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') \
+        else get_random_id() if (args['random_id'] == '' or args['random_id'] is None) else args['random_id']
+
+    unique_filename = f'{get_datetime_string()}_{args["out"]}{connector}KFold_{kf}_{rid}'
+    return unique_filename, kf, rid, connector
+
 def plot_tanh_annealing(n_epochs, base_weight, scale, warm_up, shift=None):
     x = torch.arange(0, n_epochs, 1)
     shift = 2 * warm_up // 3 if shift is None else shift

@@ -13,7 +13,7 @@ from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
-    get_dict_of_lists
+    get_dict_of_lists, make_filename
 from src.torch_utils import load_checkpoint, save_model_full, get_available_device, save_json
 from src.models import FullTCRVAE
 from src.train_eval import predict_model, train_eval_loops
@@ -166,13 +166,9 @@ def main():
     args['aa_dim'] = 20
     if args['log_wandb']:
         wandb.login()
+
     # File-saving stuff
-    connector = '' if args["out"] == '' else '_'
-    kf = '-1' if args["fold"] is None else args['fold']
-    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args[
-                                                                                                                       'random_id'] == '' else \
-        args['random_id']
-    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
+    unique_filename, kf, rid, connector = make_filename(args)
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
     outdir = os.path.join('../output/', unique_filename) + '/'
