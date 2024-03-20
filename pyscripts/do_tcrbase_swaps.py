@@ -13,7 +13,7 @@ from src.utils import str2bool, mkdirs, get_random_id, get_datetime_string, get_
 from src.torch_utils import load_model_full
 from src.train_eval import predict_model
 from src.datasets import FullTCRDataset, TwoStageTCRpMHCDataset
-from src.models import BimodalVAEClassifier, FullTCRVAE
+from src.models import TwoStageVAECLF, FullTCRVAE
 from src.metrics import compute_cosine_distance
 from src.sim_utils import make_dist_matrix
 from sklearn.metrics import roc_auc_score
@@ -242,7 +242,7 @@ def main():
         vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
 
     # here, extracts the VAE if it's part of the Bimodal
-    if isinstance(vae, BimodalVAEClassifier) and hasattr(vae, 'vae'):
+    if isinstance(vae, TwoStageVAECLF) and hasattr(vae, 'vae'):
         vae = vae.vae
         js = js["vae_kwargs"]
 

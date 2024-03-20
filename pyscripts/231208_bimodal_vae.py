@@ -14,8 +14,9 @@ from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
-from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device
-from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
+from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device, \
+    save_json
+from src.models import TwoStageVAECLF, FullTCRVAE, PeptideClassifier
 from src.train_eval import twostage_train_eval_loops, predict_twostage, train_twostage_step, eval_twostage_step
 from src.datasets import TwoStageTCRpMHCDataset
 from src.metrics import TwoStageVAELoss
@@ -221,6 +222,8 @@ def main():
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
+    # Dump args to json for potential resume training.
+    save_json(args, f'run_parameters_{unique_filename}.json', outdir)
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
     train_dataset = TwoStageTCRpMHCDataset(train_df, **dataset_params)
     valid_dataset = TwoStageTCRpMHCDataset(valid_df, **dataset_params)
@@ -234,7 +237,7 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
+    model = TwoStageVAECLF(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
     model.to(device)
     criterion = TwoStageVAELoss(**loss_params)
     criterion.to(device)

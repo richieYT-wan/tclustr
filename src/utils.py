@@ -2,7 +2,6 @@ import argparse
 import os
 import pickle
 import pandas as pd
-from itertools import chain, cycle
 from matplotlib import pyplot as plt
 import matplotlib.patheffects as path_effects
 import seaborn as sns
@@ -16,12 +15,12 @@ from datetime import datetime as dt
 def plot_tanh_annealing(n_epochs, base_weight, scale, warm_up, shift=None):
     x = torch.arange(0, n_epochs, 1)
     shift = 2 * warm_up // 3 if shift is None else shift
-    y = (base_weight) * (1 + torch.tanh(scale * (x - shift)))/2
-    p50 = torch.where(y==0.5*base_weight)[0].item()
-    last_zero = torch.where(y>=1e-6)[0][0].item()
-    max_ish = torch.where(y>=0.99*base_weight)[0][0].item()
-    p25 = torch.where(y>=.25*base_weight)[0][0].item()
-    plt.plot(x.numpy()[:int(0.15*n_epochs)], y.numpy()[:int(0.15*n_epochs)])
+    y = (base_weight) * (1 + torch.tanh(scale * (x - shift))) / 2
+    p50 = torch.where(y == 0.5 * base_weight)[0].item()
+    last_zero = torch.where(y >= 1e-6)[0][0].item()
+    max_ish = torch.where(y >= 0.99 * base_weight)[0][0].item()
+    p25 = torch.where(y >= .25 * base_weight)[0][0].item()
+    plt.plot(x.numpy()[:int(0.15 * n_epochs)], y.numpy()[:int(0.15 * n_epochs)])
     plt.axvline(max_ish, c='k', ls='--', lw=0.5,
                 label=f'99% at {max_ish}')
     plt.axvline(last_zero, c='g', ls=':', lw=0.25,
@@ -116,6 +115,8 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
 
     """
     n = max(len(losses_dict.keys()), len(accs_dict.keys()))
+    if n >= 8:
+        palette = 'Set1'
     sns.set_palette(get_palette(palette, n_colors=n))
     f, a = plt.subplots(2, 1, figsize=figsize)
     a = a.ravel()
@@ -137,7 +138,7 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
         if len(v) == 0 or all([val == 0 for val in v]): continue
         max_acc = max(max_acc, max(v))
         a[1].plot(v[warm_up:], label=k)
-        if k == 'valid_seq_accuracy' or k == 'valid_b_accuracy' or k == 'valid_auc':
+        if (("valid" in k and "acc" in k) and ("mean" in k or "seq" in k or "tcr" in k)) or k == 'valid_seq_accuracy' or k == 'valid_auc':
             best_val_accs_epoch = v.index(max(v))
     a[0].set_ylim(ylim0)
     a[0].axvline(x=best_val_loss_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
@@ -165,12 +166,15 @@ def get_datetime_string():
 
 
 def get_random_id(length=6):
+    # LETTERx1_DIGITx1_RANDOMx(len-2)
     first_character = ''.join(
-        secrets.choice(string.digits) for _ in range(2))  # Generate a random digit for the first character
+        secrets.choice(string.ascii_letters) for _ in range(1))
+    second_character = ''.join(secrets.choice(string.ascii_letters) for _ in range(1))
+    # Generate a random digit for the first character
     remaining_characters = ''.join(
         secrets.choice(string.ascii_letters + string.digits) for _ in
         range(length - 2))  # Generate L-2 random characters
-    random_string = first_character + remaining_characters
+    random_string = first_character + second_character + remaining_characters
     return random_string
 
 

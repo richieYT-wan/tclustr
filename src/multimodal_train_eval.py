@@ -460,9 +460,9 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
     valid_loss = {'total': acum_total_loss, 'recon_marg': acum_recon_marg, 'recon_joint': acum_recon_joint,
                   'kld_marg': acum_kld_marg, 'kld_joint': acum_kld_joint}
 
-    for k in tcr_marg_metrics.keys():
-        valid_metrics[f'mean_{k}'] = np.mean([tcr_marg_metrics[k], tcr_joint_metrics[k],
-                                              pep_joint_metrics[k], pep_marg_metrics[k]])
+
+    valid_metrics['wmean_seq_accuracy'] = 0.35 * valid_metrics['tcr_marg_seq_accuracy'] + 0.35 * valid_metrics['tcr_joint_seq_accuracy'] + \
+                                          0.15 * valid_metrics['pep_joint_seq_accuracy'] + 0.15 * valid_metrics['pep_marg_seq_accuracy']
     return valid_loss, valid_metrics
 
 
@@ -569,11 +569,11 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
                 z_latent.append(mus['joint'])
 
             tcr_marg_true, tcr_marg_recon, tcr_marg_metrics = reconstruct_and_compute_accuracy(model.tcr_decoder,
-                                                                                               x_true_tcr_joint23, x_recon_tcr_marg)
+                                                                                               x_true_tcr_joint, x_recon_tcr_marg)
             _, tcr_joint_recon, tcr_joint_metrics = reconstruct_and_compute_accuracy(model.tcr_decoder,
                                                                                       x_true_tcr_joint, x_recon_tcr_joint)
             pep_marg_true, pep_marg_recon, pep_marg_metrics = reconstruct_and_compute_accuracy(model.pep_decoder,
-                                                                                               x_true_pep_joint23, x_recon_pep_marg)
+                                                                                               x_true_pep_joint, x_recon_pep_marg)
             _, pep_joint_recon, pep_joint_metrics = reconstruct_and_compute_accuracy(model.pep_decoder,
                                                                                       x_true_pep_joint, x_recon_pep_joint)
             results_df = paired_df.copy(deep=True)
@@ -626,11 +626,12 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
         loss_condition = valid_loss['total'] <= best_val_loss + tolerance
-        recon_condition = valid_metric['mean_seq_accuracy'] >= best_val_reconstruction - tolerance
+        # Do weighted_mean
+        recon_condition = valid_metric['wmean_seq_accuracy'] >= best_val_reconstruction - tolerance
         if e > 1 and loss_condition and recon_condition:
             best_epoch = e
             best_val_loss = valid_loss['total']
-            best_val_reconstruction = valid_metric['mean_seq_accuracy']
+            best_val_reconstruction = valid_metric['wmean_seq_accuracy']
             # Saving the actual dictionaries for logging purposes
             best_val_losses = valid_loss
             best_val_metrics = valid_metric
@@ -647,4 +648,5 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
     print(best_dict)
     model = load_checkpoint(model, checkpoint_filename, outdir)
     model.eval()
+    # Not saving this for plotting
     return model, train_metrics, valid_metrics, train_losses, valid_losses, best_epoch, best_val_losses, best_val_metrics

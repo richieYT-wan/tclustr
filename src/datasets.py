@@ -414,7 +414,7 @@ class MultimodalPepTCRDataset(VAEDataset):
                  max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
                  b3_col='B3', pair_only=False, return_pair=False,
-                 pep_col='peptide', add_positional_encoding=False, label_col='binder', pep_weighted=False, ):
+                 pep_col='peptide', add_positional_encoding=False):
         super(MultimodalPepTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
@@ -431,7 +431,6 @@ class MultimodalPepTCRDataset(VAEDataset):
             df_tcr_only = df.query('input_type=="tcr"')
             df_pep_only = df.query('input_type=="pep"')
             df_pep_tcr = df.query('input_type=="tcr_pep"')
-
 
         self.pad_scale = pad_scale
         self.max_len_a1 = max_len_a1
@@ -507,9 +506,9 @@ class MultimodalPepTCRDataset(VAEDataset):
                 return self.x_tcr_joint[idx], self.x_tcr_joint[idx], self.x_pep_joint[idx], self.x_pep_joint[idx]
         else:
             return self.x_tcr_marg[self.tcr_indices[idx]], \
-               self.x_tcr_joint[idx], \
-               self.x_pep_joint[idx], \
-               self.x_pep_marg[self.pep_indices[idx]]
+                   self.x_tcr_joint[idx], \
+                   self.x_pep_joint[idx], \
+                   self.x_pep_marg[self.pep_indices[idx]]
 
     @override
     def __len__(self):

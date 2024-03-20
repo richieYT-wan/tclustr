@@ -12,8 +12,9 @@ from torch import optim
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
-from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, get_dict_of_lists
-from src.torch_utils import load_checkpoint
+from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
+    get_dict_of_lists
+from src.torch_utils import load_checkpoint, save_json
 from src.models import FullTCRVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import FullTCRDataset
@@ -177,6 +178,9 @@ def main():
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
+
+    # Dump args to json for potential resume training.
+    save_json(args, f'run_parameters_{unique_filename}.json', outdir)
 
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
     train_dataset = FullTCRDataset(train_df, **dataset_params)

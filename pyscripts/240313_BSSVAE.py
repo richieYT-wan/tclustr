@@ -6,13 +6,13 @@ if module_path not in sys.path:
 import wandb
 import torch
 from torch import optim
-from torch import cuda
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
-from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device
+from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device, \
+    save_json
 from src.multimodal_models import BSSVAE
 from src.multimodal_train_eval import predict_multimodal, multimodal_train_eval_loops
 from src.datasets import MultimodalPepTCRDataset
@@ -27,6 +27,8 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
+    parser.add_argument('-device', dest='device', default=None, type=str,
+                        help='Specify a device (cpu, cuda:0, cuda:1)')
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
     parser.add_argument('-f', '--file', dest='file', required=False, type=str,
@@ -164,6 +166,10 @@ def main():
         device = get_available_device()
     else:
         device = torch.device('cpu')
+
+    if args['device'] is not None:
+        device = args['device']
+
     print("Using : {}".format(device))
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
@@ -206,10 +212,15 @@ def main():
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
-    # Dumping args to file
+
+
+    # Dumping args to text file for easy reading
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
+    # Dump args to json for potential resume training.
+    save_json(args, f'run_parameters_{unique_filename}.json', outdir)
+
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
     train_dataset = MultimodalPepTCRDataset(train_df, **dataset_params)
     valid_dataset = MultimodalPepTCRDataset(valid_df, **dataset_params)
@@ -250,7 +261,7 @@ def main():
                                           'valid')
     valid_metrics_dict = get_dict_of_lists(valid_metrics,
                                            'valid')
-
+    valid_metrics_dict.pop('valid_wmean_seq_accuracy')
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}
     keys_to_remove = []

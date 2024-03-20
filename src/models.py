@@ -216,7 +216,7 @@ class FullTCRVAE(NetParent):
         # TODO: For now, just use a fixed set of layers.
         #       Might need more layers because we are compressing more information
 
-        # TODO: Include dropout+batchnorm (Actually tried and didn't work too well)
+        # TODO: Include dropout+batchnorm (Actually tried and didn't work too well) BECAUSE IT NEEDED MORE EPOCHS / LR
         # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
         self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
                                      nn.Linear(input_dim // 2, hidden_dim), activation)
@@ -399,13 +399,13 @@ class AttentionPeptideClassifier(NetParent):
         return x_out
 
 
-class BimodalVAEClassifier(NetParent):
+class TwoStageVAECLF(NetParent):
     # This name is technically wrong, it should be TwoStageVAEClassifier
     # Refactoring now would be a bit annoying given the previously saved JSONs that have to be manually changed
     # Should be refactored at some point.
     # TODO : Refactoring to include pep : This here should be fine but CAREFUL when adding positional encoding
     def __init__(self, vae_kwargs, clf_kwargs, warm_up_clf=0):
-        super(BimodalVAEClassifier, self).__init__()
+        super(TwoStageVAECLF, self).__init__()
         self.vae = FullTCRVAE(**vae_kwargs)
         self.clf = PeptideClassifier(**clf_kwargs)
         self.warm_up_clf = warm_up_clf

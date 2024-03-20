@@ -1,4 +1,7 @@
+import glob
 import os
+from typing import Dict
+
 from .utils import mkdirs
 from torch.nn import LeakyReLU, ELU, SELU, ReLU
 import json
@@ -99,6 +102,14 @@ def filter_modality(tensor, mask, fill_value=-99):
     return masked_tensor[new_mask]
 
 
+def get_model(folder, **kwargs):
+    pt = glob.glob(folder + '/*checkpoint_best*.pt')
+    pt = [x for x in pt if 'interval' not in x][0]
+    js = glob.glob(folder + '/*checkpoint*.json')[0]
+    model = load_model_full(pt, js, **kwargs)
+    return model
+
+
 def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True, **kwargs):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
@@ -112,6 +123,8 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
     dict_kwargs = load_json(json_filename, dir_path, **kwargs)
     assert 'constructor' in dict_kwargs.keys(), f'No constructor class name provided in the dict_kwargs keys! {dict_kwargs.keys()}'
     constructor = dict_kwargs.pop('constructor')
+    if constructor == 'BimodalVAEClassifier':
+        constructor = 'TwoStageVAECLF'
     if 'activation' in dict_kwargs:
         dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
     for k in dict_kwargs:
