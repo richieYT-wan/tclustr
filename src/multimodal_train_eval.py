@@ -472,9 +472,10 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
     valid_loss = {'total': acum_total_loss, 'recon_marg': acum_recon_marg, 'recon_joint': acum_recon_joint,
                   'kld_marg': acum_kld_marg, 'kld_joint': acum_kld_joint}
 
-
-    valid_metrics['wmean_seq_accuracy'] = 0.35 * valid_metrics['tcr_marg_seq_accuracy'] + 0.35 * valid_metrics['tcr_joint_seq_accuracy'] + \
-                                          0.15 * valid_metrics['pep_joint_seq_accuracy'] + 0.15 * valid_metrics['pep_marg_seq_accuracy']
+    valid_metrics['wmean_seq_accuracy'] = 0.35 * valid_metrics['tcr_marg_seq_accuracy'] + 0.35 * valid_metrics[
+        'tcr_joint_seq_accuracy'] + \
+                                          0.15 * valid_metrics['pep_joint_seq_accuracy'] + 0.15 * valid_metrics[
+                                              'pep_marg_seq_accuracy']
     return valid_loss, valid_metrics
 
 
@@ -579,16 +580,20 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
                 x_recon_tcr_joint.append(recons['tcr_joint'].detach().cpu())
                 x_recon_pep_joint.append(recons['pep_joint'].detach().cpu())
                 x_recon_pep_marg.append(recons['pep_marg'].detach().cpu())
-                z_latent.append(mus['joint'])
+                z_latent.append(mus['joint'].detach().cpu())
 
             tcr_marg_true, tcr_marg_recon, tcr_marg_metrics = reconstruct_and_compute_accuracy(model.tcr_decoder,
-                                                                                               x_true_tcr_joint, x_recon_tcr_marg)
+                                                                                               x_true_tcr_joint,
+                                                                                               x_recon_tcr_marg)
             _, tcr_joint_recon, tcr_joint_metrics = reconstruct_and_compute_accuracy(model.tcr_decoder,
-                                                                                      x_true_tcr_joint, x_recon_tcr_joint)
+                                                                                     x_true_tcr_joint,
+                                                                                     x_recon_tcr_joint)
             pep_marg_true, pep_marg_recon, pep_marg_metrics = reconstruct_and_compute_accuracy(model.pep_decoder,
-                                                                                               x_true_pep_joint, x_recon_pep_marg)
+                                                                                               x_true_pep_joint,
+                                                                                               x_recon_pep_marg)
             _, pep_joint_recon, pep_joint_metrics = reconstruct_and_compute_accuracy(model.pep_decoder,
-                                                                                      x_true_pep_joint, x_recon_pep_joint)
+                                                                                     x_true_pep_joint,
+                                                                                     x_recon_pep_joint)
             results_df = paired_df.copy(deep=True)
             results_df['tcr_true'] = tcr_marg_true
             results_df['tcr_marg_recon'] = tcr_marg_recon

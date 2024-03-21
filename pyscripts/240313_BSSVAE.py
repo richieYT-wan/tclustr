@@ -96,6 +96,10 @@ def args_parser():
                         help='Dropout percentage in the hidden layers (0. to disable)')
     parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=True,
                         help='Use batchnorm (True/False)')
+    parser.add_argument('-al_e', dest='add_layer_encoder', type=str2bool, default=False,
+                        help='Add a hidden->hidden layer to the encoder')
+    parser.add_argument('-al_d', dest='add_layer_decoder', type=str2bool, default=False,
+                        help='Add a hidden->hidden layer to the encoder')
     """
     Training hyperparameters & args
     """
@@ -327,6 +331,9 @@ def main():
     end = dt.now()
     elapsed = divmod((end - start).seconds, 60)
     print(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
+    with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
+        file.write(f'Program finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
+
     sys.exit(0)
 
 

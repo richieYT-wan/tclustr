@@ -14,7 +14,8 @@ class Encoder(NetParent):
     Should probly not have reparameterise here because that should always be done after PoE in this set-up
     """
 
-    def __init__(self, max_len, aa_dim, pos_dim, encoding, pad_scale, activation, hidden_dim, latent_dim):
+    def __init__(self, max_len, aa_dim, pos_dim, encoding, pad_scale, activation, hidden_dim, latent_dim,
+                 add_layer=False, batchnorm=False):
         super(Encoder, self).__init__()
         self.aa_dim = aa_dim
         self.pos_dim = pos_dim
@@ -29,8 +30,13 @@ class Encoder(NetParent):
         else:
             self.pad_scale = pad_scale
 
-        self.fc_encode = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
-                                       nn.Linear(input_dim // 2, hidden_dim), activation)
+        bn = nn.BatchNorm1d if batchnorm else nn.Identity
+        layers = [nn.Linear(input_dim, input_dim // 2), activation, bn(input_dim//2),
+                  nn.Linear(input_dim // 2, hidden_dim), activation, bn(hidden_dim)]
+        if add_layer:
+            layers.extend([nn.Linear(hidden_dim, hidden_dim), activation, bn(hidden_dim)])
+
+        self.fc_encode = nn.Sequential(*layers)
         self.fc_mu = nn.Linear(hidden_dim, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
 
@@ -75,7 +81,8 @@ class Encoder(NetParent):
 
 
 class Decoder(NetParent):
-    def __init__(self, max_len, aa_dim, pos_dim, encoding, pad_scale, activation, hidden_dim, latent_dim):
+    def __init__(self, max_len, aa_dim, pos_dim, encoding, pad_scale, activation, hidden_dim, latent_dim,
+                 add_layer=False, batchnorm=False):
         super(Decoder, self).__init__()
         self.aa_dim = aa_dim
         self.pos_dim = pos_dim
@@ -89,11 +96,13 @@ class Decoder(NetParent):
             self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
         else:
             self.pad_scale = pad_scale
-
-        self.fc_decode = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                       nn.Linear(hidden_dim, input_dim // 2), activation,
-                                       nn.Linear(input_dim // 2, input_dim))
-
+        bn = nn.BatchNorm1d if batchnorm else nn.Identity
+        layers = [nn.Linear(latent_dim, hidden_dim), activation, bn(hidden_dim)]
+        if add_layer:
+            layers.extend([nn.Linear(hidden_dim, hidden_dim), activation, bn(hidden_dim)])
+        layers.extend([nn.Linear(hidden_dim, input_dim // 2), activation, bn(input_dim//2),
+                       nn.Linear(input_dim // 2, input_dim)])
+        self.fc_decode = nn.Sequential(*layers)
         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
         MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
         self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
@@ -101,9 +110,6 @@ class Decoder(NetParent):
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
 
-        self.fc_decode = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                       nn.Linear(hidden_dim, input_dim // 2), activation,
-                                       nn.Linear(input_dim // 2, input_dim))
 
     def forward(self, z):
         x_hat = self.fc_decode(z)
@@ -171,7 +177,8 @@ class BSSVAE(NetParent):
 
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
                  max_len_pep=12, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
-                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64):
+                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64, batchnorm=False,
+                 add_layer_encoder=False, add_layer_decoder=False):
         super(BSSVAE, self).__init__()
 
         max_len_tcr = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
@@ -193,22 +200,22 @@ class BSSVAE(NetParent):
 
         # The "side" encoders (marginal only, Ztcr and Zpep)
         self.marg_tcr_encoder = Encoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                        hidden_dim_tcr, latent_dim)
+                                        hidden_dim_tcr, latent_dim, add_layer_encoder, batchnorm)
         # pos_dim_pep is 0, "useless" to encode positional encoding for a single chain
-        self.marg_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
-                                        hidden_dim_pep, latent_dim)
+        self.marg_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation, hidden_dim_pep,
+                                        latent_dim, add_layer_encoder, batchnorm)
 
         # The "middle" encoders (joint, Ztcr,pep) through PoE or else ;
         self.joint_tcr_encoder = Encoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                         hidden_dim_tcr, latent_dim)
-        self.joint_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
-                                         hidden_dim_pep, latent_dim)
+                                         hidden_dim_tcr, latent_dim, add_layer_encoder, batchnorm)
+        self.joint_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation, hidden_dim_pep,
+                                         latent_dim, add_layer_encoder, batchnorm)
 
         # Dual decoders that are shared among modalities
         self.tcr_decoder = Decoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                   hidden_dim_tcr, latent_dim)
+                                   hidden_dim_tcr, latent_dim, add_layer_decoder, batchnorm)
         self.pep_decoder = Decoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
-                                   hidden_dim_pep, latent_dim)
+                                   hidden_dim_pep, latent_dim, add_layer_decoder, batchnorm)
 
     def forward(self, x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg):
         """
@@ -405,7 +412,8 @@ class BSSVAE(NetParent):
 class JMVAE(NetParent):
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
                  max_len_pep=12, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
-                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64):
+                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64,
+                 batchnorm=False, add_layer_encoder=False, add_layer_decoder=False):
         super(JMVAE, self).__init__()
         max_len_tcr = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
         pos_dim_tcr = sum([int(mlx) > 0 for mlx in
@@ -427,18 +435,18 @@ class JMVAE(NetParent):
         # Triple encoder setup, with a joint (TCRpep concatenated) encoder
         # The "side" encoders (marginal only, Ztcr and Zpep)
         self.marg_tcr_encoder = Encoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                        hidden_dim_tcr, latent_dim)
+                                        hidden_dim_tcr, latent_dim, add_layer_encoder, batchnorm)
         # pos_dim_pep is 0, "useless" to encode positional encoding for a single chain
-        self.marg_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
-                                        hidden_dim_pep, latent_dim)
+        self.marg_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation, hidden_dim_pep,
+                                        latent_dim, add_layer_encoder, batchnorm)
         self.joint_encoder = Encoder(max_len_tcr + max_len_pep, aa_dim, pos_dim_tcr + 0, encoding, pad_scale,
                                      activation, hidden_dim_tcr, latent_dim)
 
         # Dual decoders that are shared among modalities
         self.tcr_decoder = Decoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                   hidden_dim_tcr, latent_dim)
+                                   hidden_dim_tcr, latent_dim, add_layer_decoder, batchnorm)
         self.pep_decoder = Decoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
-                                   hidden_dim_pep, latent_dim)
+                                   hidden_dim_pep, latent_dim, add_layer_decoder, batchnorm)
 
     def forward(self, x_tcr_marg, x_pep_marg):
         """

@@ -464,7 +464,6 @@ class TwoStageVAECLF(NetParent):
         return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)
 
 
-
 class StandardizerSequence(nn.Module):
     def __init__(self, n_feats=20):
         super(StandardizerSequence, self).__init__()
@@ -531,6 +530,7 @@ class StandardizerSequence(nn.Module):
         self.mu = self.mu.to(device)
         self.sigma = self.sigma.to(device)
 
+
 class StandardizerSequenceVector(nn.Module):
     def __init__(self, input_dim=20, max_len=12):
         super(StandardizerSequenceVector, self).__init__()
@@ -565,6 +565,7 @@ class StandardizerSequenceVector(nn.Module):
         super(StandardizerSequenceVector, self).to(device)
         self.mu = self.mu.to(device)
         self.sigma = self.sigma.to(device)
+
 
 class StandardizerFeatures(nn.Module):
     def __init__(self, n_feats=2):
@@ -605,6 +606,7 @@ class StandardizerFeatures(nn.Module):
         super(StandardizerFeatures, self).to(device)
         self.mu = self.mu.to(device)
         self.sigma = self.sigma.to(device)
+
 
 class StdBypass(nn.Module):
     def __init__(self, **kwargs):
