@@ -230,9 +230,8 @@ def main():
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
     valid_loader = valid_dataset.get_dataloader(batch_size=args["batch_size"] * 2, sampler=SequentialSampler)
 
-    fold_filename = f'kcv_{dfname}_f{args["fold"]:02}_{unique_filename}'
-    checkpoint_filename = f'checkpoint_best_fold{args["fold"]:02}_{fold_filename}.pt'
-
+    fold_filename = f'kcv_f{args["fold"]:02}_{unique_filename}'
+    checkpoint_filename = f'checkpoint_best_{fold_filename}.pt'
     # instantiate objects
     torch.manual_seed(args["fold"])
     model = BSSVAE(**model_params)
