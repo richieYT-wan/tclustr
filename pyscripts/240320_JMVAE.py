@@ -214,6 +214,8 @@ def main():
 
     # Dumping args to text file for easy reading
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
+        script_filename = os.path.basename(__file__)
+        file.write(f'script: {script_filename}')
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
     # Dump args to json for potential resume training.
