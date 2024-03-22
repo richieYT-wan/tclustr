@@ -147,7 +147,7 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
 
 def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
                        palette='gnuplot2_r', warm_up=10,
-                       figsize=(14, 10), ylim0=[0, 1], ylim1=[0.15, 1.1], title=None):
+                       figsize=(14, 10), ylim0=[0, 1], ylim1=[0.2, 1.05], title=None):
     """
 
     Args:
@@ -167,6 +167,7 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
     if n >= 8:
         palette = 'Set1'
     sns.set_palette(get_palette(palette, n_colors=n))
+    sns.set_style('darkgrid')
     f, a = plt.subplots(2, 1, figsize=figsize)
     a = a.ravel()
     # Corresponds to the warmup
