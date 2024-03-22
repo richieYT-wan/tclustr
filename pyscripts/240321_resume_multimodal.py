@@ -136,6 +136,8 @@ def load_previous_run(args, device) -> (Union[BSSVAE, JMVAE], Dict, Dict):
     best_dict = model_params.pop('best')
     filter_key = next(filter(lambda x: 'epoch' in x, best_dict.keys()))
     restart_epoch = best_dict[filter_key]
+    # override device setting
+    run_params['device'] = device
     run_params['restart_epoch'] = restart_epoch if 'last_epoch' not in checkpoint_file else run_params['n_epochs']
     return model, model_params, run_params, dict_curves
 
@@ -227,6 +229,7 @@ def main():
     # TODO: This behaviour might bite me in the ass later
     criterion = loss_class(**loss_params)
     criterion.to(device)
+    model.to(device)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     model.set_counter(run_params['restart_epoch'])
