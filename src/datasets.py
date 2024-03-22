@@ -38,6 +38,11 @@ class VAEDataset(Dataset):
         #     if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
         #         c.increment_counter()
 
+    def set_counter(self, counter):
+        self.counter = counter
+        # for c in self.children():
+        #     if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
+        #         c.set_counter(counter)
 
 class CDR3BetaDataset(VAEDataset):
     """
@@ -410,6 +415,11 @@ class TrimodalPepTCRDataset(VAEDataset):
 
 
 class MultimodalPepTCRDataset(VAEDataset):
+    # TODO : Add paired only warm-up
+    #        use self.counter() to return only paired for X epochs, then
+    #        make it increasingly difficult by returning unpaired?
+    #        Remains the problem for KLD on a per-datapoint basis --> incr batchsize?
+
     def __init__(self, df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
                  max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',

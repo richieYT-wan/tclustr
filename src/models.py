@@ -52,6 +52,11 @@ class NetParent(nn.Module):
             if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
                 c.increment_counter()
 
+    def set_counter(self, counter):
+        self.counter = counter
+        for c in self.children():
+            if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
+                c.set_counter(counter)
 
 class CDR3bVAE(NetParent):
     """

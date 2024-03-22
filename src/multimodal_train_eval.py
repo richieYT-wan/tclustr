@@ -641,11 +641,14 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs:
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
-            fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
-            savedict = {'epoch': e}
-            savedict.update(valid_loss)
-            savedict.update(valid_metric)
-            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
+
+            # only save 10 interval models per run + best
+            if e % math.ceil(0.1 * n_epochs)==0 or e == n_epochs:
+                fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
+                savedict = {'epoch': e}
+                savedict.update(valid_loss)
+                savedict.update(valid_metric)
+                save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
         loss_condition = valid_loss['total'] <= best_val_loss + tolerance
         # Do weighted_mean
@@ -658,12 +661,13 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             best_val_losses = valid_loss
             best_val_metrics = valid_metric
 
-            best_dict = {'Best epoch': best_epoch, 'Best val loss': best_val_loss}
+            best_dict = {'epoch': best_epoch, 'Best val loss': best_val_loss}
             best_dict.update(valid_loss)
             best_dict.update(valid_metric)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
-    last_filename = 'last_epoch_' + checkpoint_filename
+    last_filename = 'last_epoch_' + checkpoint_filename.replace('best','')
+    best_dict['epoch']=n_epochs
     save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
 
     print(f'End of training cycles')

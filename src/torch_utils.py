@@ -110,7 +110,8 @@ def get_model(folder, **kwargs):
     return model
 
 
-def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True, **kwargs):
+def load_model_full(checkpoint_filename, json_filename, dir_path=None,
+                    return_json=False, verbose=True, return_best_dict=False, **kwargs):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
     Args:
@@ -133,7 +134,10 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
                 if l == 'activation':
                     dict_kwargs[k]['activation'] = eval(dict_kwargs[k]['activation'])()
     model = eval(constructor)(**dict_kwargs)
-    model = load_checkpoint(model, checkpoint_filename, dir_path, verbose, **kwargs)
+    model = load_checkpoint(model, checkpoint_filename, dir_path, verbose, return_best_dict, **kwargs)
+    if return_best_dict:
+        model, best = model
+        dict_kwargs['best'] = best
     if return_json:
         return model, dict_kwargs
     else:
@@ -242,7 +246,9 @@ def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './'
         print(f'Model saved at {os.path.abspath(savepath)}')
 
 
-def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True, **kwargs):
+def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True,
+                    return_dict=False,
+                    **kwargs):
     """
     Loads a model
     Args:
@@ -269,4 +275,6 @@ def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True, **
         print(st.keys())
         raise ValueError()
     model.eval()
+    if return_dict:
+        return model, best
     return model

@@ -216,13 +216,12 @@ def main():
     # Dumping args to text file for easy reading
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         script_filename = os.path.basename(__file__)
-        file.write(f'script: {script_filename}')
+        file.write(f'script: {script_filename}\n')
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
     # Dump args to json for potential resume training.
     save_json(args, f'run_parameters_{unique_filename}.json', outdir)
 
-    # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
     train_dataset = MultimodalPepTCRDataset(train_df, **dataset_params)
     valid_dataset = MultimodalPepTCRDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
@@ -321,7 +320,7 @@ def main():
         file.write(f"Best valid seq acc: {valid_seq_acc}\n")
         if args['test_file'] is not None:
             file.write(f"Best test seq acc: {test_seq_acc}\n")
-    best_dict = {'Best epoch': best_epoch}
+    best_dict = {'epoch': best_epoch}
     best_dict.update(best_val_loss)
     best_dict.update(best_val_metrics)
     # reshape dict for saving

@@ -165,6 +165,11 @@ class MultimodalLossParent(LossParent):
         super(MultimodalLossParent, self).increment_counter()
         self._kld_weight_regime()
 
+    @override
+    def set_counter(self, counter):
+        super(MultimodalLossParent, self).set_counter(counter)
+        self._kld_weight_regime()
+
 
 class JMVAELoss(MultimodalLossParent):
     def __init__(self, max_len_a1=7, max_len_a2=8, max_len_a3=22, max_len_b1=6, max_len_b2=7, max_len_b3=23,
