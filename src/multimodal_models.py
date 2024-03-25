@@ -11,7 +11,7 @@ import math
 class Encoder(NetParent):
     """
     Encoder class ;
-    Should probly not have reparameterise here because that should always be done after PoE in this set-up
+    Should probly not have reparameterise here because that should always be done in VAE classll in this set-up
     """
 
     def __init__(self, max_len, aa_dim, pos_dim, encoding, pad_scale, activation, hidden_dim, latent_dim,
@@ -29,7 +29,8 @@ class Encoder(NetParent):
             self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
         else:
             self.pad_scale = pad_scale
-
+        # TODO: Check with reloading an older model because even adding Identity here should in theory
+        #       mess up with the state_dict loading because it increases the length of "layers"
         bn = nn.BatchNorm1d if batchnorm else nn.Identity
         layers = [nn.Linear(input_dim, input_dim // 2), activation, bn(input_dim//2),
                   nn.Linear(input_dim // 2, hidden_dim), activation, bn(hidden_dim)]
@@ -169,62 +170,70 @@ class Decoder(NetParent):
         return seq_idx, positional_encoding
 
 
-class BSSVAE(NetParent):
+class BSVAE(NetParent):
     """
     BSS stands for BimodalSemiSupervised ; Uses a quad encoder - dual decoder architecture
     QEDC
     """
 
-    def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
-                 max_len_pep=12, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
-                 activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64, batchnorm=False,
-                 add_layer_encoder=False, add_layer_decoder=False):
+    def __init__(self, max_len_ma=None, max_len_mb=None, pos_dim_ma=None, pos_dim_mb=None, encoding='BL50LO',
+                 pad_scale=-20, aa_dim=20, add_positional_encoding=False, activation=nn.SELU(), latent_dim=64,
+                 hidden_dim_ma=128, hidden_dim_mb=64, batchnorm=False, add_layer_encoder=False, add_layer_decoder=False,
+                 max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=12,
+                 **kwargs):
         super(BSSVAE, self).__init__()
-
-        max_len_tcr = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
-        pos_dim_tcr = sum([int(mlx) > 0 for mlx in
+        # Do something "bad" : Assume if max_len_ma and max_len_mb aren't provided, we are doing the tcr-pep case
+        # In this case, manually do max_len_ma = sum([...]), and max_len_mb = max_len_mb ?
+        # TODO: Carry over this behaviour to metrics ; Set max_len_ma/b = None by default in argument list
+        #       This should enable re-loading saved models (with the checkpoint json)
+        if max_len_ma is None and max_len_mb is None:
+            max_len_ma = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
+            pos_dim_ma = sum([int(mlx) > 0 for mlx in
                            [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3]]) \
             if add_positional_encoding else 0
+            pos_dim_mb = 0
+            max_len_mb = max_len_pep
+
         self.latent_dim = latent_dim
         self.activation = activation
-        self.hidden_dim_tcr = hidden_dim_tcr
-        self.hidden_dim_pep = hidden_dim_pep
+        self.hidden_dim_tcr = hidden_dim_ma
+        self.hidden_dim_pep = hidden_dim_mb
         self.add_positional_encoding = add_positional_encoding
-        self.max_len_tcr = max_len_tcr
-        self.max_len_pep = max_len_pep
+        self.max_len_tcr = max_len_ma
+        self.max_len_mb = max_len_mb
         self.encoding = encoding
         self.pad_scale = pad_scale
         self.aa_dim = aa_dim
-        self.matrix_dim_tcr = aa_dim + pos_dim_tcr
+        self.matrix_dim_tcr = aa_dim + pos_dim_ma
         self.matrix_dim_pep = aa_dim
 
         # The "side" encoders (marginal only, Ztcr and Zpep)
-        self.marg_tcr_encoder = Encoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                        hidden_dim_tcr, latent_dim, add_layer_encoder, batchnorm)
+        self.marg_tcr_encoder = Encoder(max_len_ma, aa_dim, pos_dim_ma, encoding, pad_scale, activation,
+                                        hidden_dim_ma, latent_dim, add_layer_encoder, batchnorm)
         # pos_dim_pep is 0, "useless" to encode positional encoding for a single chain
-        self.marg_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation, hidden_dim_pep,
+        self.marg_pep_encoder = Encoder(max_len_mb, aa_dim, pos_dim_mb, encoding, pad_scale, activation, hidden_dim_mb,
                                         latent_dim, add_layer_encoder, batchnorm)
 
         # The "middle" encoders (joint, Ztcr,pep) through PoE or else ;
-        self.joint_tcr_encoder = Encoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                         hidden_dim_tcr, latent_dim, add_layer_encoder, batchnorm)
-        self.joint_pep_encoder = Encoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation, hidden_dim_pep,
+        self.joint_tcr_encoder = Encoder(max_len_ma, aa_dim, pos_dim_ma, encoding, pad_scale, activation,
+                                         hidden_dim_ma, latent_dim, add_layer_encoder, batchnorm)
+        self.joint_pep_encoder = Encoder(max_len_mb, aa_dim, pos_dim_mb, encoding, pad_scale, activation, hidden_dim_mb,
                                          latent_dim, add_layer_encoder, batchnorm)
 
         # Dual decoders that are shared among modalities
-        self.tcr_decoder = Decoder(max_len_tcr, aa_dim, pos_dim_tcr, encoding, pad_scale, activation,
-                                   hidden_dim_tcr, latent_dim, add_layer_decoder, batchnorm)
+        self.tcr_decoder = Decoder(max_len_ma, aa_dim, pos_dim_ma, encoding, pad_scale, activation,
+                                   hidden_dim_ma, latent_dim, add_layer_decoder, batchnorm)
         self.pep_decoder = Decoder(max_len_pep, aa_dim, 0, encoding, pad_scale, activation,
-                                   hidden_dim_pep, latent_dim, add_layer_decoder, batchnorm)
+                                   hidden_dim_mb, latent_dim, add_layer_decoder, batchnorm)
 
-    def forward(self, x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg):
+    def forward(self, x_ma_marg, x_ma_joint, x_mb_joint, x_mb_marg):
         """
         # TODO: At some point: refactor, probably return a dictionary instead because this is bound to be wrong with list orders...
         Args:
-            x_tcr_marg:
-            x_tcr_joint:
-            x_pep_joint:
-            x_pep_marg:
+            x_ma_marg:
+            x_ma_joint:
+            x_mb_joint:
+            x_mb_marg:
 
         Returns:
             recons (list[torch.Tensor]): [recon_tcr_marg, recon_tcr_joint, recon_pep_marg, recon_pep_joint]
@@ -237,50 +246,50 @@ class BSSVAE(NetParent):
 
         # "order" : marg tcr -> marg pep -> joint (tcr -> pep)
         # Running each encoder-decoder pair to get reconstructed, mu, logvars
-        mu_tcr_marg, logvar_tcr_marg = self.marg_tcr_encoder(x_tcr_marg)
-        mu_pep_marg, logvar_pep_marg = self.marg_pep_encoder(x_pep_marg)
+        mu_ma_marg, logvar_ma_marg = self.marg_tcr_encoder(x_ma_marg)
+        mu_mb_marg, logvar_mb_marg = self.marg_pep_encoder(x_mb_marg)
         # The "joint" TCR / Pep inputs are those coming from the paired input
-        mu_tcr_joint, logvar_tcr_joint = self.joint_tcr_encoder(x_tcr_joint)
-        mu_pep_joint, logvar_pep_joint = self.joint_pep_encoder(x_pep_joint)
+        mu_ma_joint, logvar_ma_joint = self.joint_tcr_encoder(x_ma_joint)
+        mu_ma_joint, logvar_mb_joint = self.joint_pep_encoder(x_mb_joint)
         # latent (Zs) with Product of Experts MARGINAL
         # Z_tcr
-        mu_tcr_poe_marg, logvar_tcr_poe_marg = self.product_of_experts([mu_tcr_marg, mu_tcr_joint],
-                                                                       [logvar_tcr_marg, logvar_tcr_joint])
+        mu_ma_poe_marg, logvar_mb_poe_marg = self.product_of_experts([mu_ma_marg, mu_ma_joint],
+                                                                       [logvar_ma_marg, logvar_ma_joint])
         # Z_pep
-        mu_pep_poe_marg, logvar_pep_poe_marg = self.product_of_experts([mu_pep_marg, mu_pep_joint],
-                                                                       [logvar_pep_marg, logvar_pep_joint])
+        mu_mb_poe_marg, logvar_mb_poe_marg = self.product_of_experts([mu_mb_marg, mu_ma_joint],
+                                                                       [logvar_mb_marg, logvar_mb_joint])
         # LATENT with PoE JOINT (tcr_joint, pep_joint)
         # Z_tcr,pep
-        mu_joint_poe, logvar_joint_poe = self.product_of_experts([mu_tcr_joint, mu_pep_joint],
-                                                                 [logvar_tcr_joint, logvar_pep_joint])
+        mu_joint_poe, logvar_joint_poe = self.product_of_experts([mu_ma_joint, mu_ma_joint],
+                                                                 [logvar_ma_joint, logvar_mb_joint])
 
         #####################################################
         # UPPER HALF OF THE GRAPH  ; DECODING PART WITH POE #
         #####################################################
 
         # Get 3 latents (2 marginals and 1 joint)
-        z_tcr_marg = self.reparameterise(mu_tcr_poe_marg, logvar_tcr_poe_marg)
+        z_ma_marg = self.reparameterise(mu_ma_poe_marg, logvar_mb_poe_marg)
         z_joint = self.reparameterise(mu_joint_poe, logvar_joint_poe)
-        z_pep_marg = self.reparameterise(mu_pep_poe_marg, logvar_pep_poe_marg)
+        z_mb_marg = self.reparameterise(mu_mb_poe_marg, logvar_mb_poe_marg)
         # Get 4 reconstruction (1 from each Marginal->PoE, 2 from joint(tcr+pep))
-        recon_tcr_marg = self.tcr_decoder(z_tcr_marg)
+        recon_ma_marg = self.tcr_decoder(z_ma_marg)
         recon_tcr_joint = self.tcr_decoder(z_joint)
         recon_pep_joint = self.pep_decoder(z_joint)
-        recon_pep_marg = self.pep_decoder(z_pep_marg)
+        recon_pep_marg = self.pep_decoder(z_mb_marg)
 
         # Return all outputs using dictionaries for splitting modalities it's tidier than lists
-        recons = {'tcr_marg': recon_tcr_marg,
+        recons = {'tcr_marg': recon_ma_marg,
                   'tcr_joint': recon_tcr_joint,
                   'pep_joint': recon_pep_joint,
                   'pep_marg': recon_pep_marg}
-        mus = {'tcr_marg': mu_tcr_poe_marg,
+        mus = {'tcr_marg': mu_ma_poe_marg,
                'joint': mu_joint_poe,
-               'pep_marg': mu_pep_poe_marg}
-        logvars = {'tcr_marg': logvar_tcr_poe_marg,
+               'pep_marg': mu_mb_poe_marg}
+        logvars = {'tcr_marg': logvar_mb_poe_marg,
                    'joint': logvar_joint_poe,
-                   'pep_marg': logvar_pep_poe_marg}
+                   'pep_marg': logvar_mb_poe_marg}
         # recons = [recon_tcr_marg, recon_tcr_joint, recon_pep_joint, recon_pep_marg]
-        # mus = [mu_tcr_poe_marg, mu_joint_poe, mu_pep_poe_marg]
+        # mus = [mu_ma_poe_marg, mu_joint_poe, mu_pep_poe_marg]
         # logvars = [logvar_tcr_poe_marg, logvar_joint_poe, logvar_pep_poe_marg]
         return recons, mus, logvars
 
@@ -413,7 +422,7 @@ class JMVAE(NetParent):
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
                  max_len_pep=12, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
                  activation=nn.SELU(), latent_dim=64, hidden_dim_tcr=128, hidden_dim_pep=64,
-                 batchnorm=False, add_layer_encoder=False, add_layer_decoder=False):
+                 batchnorm=False, add_layer_encoder=False, add_layer_decoder=False, **kwargs):
         super(JMVAE, self).__init__()
         max_len_tcr = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
         pos_dim_tcr = sum([int(mlx) > 0 for mlx in

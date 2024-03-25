@@ -58,6 +58,7 @@ class NetParent(nn.Module):
             if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
                 c.set_counter(counter)
 
+
 class CDR3bVAE(NetParent):
     """
     TODO : To deprecate this class

@@ -339,7 +339,7 @@ def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELo
             tcr_joint_true.append(batch[1])
             pep_joint_true.append(batch[2])
             pep_marg_true.append(batch[3])
-        # Assumes batch = [x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg]
+        # Assumes batch = [x_ma_marg, x_ma_joint, x_mb_joint, x_mb_marg]
         batch = [x.to(model.device) for x in batch]
         recons, mus, logvars = model(*batch)
         # Batch is `trues` ; Criterion takes list+dicts and returns dicts
@@ -418,7 +418,7 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
                 tcr_joint_true.append(batch[1])
                 pep_joint_true.append(batch[2])
                 pep_marg_true.append(batch[3])
-            # Assumes batch = [x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg]
+            # Assumes batch = [x_ma_marg, x_ma_joint, x_mb_joint, x_mb_marg]
             batch = [x.to(model.device) for x in batch]
             recons, mus, logvars = model(*batch)
             # Batch is `trues` ; Criterion takes list+dicts and returns dicts
@@ -500,15 +500,15 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
         x_recon_tcr_joint, x_true_tcr_joint = [], []
         x_recon_pep_joint, x_true_pep_joint = [], []
         # Original df, re-ordered
-        paired_df = dataset.df_pep_tcr.copy()
+        paired_df = dataset.df_joint.copy()
         mlt = dataset.max_len_tcr
         mlp = dataset.max_len_pep
         # THIS PART FOR BSSVAE
         if type(model) == BSSVAE:
-            tcr_df = dataset.df_tcr_only.copy()
-            pep_df = dataset.df_pep_only.copy()
+            tcr_df = dataset.df_ma_only.copy()
+            pep_df = dataset.df_mb_only.copy()
             # marginal TCR first
-            for batch in batch_generator(dataset.x_tcr_marg, batch_size):
+            for batch in batch_generator(dataset.x_ma_marg, batch_size):
                 # Pre saves true_vector to avoid detaching and cpu later
                 x_true_tcr_marg.append(batch)
                 batch = batch.to(model.device)
@@ -522,7 +522,7 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             tcr_df['seq_recon'] = seq_hat_recon
             tcr_df['seq_acc'] = metrics['seq_accuracy']
             # Marginal Peptide part
-            for batch in batch_generator(dataset.x_pep_marg, batch_size):
+            for batch in batch_generator(dataset.x_mb_marg, batch_size):
                 x_true_pep_marg.append(batch)
                 batch = batch.to(model.device)
                 x_hat, z = model.forward_marginal(batch, which='pep')
@@ -537,7 +537,7 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             pep_df['seq_recon'] = seq_hat_recon
             pep_df['seq_acc'] = metrics['seq_accuracy']
             # Joint/Paired data part
-            for batch in paired_batch_generator(dataset.x_tcr_joint, dataset.x_pep_joint, batch_size):
+            for batch in paired_batch_generator(dataset.x_ma_joint, dataset.x_mb_joint, batch_size):
                 x_true_tcr_joint.append(batch[0])
                 x_true_pep_joint.append(batch[1])
                 batch = [b.to(model.device) for b in batch]

@@ -427,7 +427,7 @@ class BSSVAELoss(MultimodalLossParent):
     #         sequence = x[:, 0:self.max_len_tcr * (self.aa_dim + self.pos_dim_tcr)].view(-1, self.max_len_tcr,
     #                                                                                     self.aa_dim + self.pos_dim_tcr)
     #     elif which == 'pep':
-    #         sequence = x[:, 0:self.max_len_pep * self.aa_dim].view(-1, self.max_len_pep, self.aa_dim)
+    #         sequence = x[:, 0:self.max_len_mb * self.aa_dim].view(-1, self.max_len_mb, self.aa_dim)
     #     positional_encoding = None
     #     if self.add_positional_encoding:
     #         positional_encoding = sequence[:, :, self.aa_dim:]

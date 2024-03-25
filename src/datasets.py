@@ -44,6 +44,7 @@ class VAEDataset(Dataset):
         #     if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
         #         c.set_counter(counter)
 
+
 class CDR3BetaDataset(VAEDataset):
     """
     For now, only use CDR3b
@@ -419,12 +420,15 @@ class MultimodalPepTCRDataset(VAEDataset):
     #        use self.counter() to return only paired for X epochs, then
     #        make it increasingly difficult by returning unpaired?
     #        Remains the problem for KLD on a per-datapoint basis --> incr batchsize?
-
+    #  --> Define modality columns ?
     def __init__(self, df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
                  max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
-                 encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
-                 b3_col='B3', pair_only=False, return_pair=False,
+                 encoding='BL50LO', pad_scale=None,
+                 a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
+                 pair_only=False, return_pair=False, warm_up_pair=False,
+                 modality_a='tcr', modality_b='pep', ma_cols=None, mb_cols=None, ma_dict:dict=None, mb_dict:dict=None,
                  pep_col='peptide', add_positional_encoding=False):
+
         super(MultimodalPepTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
@@ -432,15 +436,32 @@ class MultimodalPepTCRDataset(VAEDataset):
 
         self.pair_only = pair_only
         self.return_pair = return_pair
+        # Make modality columns and length dictionaries
+        if ma_cols is None and mb_cols is None and ma_dict is None and mb_dict is None:
+            if modality_a == 'tcr' and modality_b == 'pep':
+                ma_cols = [a1_col, a2_col, a3_col, b1_col, b2_col, b3_col]
+                ma_dict = {k: v for k, v in zip(ma_cols, [max_len_a1, max_len_a2, max_len_a3,
+                                                          max_len_b1, max_len_b2, max_len_b3])}
+                mb_cols = [pep_col]
+                mb_dict = {pep_col: max_len_pep}
+            elif modality_a == 'alpha' and modality_b == 'beta':
+                ma_cols = [a1_col, a2_col, a3_col]
+                ma_dict = {k: v for k, v in zip(ma_cols, [max_len_a1, max_len_a2, max_len_a3])}
+                mb_cols = [b1_col, b2_col, b3_col]
+                mb_dict = {k: v for k, v in zip(mb_cols, [max_len_b1, max_len_b2, max_len_b3])}
+            else:
+                raise ValueError(f'modality columns, max_len dicts, and/or names should be provided!'\
+                                 'Got these instead (modality_a, modality_b, ma_cols, mb_cols, ma_dict, mb_dict'\
+                                 f'{modality_a}, {modality_b}, {ma_cols}, {mb_cols}, {ma_dict}, {mb_dict}')
 
         if pair_only:
-            df_tcr_only = df.query('input_type=="tcr_pep"')
-            df_pep_only = df.query('input_type=="tcr_pep"')
-            df_pep_tcr = df.query('input_type=="tcr_pep"')
+            df_ma_only = df.query(f'input_type=="{modality_a}_{modality_b}"')
+            df_mb_only = df.query(f'input_type=="{modality_a}_{modality_b}"')
+            df_joint = df.query(f'input_type=="{modality_a}_{modality_b}"')
         else:
-            df_tcr_only = df.query('input_type=="tcr"')
-            df_pep_only = df.query('input_type=="pep"')
-            df_pep_tcr = df.query('input_type=="tcr_pep"')
+            df_ma_only = df.query(f'input_type=="{modality_a}"')
+            df_mb_only = df.query(f'input_type=="{modality_b}"')
+            df_joint = df.query(f'input_type=="{modality_a}_{modality_b}"')
 
         self.pad_scale = pad_scale
         self.max_len_a1 = max_len_a1
@@ -450,51 +471,73 @@ class MultimodalPepTCRDataset(VAEDataset):
         self.max_len_b2 = max_len_b2
         self.max_len_b3 = max_len_b3
         self.max_len_pep = max_len_pep
+        self.modality_a = modality_a
+        self.modality_b = modality_b
+        self.ma_cols = ma_cols
+        self.mb_cols = mb_cols
+        self.ma_dict = ma_dict
+        self.mb_dict = mb_dict
         self.matrix_dim = 20
         self.aa_dim = 20
-        tcr_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
-        self.max_len_tcr = tcr_len
+        # OLD
+        # tcr_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3])
+        # self.max_len_tcr = tcr_len
+        self.max_len_ma = sum(ma_dict.values())
+        self.max_len_mb = sum(mb_dict.values())
+        self.max_len_joint = self.max_len_ma+self.max_len_mb
         # Max len pep == 0 to encode only TCR
-        df_tcr_only, x_tcr_marg, x_tcr_matrix_dim = _encode_chains(df_tcr_only, encoding, pad_scale,
-                                                                   a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
-                                                                   pep_col,
-                                                                   max_len_a1, max_len_a2, max_len_a3,
-                                                                   max_len_b1, max_len_b2, max_len_b3,
-                                                                   max_len_pep=0,
-                                                                   add_positional_encoding=add_positional_encoding)
+        df_ma_only, x_ma, x_ma_matrix_dim = _encode_chains(df_ma_only, encoding, pad_scale,
+                                                                  columns=ma_cols, mldict=ma_dict,
+                                                                  add_positional_encoding=add_positional_encoding)
         # max_len chains == 0 to encode only pep
-        df_pep_only, x_pep_marg, x_pep_matrix_dim = _encode_chains(df_pep_only, encoding, pad_scale,
-                                                                   a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
-                                                                   pep_col,
-                                                                   max_len_a1=0, max_len_a2=0, max_len_a3=0,
-                                                                   max_len_b1=0, max_len_b2=0, max_len_b3=0,
-                                                                   max_len_pep=max_len_pep,
-                                                                   add_positional_encoding=add_positional_encoding)
+        df_mb_only, x_mb, x_pep_matrix_dim = _encode_chains(df_mb_only, encoding, pad_scale,
+                                                                  columns=mb_cols, mldict=mb_dict,
+                                                                  add_positional_encoding=add_positional_encoding)
         # Set all chains to their ml and encode and slice
-        df_pep_tcr, x_tcr_pep_joint, x_tcrpep_matrix_dim = _encode_chains(df_pep_tcr, encoding, pad_scale,
-                                                                          a1_col, a2_col, a3_col, b1_col, b2_col,
-                                                                          b3_col,
-                                                                          pep_col,
-                                                                          max_len_a1, max_len_a2, max_len_a3,
-                                                                          max_len_b1, max_len_b2, max_len_b3,
-                                                                          max_len_pep, add_positional_encoding)
-        x_tcr_joint = x_tcr_pep_joint[:, :tcr_len, :]
-        x_pep_joint = x_tcr_pep_joint[:, tcr_len:, :]
+        df_joint, x_joint, x_joint_matrix_dim = _encode_chains(df_joint, encoding, pad_scale,
+                                                                        columns=ma_cols+mb_cols, mldict={**ma_dict, **mb_dict},
+                                                                        add_positional_encoding=add_positional_encoding)
+        # df_ma_only, x_tcr_marg, x_tcr_matrix_dim = _encode_chains(df_ma_only, encoding, pad_scale,
+        #                                                            a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
+        #                                                            pep_col,
+        #                                                            max_len_a1, max_len_a2, max_len_a3,
+        #                                                            max_len_b1, max_len_b2, max_len_b3,
+        #                                                            max_len_mb=0,
+        #                                                            add_positional_encoding=add_positional_encoding)
+        # # max_len chains == 0 to encode only pep
+        # df_mb_only, x_pep_marg, x_pep_matrix_dim = _encode_chains(df_mb_only, encoding, pad_scale,
+        #                                                            a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
+        #                                                            pep_col,
+        #                                                            max_len_a1=0, max_len_a2=0, max_len_a3=0,
+        #                                                            max_len_b1=0, max_len_b2=0, max_len_b3=0,
+        #                                                            max_len_mb=max_len_mb,
+        #                                                            add_positional_encoding=add_positional_encoding)
+        # # Set all chains to their ml and encode and slice
+        # df_joint, x_tcr_pep_joint, x_tcrpep_matrix_dim = _encode_chains(df_joint, encoding, pad_scale,
+        #                                                                   a1_col, a2_col, a3_col, b1_col, b2_col,
+        #                                                                   b3_col,
+        #                                                                   pep_col,
+        #                                                                   max_len_a1, max_len_a2, max_len_a3,
+        #                                                                   max_len_b1, max_len_b2, max_len_b3,
+        #                                                                   max_len_mb, add_positional_encoding)
+        # slice the joint modality tensor up to max_len_modality_a;from ml_ma to end
+        x_ma_joint = x_joint[:, :self.max_len_ma, :]
+        x_mb_joint = x_joint[:, self.max_len_ma:, :]
         # Save each modality into a tensor and use sub-sampling
-        self.x_tcr_marg = x_tcr_marg
-        self.x_pep_marg = x_pep_marg
-        self.x_tcr_joint = x_tcr_joint
-        self.x_pep_joint = x_pep_joint
+        self.x_ma_marg = x_ma
+        self.x_mb_marg = x_mb
+        self.x_ma_joint = x_ma_joint
+        self.x_mb_joint = x_mb_joint
         # Saving the various number of sample and dfs for various purposes
-        self.n_paired = len(df_pep_tcr)
-        self.n_tcr_marg = len(df_tcr_only)
-        self.n_pep_marg = len(df_pep_only)
-        self.df_tcr_only = df_tcr_only
-        self.df_pep_only = df_pep_only
-        self.df_pep_tcr = df_pep_tcr
+        self.n_joint = len(df_joint)
+        self.n_ma_marg = len(df_ma_only)
+        self.n_mb_marg = len(df_mb_only)
+        self.df_ma_only = df_ma_only
+        self.df_mb_only = df_mb_only
+        self.df_joint = df_joint
         # initializing some random sub-sampled index
-        self.tcr_indices = _randindex(self.n_tcr_marg, self.n_paired, random_state=0)
-        self.pep_indices = _randindex(self.n_pep_marg, self.n_paired, random_state=0)
+        self.ma_indices = _randindex(self.n_ma_marg, self.n_joint, random_state=0)
+        self.mb_indices = _randindex(self.n_mb_marg, self.n_joint, random_state=0)
 
         # self.pep_weights = torch.from_numpy(
         #     self.df.apply(lambda x: x['original_peptide'] == x['peptide'], axis=1).values).float().unsqueeze(1)
@@ -503,62 +546,61 @@ class MultimodalPepTCRDataset(VAEDataset):
     def __getitem__(self, idx):
         # TODO : Do "predict" mode where we return ALL instances for the marginal in a way that makes sense
         """
-        Uses renewed self.tcr/pep_indices at each epoch to do the subsampling part to match self.n_paired
+        Uses renewed self.tcr/mb_indices at each epoch to do the subsampling part to match self.n_joint
         Args:
             idx:
         Returns:
-            tensors:  x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg (follows the order of graph left to right)
+            tensors:  x_ma_marg, x_ma_joint, x_mb_joint, x_mb_marg (follows the order of graph left to right)
         """
         if self.pair_only:
             if self.return_pair:
-                return self.x_tcr_joint[idx], self.x_pep_joint[idx]
+                return self.x_ma_joint[idx], self.x_mb_joint[idx]
             else:
-                return self.x_tcr_joint[idx], self.x_tcr_joint[idx], self.x_pep_joint[idx], self.x_pep_joint[idx]
+                return self.x_ma_joint[idx], self.x_ma_joint[idx], self.x_mb_joint[idx], self.x_mb_joint[idx]
         else:
-            return self.x_tcr_marg[self.tcr_indices[idx]], \
-                   self.x_tcr_joint[idx], \
-                   self.x_pep_joint[idx], \
-                   self.x_pep_marg[self.pep_indices[idx]]
+            return self.x_ma_marg[self.ma_indices[idx]], \
+                   self.x_ma_joint[idx], \
+                   self.x_mb_joint[idx], \
+                   self.x_mb_marg[self.mb_indices[idx]]
 
     @override
     def __len__(self):
-        return self.n_paired
+        return self.n_joint
 
     @override
     def increment_counter(self):
         self.counter += 1
         # update random sample, using current counter as random_state to keep the sampling reproducible
-        self.tcr_indices = _randindex(self.n_tcr_marg, self.n_paired, random_state=self.counter)
-        self.pep_indices = _randindex(self.n_pep_marg, self.n_paired, random_state=self.counter)
+        self.ma_indices = _randindex(self.n_ma_marg, self.n_joint, random_state=self.counter)
+        self.mb_indices = _randindex(self.n_mb_marg, self.n_joint, random_state=self.counter)
 
 
-def _encode_chains(df, encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col,
-                   max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep,
-                   add_positional_encoding=False):
-    mldict = {k: v for k, v in
-              zip([a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col],
-                  [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])}
-    # Filter DF based on seq max lengths
-    for seq_col, max_len, in mldict.items():
-        if max_len > 0:
+# todo Refactor this to do modality_columns, modality_maxlens ?
+def _encode_chains(df, encoding, pad_scale, columns, mldict, add_positional_encoding):
+    assert all([c in mldict for c in columns]), 'idiot'
+
+    # Filter seqs>ml in DF based on seq max lengths
+    for seq_col in columns:
+        max_len = mldict[seq_col]
+        if max_len:
             df['len_q'] = df[seq_col].apply(len)
             df = df.query('len_q <= @max_len')
+
     df = df.drop(columns=['len_q']).reset_index(drop=True)
     x_seq = []
     x_pos = []
     # I put this shit here because PyCharm is being an asshole with the if scope + global statement squiggly fucking line
     pad_values = {}
     if add_positional_encoding:
-        # Selected columns are those whose maxlen>0 (i.e. are used)
-        selected_columns = [k for k, v in mldict.items() if v > 0]
         # Pre-setting the left-right pad tuples depending on which columns are used
-        max_lens_values = [mldict[k] for k in selected_columns]
+        max_lens_values = [mldict[k] for k in columns]
         pad_values = {k: (sum(max_lens_values[:i]), sum(max_lens_values) - sum(max_lens_values[:i])) \
-                      for i, k in enumerate(selected_columns)}
+                      for i, k in enumerate(columns)}
 
     # Building the sequence tensor and (if applicable) positional tensor as 2D tensor
     # Then at the very end, stack, cat, flatten as needed
-    for seq_col, max_len in mldict.items():
+    for seq_col in columns:
+        max_len = mldict[seq_col]
         if max_len > 0:
             seq_tensor = encode_batch(df[seq_col].values, max_len, encoding, pad_scale)
             x_seq.append(seq_tensor)
@@ -577,6 +619,52 @@ def _encode_chains(df, encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_c
         x_seq = torch.cat([x_seq, x_pos], dim=2)
 
     return df, x_seq, matrix_dim
+
+# def _encode_chains(df, encoding, pad_scale, a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col,
+#                    max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_mb,
+#                    add_positional_encoding=False):
+#     mldict = {k: v for k, v in
+#               zip([a1_col, a2_col, a3_col, b1_col, b2_col, b3_col, pep_col],
+#                   [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_mb])}
+#     # Filter DF based on seq max lengths
+#     for seq_col, max_len, in mldict.items():
+#         if max_len > 0:
+#             df['len_q'] = df[seq_col].apply(len)
+#             df = df.query('len_q <= @max_len')
+#     df = df.drop(columns=['len_q']).reset_index(drop=True)
+#     x_seq = []
+#     x_pos = []
+#     # I put this shit here because PyCharm is being an asshole with the if scope + global statement squiggly fucking line
+#     pad_values = {}
+#     if add_positional_encoding:
+#         # Selected columns are those whose maxlen>0 (i.e. are used)
+#         selected_columns = [k for k, v in mldict.items() if v > 0]
+#         # Pre-setting the left-right pad tuples depending on which columns are used
+#         max_lens_values = [mldict[k] for k in selected_columns]
+#         pad_values = {k: (sum(max_lens_values[:i]), sum(max_lens_values) - sum(max_lens_values[:i])) \
+#                       for i, k in enumerate(selected_columns)}
+#
+#     # Building the sequence tensor and (if applicable) positional tensor as 2D tensor
+#     # Then at the very end, stack, cat, flatten as needed
+#     for seq_col, max_len in mldict.items():
+#         if max_len > 0:
+#             seq_tensor = encode_batch(df[seq_col].values, max_len, encoding, pad_scale)
+#             x_seq.append(seq_tensor)
+#             if add_positional_encoding:
+#                 pos_tensor = batch_positional_encode(df[seq_col].values, pad_values[seq_col])
+#                 x_pos.append(pos_tensor)
+#
+#     # Concatenate all the tensors in the list `x_seq` into one tensor `x_seq`
+#     x_seq = torch.cat(x_seq, dim=1)
+#     matrix_dim = 20
+#     if add_positional_encoding:
+#         # Stack the `x_pos` tensors in the list together into a single tensor along dimension 2 (n_chains)
+#         matrix_dim += len(x_pos)
+#         x_pos = torch.stack(x_pos, dim=2)
+#         # Add the pos encode to the seq tensor (N, sum(ML), 20) -> (N, sum(ML), 20+n_chains)
+#         x_seq = torch.cat([x_seq, x_pos], dim=2)
+#
+#     return df, x_seq, matrix_dim
 
 
 def _randindex(data_size, n_samples, random_state=None):
