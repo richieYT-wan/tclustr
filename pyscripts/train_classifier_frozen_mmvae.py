@@ -202,8 +202,6 @@ def main():
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-
-    # nique ta mère la pute
     for k in args:
         if 'max_len' in k or 'positional' in k:
             if k not in js:
