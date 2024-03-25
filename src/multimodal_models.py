@@ -170,7 +170,7 @@ class Decoder(NetParent):
         return seq_idx, positional_encoding
 
 
-class BSVAE(NetParent):
+class BSSVAE(NetParent):
     """
     BSS stands for BimodalSemiSupervised ; Uses a quad encoder - dual decoder architecture
     QEDC
