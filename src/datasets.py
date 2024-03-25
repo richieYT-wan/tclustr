@@ -53,7 +53,7 @@ class CDR3BetaDataset(VAEDataset):
     def __init__(self, df, max_len=23, encoding='BL50LO', pad_scale=None, cdr3b_col='B3', use_v=True, use_j=True,
                  v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP, add_pep=False,
                  max_len_pep=12):
-        super(CDR3BetaDataset, self).__init__()
+        super(CDR3BetaDataset, self).__init__(df)
         self.max_len = max_len
         self.encoding = encoding
 
