@@ -30,7 +30,7 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
-    parser.add_argument('-device', dest='device', default='cpu', type=str,
+    parser.add_argument('-device', dest='device', default=None, type=str,
                         help='device to use for cuda')
     parser.add_argument('-f', '--file', dest='file', required=True, type=str,
                         default='../data/filtered/231205_nettcr_old_26pep_with_swaps.csv',
