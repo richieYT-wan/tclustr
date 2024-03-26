@@ -15,7 +15,7 @@ from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
-from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
+from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full, get_available_device
 from src.models import PeptideClassifier
 from src.train_eval import predict_classifier, classifier_train_eval_loops
 from src.multimodal_datasets import MultimodalCLFLatentDataset
@@ -30,7 +30,8 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
-
+    parser.add_argument('-device', dest='device', default='cpu', type=str,
+                        help='device to use for cuda')
     parser.add_argument('-f', '--file', dest='file', required=True, type=str,
                         default='../data/filtered/231205_nettcr_old_26pep_with_swaps.csv',
                         help='filename of the input train file')
@@ -160,9 +161,12 @@ def main():
             outdir = outdir + '/'
 
     if torch.cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
+        device = get_available_device()
     else:
         device = torch.device('cpu')
+
+    if args['device'] is not None:
+        device = args['device']
 
     # if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
     #     if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and args['debug']:

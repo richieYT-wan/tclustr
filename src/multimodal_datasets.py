@@ -270,12 +270,13 @@ class MultimodalCLFLatentDataset(MultimodalPepTCRDataset):
                 pep_encoding = encode_batch(self.df_pep_tcr[pep_col], max_len_pep, encoding, pad_scale).flatten(start_dim=1)
                 self.z = torch.cat([self.z, pep_encoding], dim=1)
         self.labels = torch.from_numpy(self.df_pep_tcr['binder'].values).unsqueeze(1).float()
+        print(f'PEPWEIGHTED {pep_weighted}')
         self.pep_weighted = pep_weighted
         if pep_weighted:
             pepweights = (np.log2(len(self.df_pep_tcr) / self.df_pep_tcr.groupby(['peptide']) \
                                                              .agg(count=(f'{b3_col}', 'count'))) / pep_weight_scale) \
                                                 .round(5).to_dict()['count']
-
+            print('HERE PEPWEIGHTED')
             self.pep_weights = torch.from_numpy(self.df_pep_tcr['peptide'].map(pepweights).values)
 
         del self.x_tcr_joint, self.x_tcr_marg, self.x_pep_joint, self.x_pep_marg, self.df_tcr_only, self.df_pep_only

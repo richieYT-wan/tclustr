@@ -5,7 +5,7 @@
 #source activate cuda
 
 mainfolder='../output/mmvae_models'
-outdir='../output/mmvae_clfs_output/'
+outdir='../output/mmvae_clfs_output_PEPWEIGHTED/'
 mkdir -p ${outdir}
 n_epochs=$1
 grep_statement=$2
@@ -44,9 +44,9 @@ for f in ${subdir}; do
     best_checkpoint="${f}$(ls ${f} | grep "checkpoint_best" | grep -v "last" | grep ".pt")"
     last_checkpoint="${f}$(ls ${f} | grep "last_epoch" | grep ".pt")"
     # Doing with "best" checkpoint
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${outdir}/BEST_${folder_name}/" -o "BEST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number}
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${outdir}/BEST_${folder_name}/" -o "BEST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-5 -bs 2048 -ne ${n_epochs} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number} -pepweight True -device cuda:1
     # Doing with "last" checkpoint
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${outdir}/LAST_${folder_name}/" -o "LAST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number}
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${outdir}/LAST_${folder_name}/" -o "LAST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-5 -bs 2048 -ne ${n_epochs} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number} -pepweight True -device cuda:1
     echo "------------------------------------------------------------------------"
     echo ""
 done
