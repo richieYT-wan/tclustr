@@ -2,7 +2,6 @@ import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
 
-from src.multimodal_datasets import MultimodalCLFLatentDataset
 
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
@@ -18,10 +17,10 @@ from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
-from src.models import FullTCRVAE, PeptideClassifier
+from src.models import PeptideClassifier
 from src.train_eval import predict_classifier, classifier_train_eval_loops
-from src.datasets import LatentTCRpMHCDataset
-from src.metrics import CombinedVAELoss, get_metrics
+from src.multimodal_datasets import MultimodalCLFLatentDataset
+from src.metrics import get_metrics
 import argparse
 
 
@@ -298,7 +297,7 @@ def main():
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_dataset = LatentTCRpMHCDataset(vae, test_df, **dataset_params)
+        test_dataset = MultimodalCLFLatentDataset(vae, test_df, **dataset_params)
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 

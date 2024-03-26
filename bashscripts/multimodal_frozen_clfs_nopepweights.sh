@@ -1,6 +1,8 @@
 #! /bin/bash
 
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
+source /home/people/riwa/anaconda3/etc/profile.d/conda.sh
+source activate cuda
 
 mainfolder='../output/mmvae_models'
 outdir='../output/mmvae_clfs_output/'
