@@ -2,7 +2,6 @@ import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
 
-
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
@@ -84,7 +83,7 @@ def args_parser():
                         default=False,
                         help='Adding positional encoding to the sequence vector. False by default')
     parser.add_argument('-pepenc', '--pep_encoding', dest='pep_encoding', type=str, default='none',
-                        help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical, none) '\
+                        help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical, none) ' \
                              '; Default = none, will not add the encoded peptide on top of the latent representation')
 
     """
@@ -178,7 +177,7 @@ def main():
             json_file = next(
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
             vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file,
-                                      return_json=True, map_location = device)
+                                      return_json=True, map_location=device)
             print(js)
 
         except:
@@ -186,7 +185,7 @@ def main():
             raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
     else:
         vae, js = load_model_full(args['pt_file'], args['json_file'],
-                                  return_json=True, map_location = device)
+                                  return_json=True, map_location=device)
 
     print("Using : {}".format(device))
     torch.manual_seed(seed)
@@ -195,8 +194,15 @@ def main():
     # Convert the activation string codes to their nn counterparts
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
-    train_df = df.query('partition!=@args["fold"]')
-    valid_df = df.query('partition==@args["fold"]')
+
+    try:
+        train_df = df.query('partition!=@args["fold"]')
+        valid_df = df.query('partition==@args["fold"]')
+    except ValueError:
+        partition = args['fold']
+        train_df = df.query('partition!=@partition')
+        valid_df = df.query('partition!=@partition')
+
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
     # File-saving stuff
@@ -252,9 +258,11 @@ def main():
                                                                               checkpoint_filename, outdir)
 
     # Convert list of dicts to dicts of lists
-    train_losses_dict = {'train_loss': train_losses} #get_dict_of_lists(train_losses, 'train', filter=['auc', 'auc01'])
+    train_losses_dict = {
+        'train_loss': train_losses}  # get_dict_of_lists(train_losses, 'train', filter=['auc', 'auc01'])
     train_metrics_dict = get_dict_of_lists(train_metrics, 'train', filter=['auc', 'auc01'])
-    valid_losses_dict = {'valid_loss': valid_losses} #get_dict_of_lists(valid_losses, 'valid', filter=['auc', 'auc01'])
+    valid_losses_dict = {
+        'valid_loss': valid_losses}  # get_dict_of_lists(valid_losses, 'valid', filter=['auc', 'auc01'])
     valid_metrics_dict = get_dict_of_lists(valid_metrics, 'valid', filter=['auc', 'auc01'])
 
     losses_dict = {**train_losses_dict, **valid_losses_dict}
@@ -283,12 +291,14 @@ def main():
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
     val_metrics = get_metrics(valid_preds['binder'].values, valid_preds['pred_prob'].values)
-    print(f'Validation predictions: Mean performance: AUC={val_metrics["auc"]:.4f}, AUC_01={val_metrics["auc_01"]:.4f}, AP={val_metrics["AP"]:.4f}')
+    print(
+        f'Validation predictions: Mean performance: AUC={val_metrics["auc"]:.4f}, AUC_01={val_metrics["auc_01"]:.4f}, AP={val_metrics["AP"]:.4f}')
 
     print('Validation predictions: Per peptide performance')
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         file.write('Validation preds ; Per peptide metrics\n')
-        for pep in sorted(valid_preds.peptide.unique()): #valid_preds.groupby('peptide').agg(count=('B3', 'count')).sort_values('count', ascending=False).index:
+        for pep in sorted(
+                valid_preds.peptide.unique()):  # valid_preds.groupby('peptide').agg(count=('B3', 'count')).sort_values('count', ascending=False).index:
             tmp = valid_preds.query('peptide==@pep')
             metrics = get_metrics(tmp['binder'].values, tmp['pred_prob'])
             print(f'{pep}:\tAUC: {metrics["auc"]:.4f}\tAUC_01: {metrics["auc_01"]:.4f}\tAP: {metrics["AP"]}')
