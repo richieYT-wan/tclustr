@@ -205,7 +205,7 @@ def main():
     except ValueError:
         partition = args['fold']
         train_df = df.query('partition!=@partition')
-        valid_df = df.query('partition!=@partition')
+        valid_df = df.query('partition==@partition')
 
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
