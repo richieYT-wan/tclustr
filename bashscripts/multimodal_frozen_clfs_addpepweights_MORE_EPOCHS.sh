@@ -7,7 +7,7 @@
 mainfolder='../output/mmvae_models'
 outdir='../output/mmvae_clfs_output_PEPWEIGHTED/'
 mkdir -p ${outdir}
-n_epochs=5000
+n_epochs=$1
 grep_statement=$2
 grep_v_statement=$3
 #subdir=("${mainfolder}"/*/)
