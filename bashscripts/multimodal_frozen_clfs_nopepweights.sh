@@ -7,8 +7,9 @@ source activate cuda
 mainfolder='../output/mmvae_models'
 outdir='../output/mmvae_clfs_output/'
 mkdir -p ${outdir}
-n_epochs=$3
-grepstatement=$4
+n_epochs=$1
+grepstatement=$2
+grepvstatement=$3
 #subdir=("${mainfolder}"/*/)
 subdir=$(ls -dr ${mainfolder}/*/)
 # Use an array to capture the output
