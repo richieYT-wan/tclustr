@@ -439,6 +439,11 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs:
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
+            if e % math.ceil(0.1 * n_epochs)==0 or e == n_epochs:
+                fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
+                savedict = {'epoch': e, 'valid_loss':valid_loss}
+                savedict.update(valid_metric)
+                save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
         if e > 1 and (valid_loss <= best_val_loss + tolerance and (
                 valid_metric['auc'] >= (best_val_auc - tolerance) or valid_metric['auc_01'] >= (
@@ -454,8 +459,10 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             best_dict.update(valid_metric)
             # Saving model
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
-    last_filename = 'last_epoch_' + checkpoint_filename
-    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+    last_filename = 'last_epoch_' + checkpoint_filename.replace('best','')
+    save_dict={'epoch':e, 'valid_loss':valid_loss}
+    save_dict.update(valid_metric)
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=save_dict)
 
     print(f'End of training cycles')
     print(best_dict)

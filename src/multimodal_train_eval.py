@@ -668,8 +668,10 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
     last_filename = 'last_epoch_' + checkpoint_filename.replace('best','')
-    best_dict['epoch']=n_epochs
-    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+    savedict = {'epoch': e}
+    savedict.update(valid_loss)
+    savedict.update(valid_metric)
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=savedict)
 
     print(f'End of training cycles')
     print(best_dict)
