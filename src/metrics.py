@@ -77,6 +77,7 @@ class VAELoss(LossParent):
             pep_weights = torch.full([max_len_pep, 1], 1)
             self.positional_weights = torch.cat([alpha_weights, beta_weights, pep_weights], dim=0).to(self.device)
             assert self.positional_weights.shape == (max_len, 1), 'wrong shape for pos weights'
+            print('Here in Vae loss pos weights', self.positional_weights.device, self.positional_weighting)
 
         self.max_len = max_len
         self.aa_dim = aa_dim
@@ -284,7 +285,6 @@ class TwoStageVAELoss(LossParent):
         weights = weights.to(x.device)
         # Both the vaeloss and triplet loss are mean reduced already ; Just need to adjust weights for each term (?)
         recon_loss, kld_loss = self.vae_loss(x_hat, x, mu, logvar)
-        print(self.positional_weighting)
         recon_loss = self.weight_vae * recon_loss / self.norm_factor
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
         triplet_loss = self.weight_triplet * self.triplet_loss(z, triplet_labels,

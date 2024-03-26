@@ -87,7 +87,6 @@ def train_model_step(model, criterion, optimizer, train_loader):
                 and train_loader.dataset.__class__.__name__ == 'TCRSpecificDataset':
             x, labels = batch.pop(0).to(model.device), batch.pop(-1).to(model.device)
             pep_weights = batch[0] if train_loader.dataset.pep_weighted else None
-            print('HERE!', model.device, x.device)
             x_hat, mu, logvar = model(x)
             recon_loss, kld_loss, triplet_loss = criterion(x_hat, x, mu, logvar, z=mu, labels=labels,
                                                            pep_weights=pep_weights)
