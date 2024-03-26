@@ -269,6 +269,7 @@ class TwoStageVAELoss(LossParent):
                                 positional_weighting=positional_weighting)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.classification_loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.positional_weighting = positional_weighting
         self.weight_triplet = float(weight_triplet)
         self.weight_vae = float(weight_vae)
         self.weight_classification = float(weight_classification)
@@ -283,6 +284,7 @@ class TwoStageVAELoss(LossParent):
         weights = weights.to(x.device)
         # Both the vaeloss and triplet loss are mean reduced already ; Just need to adjust weights for each term (?)
         recon_loss, kld_loss = self.vae_loss(x_hat, x, mu, logvar)
+        print(self.positional_weighting)
         recon_loss = self.weight_vae * recon_loss / self.norm_factor
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
         triplet_loss = self.weight_triplet * self.triplet_loss(z, triplet_labels,
