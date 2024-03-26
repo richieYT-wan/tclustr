@@ -215,7 +215,8 @@ def main():
     model_params = {k: args[k] for k in model_keys}
     dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
     model_params['n_latent'] = js['latent_dim']
-    model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
+    model_params['pep_dim'] = args['max_len_pep'] if args['pep_encoding'] == 'categorical' else 12 * 20
+    model_params['add_pep'] = args['pep_encoding'] != 'none'
 
     dataset_params = {k: args[k] for k in dataset_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}

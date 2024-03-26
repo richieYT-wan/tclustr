@@ -275,10 +275,13 @@ class LatentTCRpMHCDataset(FullTCRDataset):
             # print('PE', add_positional_encoding)
             z_latent = model.embed(self.x)
 
-        assert pep_encoding in ['categorical'] + list(
+        assert pep_encoding in ['categorical', 'none'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
-        if pep_encoding == 'categorical':
+
+        if pep_encoding == 'none':
+            encoded_peps = torch.empty([len(z_latent), 0])
+        elif pep_encoding == 'categorical':
             # dim (N, 12)
             encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
         else:

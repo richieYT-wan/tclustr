@@ -28,6 +28,8 @@ for fullpath in ${subdir}; do
     echo "KFold number: $kfold_number"
     python3 ./train_classifier_frozen_vae.py -model_folder "${fullpath}/" -rid ${random_id} -od ${2}/${folder_name}/ -o "CLF_${name_description}" -cuda True -f ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-3 -bs 1024 -ne ${3} -pepenc BL50LO -kf ${kfold_number} -seed ${kfold_number}
     echo "####################"
+
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${outdir}/BEST_${folder_name}/" -o "BEST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number}
 done
 
 
