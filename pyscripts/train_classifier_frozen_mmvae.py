@@ -206,6 +206,8 @@ def main():
         partition = args['fold']
         train_df = df.query('partition!=@partition')
         valid_df = df.query('partition==@partition')
+        print('train', len(train_df), train_df.partition.unique())
+        print('valid', len(valid_df), valid_df.partition.unique())
 
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
