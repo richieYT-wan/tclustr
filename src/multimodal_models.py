@@ -488,6 +488,14 @@ class JMVAE(NetParent):
 
         return recons, mus, logvars
 
+    def embed(self, x_tcr_marg, x_pep_marg, which='joint'):
+        _, mus, logvars = self.forward(x_tcr_marg, x_pep_marg)
+        if which != 'joint':
+            return self.reparameterise(mus[f'{which}_marg'], logvars[f'{which}_marg'])
+        else:
+            return self.reparameterise(mus['joint'], logvars['joint'])
+
+
     def join_tcr_pep(self, x_tcr, x_pep):
         return torch.cat([x_tcr.view(-1, self.max_len_tcr, self.matrix_dim_tcr),
                           x_pep.view(-1, self.max_len_pep, self.aa_dim)], dim=1).flatten(start_dim=1)

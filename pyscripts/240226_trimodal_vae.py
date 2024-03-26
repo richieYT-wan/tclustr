@@ -16,7 +16,7 @@ from src.torch_utils import load_checkpoint, save_model_full, load_model_full, g
     save_json
 from src.models import TrimodalPepTCRVAE
 from src.multimodal_train_eval import predict_trimodal, trimodal_train_eval_loops
-from src.datasets import TrimodalPepTCRDataset
+from src.multimodal_datasets import TrimodalPepTCRDataset
 from src.metrics import TrimodalVAELoss
 import argparse
 
