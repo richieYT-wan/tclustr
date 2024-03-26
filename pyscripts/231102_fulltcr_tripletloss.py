@@ -51,7 +51,6 @@ def args_parser():
                         help='Name of the column containing B3 sequences (inputs)')
     parser.add_argument('-b3', '--b3_col', dest='b3_col', default='B3', type=str, required=False,
                         help='Name of the column containing B3 sequences (inputs)')
-
     parser.add_argument('-mla1', '--max_len_a1', dest='max_len_a1', type=int, default=7,
                         help='Maximum sequence length admitted ;' \
                              'Sequences longer than max_len will be removed from the datasets')
@@ -91,6 +90,15 @@ def args_parser():
     parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
                         help='Which activation to use. Will map the correct nn.Module for the following keys:' \
                              '[selu, relu, leakyrelu, elu]')
+    parser.add_argument('-ale', dest='add_layer_encoder', default=False, type=str2bool,
+                        help='Add an extra encoder layer')
+    parser.add_argument('-ald', dest='add_layer_decoder', default=False, type=str2bool,
+                        help='Add an extra decoder layer')
+    parser.add_argument('-bn' ,dest='batchnorm', default=False, type=str2bool,
+                        help='Add Batchnorm to the layers')
+    parser.add_argument('-ob', dest='old_behaviour', default=True, type=str2bool,
+                        help='switchcase to have old behaviour to ahve models we can load/save')
+
 
     """
     Training hyperparameters & args

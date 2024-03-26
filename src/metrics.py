@@ -32,11 +32,15 @@ class LossParent(nn.Module):
     def to(self, device):
         super(LossParent, self).to(device)
         self.device = device
-        if self.positional_weighting:
-            self.positional_weights = self.positional_weights.to(device)
+        if hasattr(self, 'positional_weights') and hasattr(self, 'positional_weighting'):
+            if self.positional_weighting:
+                self.positional_weights = self.positional_weights.to(device)
         for c in self.children():
             if hasattr(c, 'device') and hasattr(c, 'to'):
                 c.to(device)
+            if hasattr(c, 'positional_weighting') and hasattr(c, 'positional_weights'):
+                if c.positional_weighting:
+                    c.positional_weights = c.positional_weights.to(device)
 
 
 class VAELoss(LossParent):
@@ -232,6 +236,7 @@ class CombinedVAELoss(LossParent):
                                 add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
                                 weight_kld=weight_kld, debug=debug, warm_up=warm_up,
                                 positional_weighting=positional_weighting)
+        self.positional_weighting = positional_weighting
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae

@@ -98,6 +98,12 @@ def args_parser():
                              '[selu, relu, leakyrelu, elu]')
     parser.add_argument('-nhclf', '--n_hidden_clf', dest='n_hidden_clf', type=int, default=50,
                         help='Number of hidden units in the Classifier. Default = 32')
+    parser.add_argument('-ale', dest='add_layer_encoder', default=False, type=str2bool,
+                        help='Add an extra encoder layer')
+    parser.add_argument('-ald', dest='add_layer_decoder', default=False, type=str2bool,
+                        help='Add an extra decoder layer')
+    parser.add_argument('-ob', dest='old_behaviour', default=True, type=str2bool,
+                        help='switchcase to have old behaviour to ahve models we can load/save')
     parser.add_argument('-do', dest='dropout', type=float, default=0.25,
                         help='Dropout percentage in the hidden layers (0. to disable)')
     parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=True,
