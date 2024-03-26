@@ -8,10 +8,10 @@ mainfolder='../output/mmvae_models'
 outdir='../output/mmvae_clfs_output/'
 mkdir -p ${outdir}
 n_epochs=$1
-grepstatement=$2
-grepvstatement=$3
+grep_statement=$2
+grep_v_statement=$3
 #subdir=("${mainfolder}"/*/)
-subdir=$(ls -dr ${mainfolder}/*/)
+subdir=$(ls -dr ${mainfolder}/*/ | grep ${grep_statement} | grep -v ${grep_v_statement})
 # Use an array to capture the output
 cd ../pyscripts/
 
@@ -47,9 +47,9 @@ for f in ${subdir}; do
     echo ${best_checkpoint}
     echo ${last_checkpoint}
     # Doing with "best" checkpoint
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${2}/BEST_${folder_name}/" -o "BEST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-5 -bs 2048 -ne ${3} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number}
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${2}/BEST_${folder_name}/" -o "BEST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-5 -bs 2048 -ne ${n_epochs} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number}
     # Doing with "last" checkpoint
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${2}/LAST_${folder_name}/" -o "LAST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-5 -bs 2048 -ne ${3} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number}
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${2}/LAST_${folder_name}/" -o "LAST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 1e-5 -bs 2048 -ne ${n_epochs} -pepenc 'none' -pepweight False -kf ${kfold_number} -seed ${kfold_number}
     echo "------------------------------------------------------------------------"
     echo ""
 done
