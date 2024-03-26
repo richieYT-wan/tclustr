@@ -106,6 +106,7 @@ class VAELoss(LossParent):
         # if positional weighting, then multiply the loss to give larger/smaller gradients w.r.t. chains and positions
         if self.positional_weighting:
             reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
+            print(self.positional_weights.device)
 
         # Here, take the mean before checking for positional encoding because we have un-reduced loss
         # and scale it by the "weight_seq" (versus weight_kld)
