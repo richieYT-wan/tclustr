@@ -443,10 +443,10 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             tqdm.write(text)
 
         if e % math.ceil(0.1 * n_epochs)==0 or e == n_epochs:
-            fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
-            savedict = {'epoch': e, 'valid_loss':valid_loss}
-            savedict.update(valid_metric)
-            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
+            interval_fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
+            interval_save_dict = {'epoch': e, 'valid_loss':valid_loss}
+            interval_save_dict.update(valid_metric)
+            save_checkpoint(model, filename=interval_fn, dir_path=outdir, best_dict=interval_save_dict)
 
         loss_cdt = valid_loss <= best_val_loss + tolerance
         auc_cdt = valid_metric['auc'] > best_val_auc
@@ -465,16 +465,16 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             # Saving model
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
         elif auc_cdt or auc01_cdt :
-            save_dict = {'epoch': e, 'loss': valid_loss}
-            save_dict.update(valid_metric)
+            auc_save_dict = {'epoch': e, 'loss': valid_loss}
+            auc_save_dict.update(valid_metric)
             if auc_cdt and auc01_cdt:
-                fn = checkpoint_filename.replace('best','bestOverall')
+                alternate_fn = checkpoint_filename.replace('best','bestOverall')
             else:
                 if auc_cdt:
-                    fn = checkpoint_filename.replace('best', 'bestAUC')
+                    alternate_fn = checkpoint_filename.replace('best', 'bestAUC')
                 elif auc01_cdt:
-                    fn = checkpoint_filename.replace('best','bestAUC01')
-            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=save_dict)
+                    alternate_fn = checkpoint_filename.replace('best','bestAUC01')
+            save_checkpoint(model, filename=alternate_fn, dir_path=outdir, best_dict=auc_save_dict)
 
 
     last_filename = 'last_epoch_' + checkpoint_filename.replace('best','')
