@@ -120,7 +120,7 @@ def args_parser():
                         help='Batch size for mini-batch optimization')
     parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=2000, required=False,
                         help='Number of epochs to train')
-    parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=1e-4, required=False,
+    parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=1e-3, required=False,
                         help='Tolerance for loss variation to log best model')
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')

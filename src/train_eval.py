@@ -430,7 +430,6 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
     train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
     best_val_loss, best_val_auc, best_val_auc01, best_epoch = 1000, 0.5, 0.5, 1
     best_val_metrics = {}
-    best_dict = {}
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_classifier_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_classifier_step(model, criterion, valid_loader)
@@ -449,9 +448,11 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             savedict.update(valid_metric)
             save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
-        if e > 1 and (valid_loss <= best_val_loss + tolerance and (
-                valid_metric['auc'] >= (best_val_auc - tolerance) or valid_metric['auc_01'] >= (
-                best_val_auc01 - tolerance))):
+        loss_cdt = valid_loss <= best_val_loss + tolerance
+        auc_cdt = valid_metric['auc'] > best_val_auc
+        auc01_cdt = valid_metric['auc_01'] > best_val_auc01
+        if loss_cdt and (auc_cdt or auc01_cdt):
+            best_dict = {'epoch':e, 'loss':valid_loss}
             best_epoch = e
             best_val_loss = valid_loss
             best_val_auc = valid_metric['auc']
@@ -463,6 +464,19 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             best_dict.update(valid_metric)
             # Saving model
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
+        elif auc_cdt or auc01_cdt :
+            save_dict = {'epoch': e, 'loss': valid_loss}
+            save_dict.update(valid_metric)
+            if auc_cdt and auc01_cdt:
+                fn = checkpoint_filename.replace('best','bestOverall')
+            else:
+                if auc_cdt:
+                    fn = checkpoint_filename.replace('best', 'bestAUC')
+                elif auc01_cdt:
+                    fn = checkpoint_filename.replace('best','bestAUC01')
+            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=save_dict)
+
+
     last_filename = 'last_epoch_' + checkpoint_filename.replace('best','')
     save_dict={'epoch':e, 'valid_loss':valid_loss}
     save_dict.update(valid_metric)
