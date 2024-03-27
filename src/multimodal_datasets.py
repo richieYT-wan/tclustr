@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from overrides import override
 
-from src.data_processing import encode_batch, PEP_MAP2, batch_positional_encode
+from src.data_processing import encode_batch, PEP_MAP2, batch_positional_encode, batch_encode_cat
 from src.datasets import VAEDataset
 from src.multimodal_models import BSSVAE, JMVAE
 
@@ -255,7 +255,7 @@ class MultimodalCLFLatentDataset(MultimodalPepTCRDataset):
     def __init__(self, model: Union[BSSVAE, JMVAE], df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
                  max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
-                 b3_col='B3', add_pep_encoding=False, pep_weighted=False, pep_weight_scale=5.33,
+                 b3_col='B3', pep_encoding=False, pep_weighted=False, pep_weight_scale=5.33,
                  pep_col='peptide', add_positional_encoding=False):
         super(MultimodalCLFLatentDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3,
                                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep,
@@ -266,9 +266,15 @@ class MultimodalCLFLatentDataset(MultimodalPepTCRDataset):
         with torch.no_grad():
             model.eval()
             self.z = model.embed(self.x_tcr_joint, self.x_pep_joint, 'joint').detach()
-            if add_pep_encoding:
-                pep_encoding = encode_batch(self.df_pep_tcr[pep_col], max_len_pep, encoding, pad_scale).flatten(start_dim=1)
-                self.z = torch.cat([self.z, pep_encoding], dim=1)
+            if pep_encoding == 'none':
+                encoded_peps = torch.empty([len(self.z), 0])
+            elif pep_encoding == 'categorical':
+                # dim (N, 12)
+                encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
+            else:
+                # dim (N, 12, 20) -> (N, 240) after flatten
+                encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, -20).flatten(start_dim=1)
+            self.z = torch.cat([self.z, encoded_peps], dim = 1)
         self.labels = torch.from_numpy(self.df_pep_tcr['binder'].values).unsqueeze(1).float()
         print(f'PEPWEIGHTED {pep_weighted}')
         self.pep_weighted = pep_weighted
