@@ -14,7 +14,8 @@ grep_v_statement=xd
 subdir=$(ls -dr ${mainfolder}/*/ | grep ${grep_statement} | grep -v ${grep_v_statement})
 # Use an array to capture the output
 cd /home/projects/vaccine/people/yatwan/tclustr/pyscripts/
-
+logfile=/home/projects/vaccine/people/yatwan/tclustr/logs/NTM_multimodal_frozen_clfs_addpepweights_MORE_EPOCHS_PEPBLSM.log
+touch $logfile
 # Use quoted expansion with @ to iterate over the array properly
 for f in ${subdir}; do
 #    echo "xx${f}xx"
@@ -43,9 +44,9 @@ for f in ${subdir}; do
     json_file="${f}$(ls ${f} | grep "checkpoint" | grep "json")"
     best_checkpoint="${f}$(ls ${f} | grep "checkpoint_best" | grep -v "last" | grep ".pt")"
     last_checkpoint="${f}$(ls ${f} | grep "last_epoch" | grep ".pt")"
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od ${outdir} -o "BEST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cuda:0
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od ${outdir} -o "BEST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cuda:0 >> $logfile 2>&1
     # Doing with "last" checkpoint
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od ${outdir} -o "LAST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cuda:0
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od ${outdir} -o "LAST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cuda:0 >> $logfile 2>&1
     echo "------------------------------------------------------------------------"
     echo ""
 done
