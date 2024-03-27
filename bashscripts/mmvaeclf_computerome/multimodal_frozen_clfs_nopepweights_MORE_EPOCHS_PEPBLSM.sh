@@ -1,8 +1,8 @@
 #! /usr/bin/bash
 
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
-#source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-#source activate cuda
+source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+source activate cuda
 
 mainfolder='/home/projects/vaccine/people/yatwan/tclustr/output/mmvae_models'
 outdir='/home/projects/vaccine/people/yatwan/tclustr/output/mmvae_clfs_output/'
