@@ -246,7 +246,7 @@ def main():
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
     valid_loader = valid_dataset.get_dataloader(batch_size=args["batch_size"] * 2, sampler=SequentialSampler)
 
-    fold_filename = f'kcv_{dfname}_f{args["fold"]:02}_{unique_filename}'
+    fold_filename = f'f{args["fold"]:02}_{unique_filename}'
     checkpoint_filename = f'checkpoint_best_CLASSIFIER_fold{args["fold"]:02}_{fold_filename}.pt'
 
     # instantiate objects
