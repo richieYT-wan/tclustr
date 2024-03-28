@@ -14,7 +14,8 @@ grep_v_statement=xd
 subdir=$(ls -dr ${mainfolder}/*/ | grep ${grep_statement} | grep -v ${grep_v_statement})
 # Use an array to capture the output
 cd /home/projects/vaccine/people/yatwan/tclustr/pyscripts/
-
+logfile=/home/projects/vaccine/people/yatwan/tclustr/logs/NTM_multimodal_frozen_clfs_nopepweights_MORE_EPOCHS.log
+touch $logfile
 # Use quoted expansion with @ to iterate over the array properly
 for f in ${subdir}; do
 #    echo "xx${f}xx"
