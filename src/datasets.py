@@ -170,16 +170,19 @@ class TCRSpecificDataset(FullTCRDataset):
 
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
-                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_weighted=False, pep_weight_scale=3.8):
+                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide',
+                 pep_weighted=False, pep_weight_scale=3.8):
         super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                  max_len_b3, max_len_pep=max_len_pep,
                                                  add_positional_encoding=add_positional_encoding, encoding=encoding,
                                                  pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
-                                                 b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_weighted=pep_weighted,
-                                                 pep_weight_scale=pep_weight_scale)
+                                                 b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_col=pep_col,
+                                                 pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale)
         # Here "labels" are for each peptide, used for the triplet loss
         # MIGHT be overridden wrongly in BimodalTCR dataset!!
-        self.labels = torch.from_numpy(df['peptide'].map(PEP_MAP).values)
+        pepmap = {k: v for v, k in enumerate(df[pep_col].unique())} # FIX
+        self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
+        # self.labels = torch.from_numpy(df['peptide'].map(PEP_MAP).values)
 
     @override
     def __getitem__(self, idx):
@@ -215,7 +218,9 @@ class TwoStageTCRpMHCDataset(TCRSpecificDataset):
         #   Should maybe unify this in order to handle data with swapped negatives ? (because Bimodal inherits from this)
         # self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
         # Here, should now try to use the swapped peptide as labels for the triplet loss. This should mess everything up
-        self.labels = torch.from_numpy(self.df[pep_col].map(PEP_MAP).values)
+        # why is this shit hard-coded"???
+        pepmap = {k: v for v, k in enumerate(df['peptide'].unique())} # FIXED
+        self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
 
         self.x_pep = encoded_peps
         self.binder = torch.from_numpy(self.df[label_col].values).unsqueeze(1).float()

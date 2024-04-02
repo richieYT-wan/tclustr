@@ -165,26 +165,29 @@ def main():
             return 0
 
     outdir = os.path.join(outdir, unique_filename) + '/'
+    if torch.cuda.is_available() and args['cuda']:
+        device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
+    print("Using : {}".format(device))
     if args['model_folder'] is not None:
         try:
             checkpoint_file = next(
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
             json_file = next(
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
-            vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file, return_json=True)
+            vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file,
+                                      return_json=True, map_location=device)
             print(js)
 
         except:
             print(args['model_folder'], os.listdir(args['model_folder']))
             raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
     else:
-        vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
+        vae, js = load_model_full(args['pt_file'], args['json_file'],
+                                  map_location=device, return_json=True)
 
-    if torch.cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
-    else:
-        device = torch.device('cpu')
-    print("Using : {}".format(device))
+
     torch.manual_seed(seed)
     if 'vae_kwargs' in js:
         js = js['vae_kwargs']
