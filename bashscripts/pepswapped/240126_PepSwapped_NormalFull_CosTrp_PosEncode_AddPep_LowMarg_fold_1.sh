@@ -1,4 +1,4 @@
-source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+  source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
 source activate cuda
 
 HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/

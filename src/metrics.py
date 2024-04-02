@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score, \
-    precision_score, precision_recall_curve, auc, average_precision_score
+    precision_score, precision_recall_curve, auc, average_precision_score, recall_score
 
 
 class LossParent(nn.Module):
@@ -586,7 +586,7 @@ def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:
     return auc(fpr, tpr) * 10
 
 
-def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4) -> dict:
+def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4, no_curves=False) -> dict:
     """
     Computes all classification metrics & returns a dictionary containing the various key/metrics
     incl. ROC curve, AUC, AUC_01, F1 score, Accuracy, Recall
@@ -617,6 +617,7 @@ def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduce
     metrics['auc_01'] = roc_auc_score(y_true, y_score, max_fpr=0.1)
     metrics['auc_01_real'] = auc01_score(y_true, y_score, max_fpr=0.1)
     metrics['precision'] = precision_score(y_true, y_pred)
+    metrics['recall'] = recall_score(y_true, y_pred)
     metrics['accuracy'] = accuracy_score(y_true, y_pred)
     metrics['AP'] = average_precision_score(y_true, y_score)
     if not reduced:
@@ -637,7 +638,18 @@ def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduce
             metrics['y_score'] = y_score
     if round_digit is not None:
         for k, v in metrics.items():
-            metrics[k] = round(v, round_digit)
+            try:
+                metrics[k] = round(v, round_digit)
+            except:
+                print(f'Couldn\'t round {k} of type ({type(v)})! continuing')
+                continue
+    if no_curves:
+        td = []
+        for k in metrics:
+            if 'curve' in k:
+                td.append(k)
+        for k in td:
+            del metrics[k]
     return metrics
 
 

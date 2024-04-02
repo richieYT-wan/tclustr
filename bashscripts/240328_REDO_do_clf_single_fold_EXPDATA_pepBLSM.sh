@@ -28,8 +28,8 @@ for fullpath in ${subdir}; do
     best_checkpoint="${fullpath}$(ls ${fullpath} | grep "checkpoint_best" | grep -v "last" | grep ".pt")"
     last_checkpoint="${fullpath}$(ls ${fullpath} | grep "last_epoch" | grep ".pt")"
     echo "KFold number: $kfold_number"
-    python3 ./train_classifier_frozen_vae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${outdir}" -o "BEST_${name_description}" -cuda False -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne 2000 -pepenc BL50LO -kf 0 -seed 0 -pepenc 'BL50LO' -pepweight False
-    python3 ./train_classifier_frozen_vae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${outdir}" -o "LAST_${name_description}" -cuda False -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne 2000 -pepenc BL50LO -kf 0 -seed 0 -pepenc 'BL50LO' -pepweight False
+    python3 ./train_classifier_frozen_vae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${outdir}" -o "BEST_PEPBLSM_${name_description}" -cuda False -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne 2000 -pepenc BL50LO -kf 0 -seed 0 -pepenc 'BL50LO' -pepweight False
+    python3 ./train_classifier_frozen_vae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${outdir}" -o "LAST_PEPBLSM_${name_description}" -cuda False -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne 2000 -pepenc BL50LO -kf 0 -seed 0 -pepenc 'BL50LO' -pepweight False
     echo "####################"
 done
 
