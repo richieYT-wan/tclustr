@@ -31,6 +31,9 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
+    parser.add_argument('-device', dest='device', default=None, type=str,
+                        help='Specify a device (cpu, cuda:0, cuda:1)')
+
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
     parser.add_argument('-f', '--file', dest='file', required=False, type=str,
@@ -178,6 +181,10 @@ def main():
         device = get_available_device()
     else:
         device = torch.device('cpu')
+
+    if args['device'] is not None:
+        device = args['device']
+
     print("Using : {}".format(device))
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
