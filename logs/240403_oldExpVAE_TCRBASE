@@ -15,4 +15,345 @@ reconstruction: 0.315766728031056
 kld: 0.009735690938580371
 triplet: 0.0
 seq_accuracy: 0.9834400415420532
-peptide:   0%|          | 0/170 [00:00<?, ?it/s]peptide:   9%|▉         | 16/170 [00:03<00:32,  4.71it/s]peptide:  14%|█▍        | 24/170 [00:04<00:25,  5.67it/s]peptide:  19%|█▉        | 32/170 [00:05<00:22,  6.11it/s]peptide:  24%|██▎       | 40/170 [00:06<00:18,  6.89it/s]peptide:  28%|██▊       | 48/170 [00:07<00:15,  7.88it/s]peptide:  33%|███▎      | 56/170 [00:07<00:13,  8.56it/s]peptide:  38%|███▊      | 64/170 [00:08<00:11,  9.34it/s]peptide:  42%|████▏     | 72/170 [00:09<00:10,  9.16it/s]peptide:  47%|████▋     | 80/170 [00:10<00:09,  9.63it/s]
+peptide:   0%|          | 0/170 [00:00<?, ?it/s]peptide:   9%|▉         | 16/170 [00:03<00:32,  4.71it/s]peptide:  14%|█▍        | 24/170 [00:04<00:25,  5.67it/s]peptide:  19%|█▉        | 32/170 [00:05<00:22,  6.11it/s]peptide:  24%|██▎       | 40/170 [00:06<00:18,  6.89it/s]peptide:  28%|██▊       | 48/170 [00:07<00:15,  7.88it/s]peptide:  33%|███▎      | 56/170 [00:07<00:13,  8.56it/s]peptide:  38%|███▊      | 64/170 [00:08<00:11,  9.34it/s]peptide:  42%|████▏     | 72/170 [00:09<00:10,  9.16it/s]peptide:  47%|████▋     | 80/170 [00:10<00:09,  9.63it/s]peptide:  52%|█████▏    | 88/170 [00:10<00:08, 10.00it/s]peptide:  56%|█████▋    | 96/170 [00:11<00:07, 10.43it/s]
+LTDEMIAQY:	auc=0.621	auc01=0.601
+
+RAKFKQLL:	auc=0.860	auc01=0.762
+
+RLPGVLPRA:	auc=0.398	auc01=0.519
+
+VTEHDTLLY:	auc=0.650	auc01=0.737
+
+IPSINVHHY:	auc=0.429	auc01=0.474
+
+FTSDYYQLY:	auc=0.912	auc01=0.803
+
+EAAGIGILTV:	auc=1.000	auc01=1.000
+
+YLFDESGEF:	auc=1.000	auc01=1.000
+
+CTELKLNDY:	auc=1.000	auc01=1.000
+peptide:  61%|██████    | 104/170 [00:12<00:06,  9.72it/s]peptide:  66%|██████▌   | 112/170 [00:13<00:06,  9.50it/s]peptide:  71%|███████   | 120/170 [00:14<00:05,  9.65it/s]peptide:  75%|███████▌  | 128/170 [00:15<00:04,  9.28it/s]peptide:  80%|████████  | 136/170 [00:16<00:03,  9.30it/s]peptide:  85%|████████▍ | 144/170 [00:16<00:02,  9.73it/s]peptide:  89%|████████▉ | 152/170 [00:17<00:01,  9.52it/s]
+NYNYLYRLF:	auc=0.991	auc01=0.954
+
+KLWAQCVQL:	auc=0.977	auc01=0.880
+
+RPPIFIRRL:	auc=0.916	auc01=0.854
+
+IVTDFSVIK:	auc=0.614	auc01=0.613
+
+MEVTPSGTWL:	auc=0.567	auc01=0.532
+
+VMVELVAEL:	auc=0.385	auc01=0.474
+
+RYPLTFGW:	auc=0.706	auc01=0.737
+
+LWFHISCLTF:	auc=1.000	auc01=1.000
+
+HPVGEADYFEY:	auc=1.000	auc01=1.000
+
+TSTLQEQIGW:	auc=0.250	auc01=0.474
+
+SLLMWITQV:	auc=0.167	auc01=0.474
+
+RLARLALVL:	auc=0.857	auc01=0.737
+
+LMIERFVSL:	auc=0.200	auc01=0.474
+
+ALWEIQQVV:	auc=0.601	auc01=0.586
+
+IVCPICSQK:	auc=1.000	auc01=1.000
+
+MTLHGHMMY:	auc=0.714	auc01=0.524
+
+LLLDRLNQL:	auc=1.000	auc01=1.000
+
+KLVALGINAV:	auc=0.899	auc01=0.805
+
+AIFYLITPV:	auc=0.000	auc01=0.474
+
+RMFPNAPYL:	auc=0.364	auc01=0.490
+
+QELIRQGTDY:	auc=0.833	auc01=0.737
+
+CLLWSFQTSA:	auc=0.150	auc01=0.474
+peptide:  94%|█████████▍| 160/170 [00:19<00:01,  7.82it/s]peptide:  99%|█████████▉| 168/170 [00:19<00:00,  9.78it/s]peptide: 100%|██████████| 170/170 [00:19<00:00,  8.72it/s]
+
+KLGGALQAK:	auc=0.572	auc01=0.542
+
+GLCTLVAML:	auc=0.861	auc01=0.792
+
+RLRAEAQVK:	auc=0.593	auc01=0.495
+
+SLFNTVATLY:	auc=0.556	auc01=0.474
+
+RFPLTFGWCF:	auc=0.896	auc01=0.735
+
+FEDLRVSSF:	auc=0.875	auc01=0.749
+
+KTFPPTEPK:	auc=0.463	auc01=0.516
+
+LMNVLTLVY:	auc=0.800	auc01=0.474
+
+KVLEYVIKV:	auc=0.167	auc01=0.474
+
+VYIGDPAQL:	auc=0.385	auc01=0.649
+
+CTELKLSDY:	auc=0.575	auc01=0.539
+
+LWLLWPVTL:	auc=0.500	auc01=0.474
+
+YVLDHLIVV:	auc=0.727	auc01=0.737
+
+RAQAPPPSW:	auc=0.500	auc01=0.605
+
+KTWGQYWQV:	auc=0.577	auc01=0.737
+
+RYPLTFGWCF:	auc=0.222	auc01=0.474
+
+FTVLCLTPV:	auc=0.000	auc01=0.474
+
+FEDLRVLSF:	auc=0.838	auc01=0.737
+
+TLWCSPIKV:	auc=0.500	auc01=0.474
+
+FLALCADSI:	auc=0.143	auc01=0.474
+
+QYDPVAALF:	auc=0.438	auc01=0.474
+
+NVFAFPFTI:	auc=0.571	auc01=0.474
+
+CYTWNQMNL:	auc=0.500	auc01=0.474
+
+FLAHIQWMV:	auc=0.625	auc01=0.474
+
+RQLLFVVEV:	auc=1.000	auc01=1.000
+
+KLVAMGINAV:	auc=0.762	auc01=0.825
+
+AYAQKIFKI:	auc=0.653	auc01=0.605
+
+KLKDCVMYA:	auc=0.571	auc01=0.474
+
+YADVFHLYL:	auc=0.600	auc01=0.474
+
+RTLNAWVKV:	auc=0.491	auc01=0.531
+
+RLITGRLQSL:	auc=0.800	auc01=0.474
+
+YLLEMLWRL:	auc=0.000	auc01=0.474
+
+MPASWVMRI:	auc=0.800	auc01=0.474
+
+SMWALVISV:	auc=0.800	auc01=0.474
+
+AVFDRKSDAK:	auc=0.511	auc01=0.520
+
+QYIKWPWYI:	auc=0.749	auc01=0.675
+
+YVDNSSLTI:	auc=1.000	auc01=1.000
+
+HPVTKYIM:	auc=0.791	auc01=0.754
+
+MALWMRLLPLL:	auc=0.833	auc01=0.474
+
+WPVTLACFV:	auc=0.381	auc01=0.474
+
+ALSKGVHFV:	auc=0.616	auc01=0.579
+
+SVYGDTLEK:	auc=1.000	auc01=1.000
+
+AAFKRSCLK:	auc=0.600	auc01=0.474
+
+EPLPQGQLTAY:	auc=0.650	auc01=0.737
+
+FLHVTYVPA:	auc=0.200	auc01=0.474
+
+SIIAYTMSL:	auc=0.604	auc01=0.474
+
+RPRGEVRFL:	auc=0.833	auc01=0.727
+
+SMMILSDDA:	auc=0.667	auc01=0.474
+
+YLGGMSYYC:	auc=0.800	auc01=0.474
+
+LLFGYPVYV:	auc=0.927	auc01=0.847
+
+KLNEEIAII:	auc=1.000	auc01=1.000
+
+VMHANYIFW:	auc=1.000	auc01=1.000
+
+LLFLVLIML:	auc=0.000	auc01=0.474
+
+MPYFFTLLL:	auc=0.143	auc01=0.474
+
+CVNGSCFTV:	auc=0.786	auc01=0.474
+
+KMVTVCPNT:	auc=1.000	auc01=1.000
+
+AAGIGILTV:	auc=1.000	auc01=1.000
+
+NLVPMVATV:	auc=0.690	auc01=0.630
+
+YLYALVYFL:	auc=1.000	auc01=1.000
+
+KLSALGINAV:	auc=0.745	auc01=0.579
+
+NQKLIANQF:	auc=0.658	auc01=0.556
+
+YLQPRTFLL:	auc=0.711	auc01=0.658
+
+GPRLGVRAT:	auc=0.854	auc01=0.742
+
+VAANIVLTV:	auc=0.316	auc01=0.474
+
+AEVQIDRLI:	auc=0.714	auc01=0.474
+
+MLDLQPETT:	auc=0.389	auc01=0.474
+
+FLRGRAYGL:	auc=0.727	auc01=0.737
+
+NSSTCMMCY:	auc=1.000	auc01=1.000
+
+TLMNVLTLV:	auc=0.722	auc01=0.737
+
+FLLNKEMYL:	auc=0.889	auc01=0.737
+
+VVMSWAPPV:	auc=0.875	auc01=0.474
+
+KVYPIILRL:	auc=0.556	auc01=0.474
+
+KLFIRQEEV:	auc=0.200	auc01=0.474
+
+SLLMWITQC:	auc=0.200	auc01=0.474
+
+VFLVLLPLV:	auc=0.375	auc01=0.474
+
+LLDDFVEII:	auc=0.167	auc01=0.474
+
+VYGIRLEHF:	auc=0.000	auc01=0.474
+
+ILGFVFTLT:	auc=0.000	auc01=0.474
+
+ELAGIGILTV:	auc=0.907	auc01=0.713
+
+SPRWYFYYL:	auc=0.681	auc01=0.604
+
+FLYALALLL:	auc=0.992	auc01=0.956
+
+CINGVCWTV:	auc=0.855	auc01=0.780
+
+NYMPYFFTL:	auc=0.875	auc01=0.737
+
+SLLMPILTL:	auc=0.400	auc01=0.474
+
+FEDLRLLSF:	auc=0.827	auc01=0.561
+
+TSQWLTNIF:	auc=0.300	auc01=0.474
+
+VYFLQSINF:	auc=0.562	auc01=0.530
+
+LLYDANYFL:	auc=0.754	auc01=0.668
+
+KSVNITFEL:	auc=0.467	auc01=0.474
+
+TTIQTIVEV:	auc=0.600	auc01=0.474
+
+RPHERNGFTVL:	auc=0.719	auc01=0.579
+
+IMDQVPFSV:	auc=0.250	auc01=0.474
+
+QIKVRVDMV:	auc=1.000	auc01=1.000
+
+KQIYKTPPI:	auc=0.667	auc01=0.474
+
+FLASKIGRLV:	auc=0.322	auc01=0.474
+
+MLDMYSVML:	auc=0.600	auc01=0.474
+
+YTMADLVYA:	auc=0.400	auc01=0.474
+
+TAFTIPSI:	auc=0.682	auc01=0.474
+
+TLKNTVCTV:	auc=0.800	auc01=0.474
+
+TTDPSFLGRY:	auc=0.665	auc01=0.628
+
+LLWNGPMAV:	auc=0.898	auc01=0.822
+
+TPRVTGGGAM:	auc=0.909	auc01=0.790
+
+VSDGGPNLY:	auc=0.798	auc01=0.737
+
+ATDALMTGF:	auc=0.788	auc01=0.746
+
+SVLYYQNNV:	auc=0.583	auc01=0.474
+
+VLFGLGFAI:	auc=0.602	auc01=0.561
+
+KSKRTPMGF:	auc=0.699	auc01=0.658
+
+YSEHPTFTSQY:	auc=0.683	auc01=0.579
+
+GKTELLAPF:	auc=1.000	auc01=1.000
+
+LPRWYFYYL:	auc=0.864	auc01=0.789
+
+YVWKSYVHV:	auc=0.833	auc01=0.474
+
+LLLEWLAMA:	auc=0.500	auc01=0.474
+
+CLAVHECFV:	auc=0.778	auc01=0.474
+
+FLPRVFSAV:	auc=0.583	auc01=0.474
+
+CLGGLLTMV:	auc=0.571	auc01=0.737
+
+RYSIFFDYM:	auc=0.429	auc01=0.474
+
+YMPYFFTLL:	auc=0.125	auc01=0.474
+
+IMLCCMTSC:	auc=0.500	auc01=0.737
+
+KLQFTSLEI:	auc=0.562	auc01=0.474
+
+AYSSAGASI:	auc=0.429	auc01=0.474
+
+TSAMQTMLF:	auc=0.200	auc01=0.474
+
+GILGFVFTL:	auc=0.794	auc01=0.701
+
+LLDFVRFMGV:	auc=0.790	auc01=0.739
+
+WPWYIWLGF:	auc=0.071	auc01=0.474
+
+DATYQRTRALVR:	auc=0.775	auc01=0.636
+
+TLMNVITLV:	auc=1.000	auc01=1.000
+
+FLNRFTTTL:	auc=0.400	auc01=0.474
+
+AIMEKNIVL:	auc=0.500	auc01=0.474
+
+RVAGDSGFAAY:	auc=0.900	auc01=0.702
+
+ALYGFVPVL:	auc=0.667	auc01=0.474
+
+RLGPVQNEV:	auc=0.944	auc01=0.825
+
+QPGQTFSVL:	auc=0.800	auc01=0.474
+
+HTMLCMCCK:	auc=1.000	auc01=1.000
+
+PTDNYITTY:	auc=0.720	auc01=0.561
+
+RIRGGDGKM:	auc=1.000	auc01=1.000
+
+WLLWPVTLA:	auc=0.278	auc01=0.474
+
+FLPGVYSVI:	auc=0.200	auc01=0.474
+
+DTDFVNEFY:	auc=1.000	auc01=1.000
+
+NMLSTVLGV:	auc=0.800	auc01=0.474
+####################
