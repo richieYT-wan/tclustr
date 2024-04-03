@@ -505,7 +505,7 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
         mlt = dataset.max_len_tcr
         mlp = dataset.max_len_pep
         # THIS PART FOR BSSVAE
-        if type(model) == BSSVAE:
+        if type(model) == BSSVAE and not (dataset.pair_only and dataset.return_pair):
             tcr_df = dataset.df_tcr_only.copy()
             pep_df = dataset.df_pep_only.copy()
             # marginal TCR first
@@ -570,7 +570,7 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             results_df = pd.concat([tcr_df, pep_df, paired_df])
             results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
 
-        elif type(model) == JMVAE and dataset.pair_only and dataset.return_pair:
+        elif type(model) == JMVAE or dataset.pair_only and dataset.return_pair:
             loader = dataset.get_dataloader(batch_size, SequentialSampler)
             for batch in loader:
                 x_true_tcr_joint.append(batch[0])
@@ -614,10 +614,44 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
                                      zip(tcr_marg_metrics['seq_accuracy'], tcr_joint_metrics['seq_accuracy'],
                                          pep_marg_metrics['seq_accuracy'], pep_joint_metrics['seq_accuracy'])]
 
+        elif type(model) == BSSVAE and dataset.pair_only and dataset.return_pair:
+            loader = dataset.get_dataloader(batch_size, SequentialSampler)
+            for batch in loader:
+                x_true_tcr_joint.append(batch[0])
+                x_true_pep_joint.append(batch[1])
+                batch = [b.to(model.device) for b in batch]
         else:
             raise ValueError(
                 'Discrepancies between model types and dataset paired/unpaired behaviour!! Check your inputs ; JMVAE expects return_pair.' \
                 f'model {model.__class__.__name__}, Dataset pair only : {dataset.pair_only}, Dataset return pair: {dataset.return_pair}')
+
+    return results_df
+
+
+def embed_multimodal(model: Union[BSSVAE, JMVAE],
+                     dataset: MultimodalPepTCRDataset,
+                     dataloader):
+    """
+    Here, it uses dataset and not dataloader in order to return the entire DF with the missing modalities!
+    So it doesn't use dataloader because dataloader sub-samples the missing modalities based on epochs and we want the full thing
+    Args:
+        model:
+        dataset:
+
+    Returns:
+        predictions_df
+    """
+    model.eval()
+    with torch.no_grad():
+        assert (dataset.return_pair and dataset.pair_only), 'ntr'
+        z_latent = []
+        # Original df, re-ordered
+        results_df = dataset.df_pep_tcr.copy()
+        for batch in dataloader:
+            batch = [b.to(model.device) for b in batch]
+            zs = model.embed(*batch, which='joint')
+            z_latent.append(zs.detach().cpu())
+        results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
 
     return results_df
 

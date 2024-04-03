@@ -308,7 +308,6 @@ class BSSVAE(NetParent):
     def embed(self, x_a, x_b, which):
         """
         Not the best way but assumes the following:
-        # TODO: This is wrong for the marginal cases!! FIX IT
         if marg :
             x_a = marg, x_b = joint
         if joint:

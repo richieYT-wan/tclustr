@@ -2,8 +2,8 @@
 
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
 
-mainfolder='../output/retrain_old_expdata'
-outdir='../output/old_retrained_add_clf/'
+mainfolder='../output/vaes_models_retrain_old_expdata'
+outdir='../output/240328_Retrained_SVAE_CLFs/'
 #grepstatement=$4
 subdir=$(ls -dr ${mainfolder}/*/)
 cd ../pyscripts/

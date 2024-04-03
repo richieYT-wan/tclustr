@@ -43,9 +43,9 @@ for f in ${subdir}; do
     json_file="${f}$(ls ${f} | grep "checkpoint" | grep "json")"
     best_checkpoint="${f}$(ls ${f} | grep "checkpoint_best" | grep -v "last" | grep ".pt")"
     last_checkpoint="${f}$(ls ${f} | grep "last_epoch" | grep ".pt")"
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od ${outdir} -o "BEST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cuda:1
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od ${outdir} -o "BEST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cpu
     # Doing with "last" checkpoint
-    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od ${outdir} -o "LAST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cuda:1
+    python3 ./train_classifier_frozen_mmvae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od ${outdir} -o "LAST_3kEpochs_CC_PepBLSM_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc 'BL50LO' -kf 0 -seed 0 -pepweight True -device cpu
     echo "------------------------------------------------------------------------"
     echo ""
 done
