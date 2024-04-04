@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score, \
-    precision_score, precision_recall_curve, auc, average_precision_score
+    precision_score, precision_recall_curve, auc, average_precision_score, recall_score
 
 
 class LossParent(nn.Module):
@@ -32,11 +32,15 @@ class LossParent(nn.Module):
     def to(self, device):
         super(LossParent, self).to(device)
         self.device = device
-        if self.positional_weighting:
-            self.positional_weights = self.positional_weights.to(device)
+        if hasattr(self, 'positional_weights') and hasattr(self, 'positional_weighting'):
+            if self.positional_weighting:
+                self.positional_weights = self.positional_weights.to(device)
         for c in self.children():
             if hasattr(c, 'device') and hasattr(c, 'to'):
                 c.to(device)
+            if hasattr(c, 'positional_weighting') and hasattr(c, 'positional_weights'):
+                if c.positional_weighting:
+                    c.positional_weights = c.positional_weights.to(device)
 
 
 class VAELoss(LossParent):
@@ -73,6 +77,7 @@ class VAELoss(LossParent):
             pep_weights = torch.full([max_len_pep, 1], 1)
             self.positional_weights = torch.cat([alpha_weights, beta_weights, pep_weights], dim=0).to(self.device)
             assert self.positional_weights.shape == (max_len, 1), 'wrong shape for pos weights'
+            print('Here in Vae loss pos weights', self.positional_weights.device, self.positional_weighting)
 
         self.max_len = max_len
         self.aa_dim = aa_dim
@@ -232,6 +237,7 @@ class CombinedVAELoss(LossParent):
                                 add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
                                 weight_kld=weight_kld, debug=debug, warm_up=warm_up,
                                 positional_weighting=positional_weighting)
+        self.positional_weighting = positional_weighting
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
@@ -264,6 +270,7 @@ class TwoStageVAELoss(LossParent):
                                 positional_weighting=positional_weighting)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.classification_loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.positional_weighting = positional_weighting
         self.weight_triplet = float(weight_triplet)
         self.weight_vae = float(weight_vae)
         self.weight_classification = float(weight_classification)
@@ -579,7 +586,7 @@ def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:
     return auc(fpr, tpr) * 10
 
 
-def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4) -> dict:
+def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4, no_curves=False) -> dict:
     """
     Computes all classification metrics & returns a dictionary containing the various key/metrics
     incl. ROC curve, AUC, AUC_01, F1 score, Accuracy, Recall
@@ -610,6 +617,7 @@ def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduce
     metrics['auc_01'] = roc_auc_score(y_true, y_score, max_fpr=0.1)
     metrics['auc_01_real'] = auc01_score(y_true, y_score, max_fpr=0.1)
     metrics['precision'] = precision_score(y_true, y_pred)
+    metrics['recall'] = recall_score(y_true, y_pred)
     metrics['accuracy'] = accuracy_score(y_true, y_pred)
     metrics['AP'] = average_precision_score(y_true, y_score)
     if not reduced:
@@ -630,7 +638,18 @@ def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduce
             metrics['y_score'] = y_score
     if round_digit is not None:
         for k, v in metrics.items():
-            metrics[k] = round(v, round_digit)
+            try:
+                metrics[k] = round(v, round_digit)
+            except:
+                print(f'Couldn\'t round {k} of type ({type(v)})! continuing')
+                continue
+    if no_curves:
+        td = []
+        for k in metrics:
+            if 'curve' in k:
+                td.append(k)
+        for k in td:
+            del metrics[k]
     return metrics
 
 

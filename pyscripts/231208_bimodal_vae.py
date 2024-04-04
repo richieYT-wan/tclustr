@@ -31,6 +31,9 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
+    parser.add_argument('-device', dest='device', default=None, type=str,
+                        help='Specify a device (cpu, cuda:0, cuda:1)')
+
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
     parser.add_argument('-f', '--file', dest='file', required=False, type=str,
@@ -98,6 +101,12 @@ def args_parser():
                              '[selu, relu, leakyrelu, elu]')
     parser.add_argument('-nhclf', '--n_hidden_clf', dest='n_hidden_clf', type=int, default=50,
                         help='Number of hidden units in the Classifier. Default = 32')
+    parser.add_argument('-ale', dest='add_layer_encoder', default=False, type=str2bool,
+                        help='Add an extra encoder layer')
+    parser.add_argument('-ald', dest='add_layer_decoder', default=False, type=str2bool,
+                        help='Add an extra decoder layer')
+    parser.add_argument('-ob', dest='old_behaviour', default=True, type=str2bool,
+                        help='switchcase to have old behaviour to ahve models we can load/save')
     parser.add_argument('-do', dest='dropout', type=float, default=0.25,
                         help='Dropout percentage in the hidden layers (0. to disable)')
     parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=True,
@@ -172,6 +181,10 @@ def main():
         device = get_available_device()
     else:
         device = torch.device('cpu')
+
+    if args['device'] is not None:
+        device = args['device']
+
     print("Using : {}".format(device))
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
@@ -207,7 +220,7 @@ def main():
     vae_params = {k: args[k] for k in vae_keys}
     clf_params = {k: args[k] for k in clf_keys}
     clf_params['n_latent'] = vae_params['latent_dim']
-    clf_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
+    clf_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else df.peptide.apply(len).max().item() * 20
 
     model_params = {k: args[k] for k in vae_keys + clf_keys}
     dataset_params = {k: args[k] for k in dataset_keys}

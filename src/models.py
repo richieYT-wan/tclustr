@@ -189,7 +189,8 @@ class FullTCRVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
                  max_len_pep=0, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
-                 activation=nn.SELU(), hidden_dim=128, latent_dim=64):
+                 activation=nn.SELU(), hidden_dim=128, latent_dim=64,
+                 add_layer_encoder=True, add_layer_decoder=True, old_behaviour=True, batchnorm=True):
         super(FullTCRVAE, self).__init__()
         # Init params that will be needed at some point for reconstruction
         # Here, define aa_dim and pos_dim ; pos_dim is the dimension of a positional encoding.
@@ -222,16 +223,41 @@ class FullTCRVAE(NetParent):
         # TODO: For now, just use a fixed set of layers.
         #       Might need more layers because we are compressing more information
 
-        # TODO: Include dropout+batchnorm (Actually tried and didn't work too well) BECAUSE IT NEEDED MORE EPOCHS / LR
         # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
-        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
-                                     nn.Linear(input_dim // 2, hidden_dim), activation)
-        self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
-        self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
-        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                     nn.Linear(hidden_dim, hidden_dim), activation)
-        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
-                                              nn.Linear(input_dim // 2, input_dim))
+        bn = nn.BatchNorm1d if batchnorm else nn.Identity
+        #####
+        # HERE DO THINGS WITH ADD LAYER AND BATCHNORM ; add an "old_behaviour" parameter so we can still read old models
+
+        if old_behaviour:
+            self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
+                                         nn.Linear(input_dim // 2, hidden_dim), activation)
+            self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+            self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+            self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+                                         nn.Linear(hidden_dim, hidden_dim), activation)
+            self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
+                                                  nn.Linear(input_dim // 2, input_dim))
+        else:
+            # Create encoder layers
+            encoder_layers = [nn.Linear(input_dim, input_dim // 2), activation, bn(input_dim//2),
+                              nn.Linear(input_dim // 2, hidden_dim), activation, bn(hidden_dim)]
+            if add_layer_encoder:
+                encoder_layers.extend([nn.Linear(hidden_dim, hidden_dim), activation, bn(hidden_dim)])
+            # Create decoder layers:
+            decoder_layers = [nn.Linear(latent_dim, hidden_dim), activation, bn(hidden_dim)]
+            if add_layer_decoder:
+                decoder_layers.extend([nn.Linear(hidden_dim, hidden_dim), activation, bn(hidden_dim)])
+            decoder_sequence_layers = [nn.Linear(hidden_dim, input_dim // 2), activation, bn(input_dim // 2),
+                                       nn.Linear(input_dim // 2, input_dim)]
+
+            self.encoder = nn.Sequential(*encoder_layers)
+            self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+            self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+
+            self.decoder = nn.Sequential(*decoder_layers)
+            self.decoder_sequence = nn.Sequential(*decoder_sequence_layers)
+            
+
 
     def reparameterise(self, mu, logvar):
         # During training, the reparameterisation leads to z = mu + std * eps
@@ -326,13 +352,13 @@ class FullTCRVAE(NetParent):
 class PeptideClassifier(NetParent):
 
     def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
-                 decrease_hidden=False):
+                 decrease_hidden=False, add_pep=True):
         super(PeptideClassifier, self).__init__()
         # self.sigmoid = nn.Sigmoid()
 
         # self.softmax = nn.Softmax()
 
-        in_dim = pep_dim + n_latent
+        in_dim = pep_dim + n_latent if add_pep else n_latent
         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU()]
         if batchnorm:
             in_layer.append(nn.BatchNorm1d(n_hidden_clf))

@@ -317,7 +317,6 @@ class BSSVAE(NetParent):
     def embed(self, x_a, x_b, which):
         """
         Not the best way but assumes the following:
-        # TODO: This is wrong for the marginal cases!! FIX IT
         if marg :
             x_a = marg, x_b = joint
         if joint:
@@ -496,6 +495,14 @@ class JMVAE(NetParent):
                    'pep_marg': logvar_pep_marg}
 
         return recons, mus, logvars
+
+    def embed(self, x_tcr_marg, x_pep_marg, which='joint'):
+        _, mus, logvars = self.forward(x_tcr_marg, x_pep_marg)
+        if which != 'joint':
+            return self.reparameterise(mus[f'{which}_marg'], logvars[f'{which}_marg'])
+        else:
+            return self.reparameterise(mus['joint'], logvars['joint'])
+
 
     def join_tcr_pep(self, x_tcr, x_pep):
         return torch.cat([x_tcr.view(-1, self.max_len_tcr, self.matrix_dim_tcr),

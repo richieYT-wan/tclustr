@@ -1,3 +1,5 @@
+import glob
+
 import pandas as pd
 import os, sys
 
@@ -12,8 +14,12 @@ from datetime import datetime as dt
 from src.utils import str2bool, mkdirs, get_random_id, get_datetime_string, get_class_initcode_keys
 from src.torch_utils import load_model_full
 from src.train_eval import predict_model
-from src.datasets import FullTCRDataset, TwoStageTCRpMHCDataset
+from src.datasets import FullTCRDataset
 from src.models import TwoStageVAECLF, FullTCRVAE
+from src.multimodal_models import BSSVAE, JMVAE
+from src.multimodal_datasets import MultimodalPepTCRDataset
+from src.multimodal_train_eval import predict_multimodal, embed_multimodal
+
 from src.metrics import compute_cosine_distance
 from src.sim_utils import make_dist_matrix
 from sklearn.metrics import roc_auc_score
@@ -94,7 +100,7 @@ def do_tcrbase_and_histplots(preds, peptide, partition, f=None, ax=None,
     df_plot_best = pd.DataFrame(data=np.stack([cat_best, labels_best]).T, columns=['distance', 'label'])
     df_plot_best['distance'] = df_plot_best['distance'].astype(float)
     f2, ax2 = plt.subplots(1, 1, figsize=(9, 5))
-    bins = max(int(len(query.query('original_peptide==@peptide'))/9), 25)
+    bins = max(int(len(query.query('original_peptide==@peptide')) / 9), 25)
 
     sns.histplot(data=df_plot_best, x='distance', hue='label', ax=ax2, kde=False,
                  stat='percent', common_norm=False, bins=bins, alpha=0.75)
@@ -110,7 +116,7 @@ def do_tcrbase_and_histplots(preds, peptide, partition, f=None, ax=None,
 
 def wrapper(preds, peptide, args, unique_filename, outdir):
     cat_out = do_tcrbase_and_histplots(preds, peptide, partition=args['fold'],
-                                      unique_filename=unique_filename, outdir=outdir)
+                                       unique_filename=unique_filename, outdir=outdir)
 
     cat_out.to_csv(f'{outdir}tcrbase_{peptide}_{unique_filename}.csv')
 
@@ -130,7 +136,8 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
-
+    parser.add_argument('-device', dest='device', default=None, type=str,
+                        help='Specify a device (cpu, cuda:0, cuda:1)')
     parser.add_argument('-db', '--db_file', dest='db_file', required=True, type=str,
                         default='../data/filtered/231205_nettcr_old_26pep_with_swaps.csv',
                         help='filename of the input reference file')
@@ -223,6 +230,16 @@ def main():
     print('Starting script: ', start.strftime("%H:%M %d.%m.%y"))
     args = vars(args_parser())
     sns.set_style('darkgrid')
+
+    # CUDA
+    if torch.cuda.is_available() and args['cuda']:
+        device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
+    if args['device'] is not None:
+        device = args['device']
+    print("Using : {}".format(device))
+
     # Handle the model first ; Assert then try to load it
     assert not all([args[k] is None for k in ['model_folder', 'pt_file', 'json_file']]), \
         'Please provide either the path to the folder containing the .pt and .json or paths to each file (.pt/.json) separately!'
@@ -230,16 +247,18 @@ def main():
     if args['model_folder'] is not None:
         try:
             checkpoint_file = next(
-                filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
-            json_file = next(
-                filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
-            vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file,
-                                      return_json=True)
+                filter(lambda x: 'best' in x.lower() and 'checkpoint' in x and 'interval' not in x and 'last' not in x,
+                       glob.glob(f'{args["model_folder"]}/*.pt')))
+            checkpoint_file = checkpoint_file if args['pt_file'] is None else args['pt_file']
+            model_json = next(filter(lambda x: 'checkpoint' in x,
+                                     glob.glob(f'{args["model_folder"]}/*.json'))) if args['json_file'] is None else args['json_file']
+            vae, js = load_model_full(checkpoint_file, model_json,
+                                      return_json=True, map_location=device)
         except:
             print(args['model_folder'], os.listdir(args['model_folder']))
             raise ValueError(f'\n\nCouldn\'t load your files! at {args["model_folder"]}\n\n')
     else:
-        vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
+        vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True, map_location=device)
 
     # here, extracts the VAE if it's part of the Bimodal
     if isinstance(vae, TwoStageVAECLF) and hasattr(vae, 'vae'):
@@ -276,28 +295,35 @@ def main():
     outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
 
-    # CUDA
-    if torch.cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
-    else:
-        device = torch.device('cpu')
-    print("Using : {}".format(device))
-
     # Loading args & dataset instances
     for k in args:
         if 'max_len' in k or 'positional' in k:
             args[k] = js[k] if k in js else 0
 
-    dataset_keys = get_class_initcode_keys(FullTCRDataset, args)
-    dataset_params = {k: args[k] for k in dataset_keys}
-    db_dataset = FullTCRDataset(db_df, **dataset_params)
-    qr_dataset = FullTCRDataset(qr_df, **dataset_params)
-    db_loader = db_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
-    qr_loader = qr_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
+    if isinstance(vae, JMVAE) or isinstance(vae, BSSVAE):
+        dataset_keys = get_class_initcode_keys(MultimodalPepTCRDataset, args)
+        dataset_params = {k: args[k] for k in dataset_keys}
+        # TODO: for convenience do pair only and return pair only here
+        dataset_params['pair_only'] = True
+        dataset_params['return_pair'] = True
+        db_dataset = MultimodalPepTCRDataset(db_df, **dataset_params)
+        qr_dataset = MultimodalPepTCRDataset(qr_df, **dataset_params)
+        db_loader = db_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
+        qr_loader = qr_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
+        db_preds = embed_multimodal(vae, db_dataset, db_loader)
+        qr_preds = embed_multimodal(vae, qr_dataset, qr_loader)
 
-    # Get the "predictions" (latent vectors)
-    db_preds = predict_model(vae, db_dataset, db_loader)
-    qr_preds = predict_model(vae, qr_dataset, qr_loader)
+    else:
+        dataset_keys = get_class_initcode_keys(FullTCRDataset, args)
+        dataset_params = {k: args[k] for k in dataset_keys}
+        db_dataset = FullTCRDataset(db_df, **dataset_params)
+        qr_dataset = FullTCRDataset(qr_df, **dataset_params)
+        db_loader = db_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
+        qr_loader = qr_dataset.get_dataloader(batch_size=2048, sampler=SequentialSampler)
+        # Get the "predictions" (latent vectors)
+        db_preds = predict_model(vae, db_dataset, db_loader)
+        qr_preds = predict_model(vae, qr_dataset, qr_loader)
+
     # Here, concatenate and construct the distance matrix a single time ; Keep the columns for filtering later
     concat = pd.concat([qr_preds.assign(set="query"), db_preds.assign(set="database")])
     concat['tcr'] = concat.apply(lambda x: ''.join([x[c] for c in ['A1', 'A2', 'A3', 'B1', 'B2', 'B3']]), axis=1)
@@ -316,6 +342,7 @@ def main():
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         for line in text:
             file.write(f'{line}\n')
+
 
 if __name__ == '__main__':
     main()

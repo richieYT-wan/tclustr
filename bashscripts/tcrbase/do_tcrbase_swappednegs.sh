@@ -8,7 +8,8 @@ grepstatement=$3
 grepv=$4
 subdir=$(ls -dr ${mainfolder}/*/ | grep "${grepstatement}" | grep -v "${grepv}")
 mkdir -p ${outdir}
-cd ../pyscripts/
+# Assumes this is in tclustr/bashscripts/tcrbase/
+cd ../../pyscripts/
 echo "wtf"
 echo "$1 $2"
 for fullpath in ${subdir}; do

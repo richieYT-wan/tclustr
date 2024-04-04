@@ -236,12 +236,16 @@ def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './'
         mkdirs(dir_path)
         if verbose:
             print(f'Creating {dir_path}; The provided dir path {dir_path} did not exist!')
-
+    if dir_path.startswith('../output/../output/'):
+        dir_path = dir_path[:10]+dir_path[20:]
     savepath = os.path.join(dir_path, filename)
     checkpoint = model.state_dict()
     if best_dict is not None and type(best_dict) == dict:
         checkpoint['best'] = best_dict
+
     torch.save(checkpoint, savepath)
+
+
     if verbose:
         print(f'Model saved at {os.path.abspath(savepath)}')
 

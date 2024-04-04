@@ -6,91 +6,12 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
-from src.datasets import MultimodalPepTCRDataset
+from src.multimodal_datasets import MultimodalPepTCRDataset
 from src.multimodal_models import BSSVAE, JMVAE
 from src.torch_utils import save_checkpoint, load_checkpoint, mask_modality, batch_generator, paired_batch_generator
 from src.utils import epoch_counter, get_loss_metric_text
 from src.metrics import model_reconstruction_stats, reconstruct_and_compute_accuracy, get_acc_list_string
 from src.multimodal_metrics import BSSVAELoss, JMVAELoss
-
-
-def eval_trimodal_step(model, criterion, valid_loader):
-    model.eval()
-    acum_total_loss, acum_total_recon_loss, acum_joint_kld, acum_marginal_kld, acum_triplet = 0, 0, 0, 0, 0
-    alpha_reconstructed, beta_reconstructed, pep_reconstructed = [], [], []
-    alpha_true, beta_true, pep_true = [], [], []
-    masks_alpha, masks_beta, masks_pep = [], [], []
-    # Batch should be x_alpha, x_beta, x_pep, labels (triplet), +/- pep_weights
-    with torch.no_grad():
-        for batch in valid_loader:
-            if valid_loader.dataset.pep_weighted:
-                x_alpha, x_beta, x_pep, mask_alpha, mask_beta, mask_pep, labels, pep_weights = batch
-            else:
-                x_alpha, x_beta, x_pep, mask_alpha, mask_beta, mask_pep, labels = batch
-                pep_weights = torch.ones([len(labels)])
-            x_alpha, x_beta, x_pep, labels, pep_weights = x_alpha.to(model.device), x_beta.to(model.device), x_pep.to(
-                model.device), labels.to(model.device), pep_weights.to(model.device)
-            mask_alpha, mask_beta, mask_pep = mask_alpha.to(model.device), mask_beta.to(model.device), mask_pep.to(
-                model.device)
-            x_hat_alpha, x_hat_beta, x_hat_pep, mu_joint, logvar_joint, mus_marginal, logvars_marginal = model(x_alpha,
-                                                                                                               x_beta,
-                                                                                                               x_pep)
-            # Should this return all individual loss terms ? Including each marginal? Or just keep it simple with
-            # total reconstruction, marginal KLD, joint KLD, triplet ?
-            recon_loss, kld_joint, kld_marginal, triplet_loss = criterion(x_hat_alpha, x_alpha, x_hat_beta, x_beta,
-                                                                          x_hat_pep, x_pep,
-                                                                          mu_joint, logvar_joint, mus_marginal,
-                                                                          logvars_marginal,
-                                                                          mask_alpha, mask_beta, mask_pep, labels,
-                                                                          pep_weights=pep_weights)
-            loss = recon_loss + kld_marginal + kld_joint + triplet_loss
-            # Accumulate loss and save for metrics, multiplying by shape (and later dividing by nbatch) for normalization
-            acum_total_loss += loss.item() * x_pep.shape[0]
-            acum_total_recon_loss += recon_loss.item() * x_pep.shape[0]
-            acum_joint_kld += kld_joint.item() * x_pep.shape[0]
-            acum_marginal_kld += kld_marginal.item() * x_pep.shape[0]
-            acum_triplet += triplet_loss.item() * x_pep.shape[0]
-            alpha_reconstructed.append(x_hat_alpha.detach().cpu())
-            beta_reconstructed.append(x_hat_beta.detach().cpu())
-            pep_reconstructed.append(x_hat_pep.detach().cpu())
-            alpha_true.append(x_alpha.detach().cpu())
-            beta_true.append(x_beta.detach().cpu())
-            pep_true.append(x_pep.detach().cpu())
-            masks_alpha.append(mask_alpha.detach().cpu())
-            masks_beta.append(mask_beta.detach().cpu())
-            masks_pep.append(mask_pep.detach().cpu())
-
-    # Normalize losses
-    acum_total_loss /= len(valid_loader.dataset)
-    acum_total_recon_loss /= len(valid_loader.dataset)
-    acum_joint_kld /= len(valid_loader.dataset)
-    acum_marginal_kld /= len(valid_loader.dataset)
-    acum_triplet /= len(valid_loader.dataset)
-
-    # Cat reconstructions and compute metrics
-    # Getting really convoluted with everything written out explicitely ...
-    # Maybe there's a more implicit / fewer lines of code way to do this.
-    alpha_reconstructed = torch.cat(alpha_reconstructed)
-    beta_reconstructed = torch.cat(beta_reconstructed)
-    pep_reconstructed = torch.cat(pep_reconstructed)
-    alpha_true = torch.cat(alpha_true)
-    beta_true = torch.cat(beta_true)
-    pep_true = torch.cat(pep_true)
-    masks_alpha = torch.cat(masks_alpha)
-    masks_beta = torch.cat(masks_beta)
-    masks_pep = torch.cat(masks_pep)
-    alpha_metrics = model_reconstruction_stats(model.vae_alpha, alpha_reconstructed, alpha_true,
-                                               return_per_element=False, modality_mask=masks_alpha)
-    beta_metrics = model_reconstruction_stats(model.vae_beta, beta_reconstructed, beta_true, return_per_element=False,
-                                              modality_mask=masks_beta)
-    pep_metrics = model_reconstruction_stats(model.vae_pep, pep_reconstructed, pep_true, return_per_element=False,
-                                             modality_mask=masks_pep)
-    valid_metrics = {'alpha_' + k: v for k, v in alpha_metrics.items()}
-    valid_metrics.update({'beta_' + k: v for k, v in beta_metrics.items()})
-    valid_metrics.update({'pep_' + k: v for k, v in pep_metrics.items()})
-    valid_loss = {'total': acum_total_loss, 'reconstruction': acum_total_recon_loss,
-                  'kld_joint': acum_joint_kld, 'kld_marg': acum_marginal_kld, 'triplet': acum_triplet}
-    return valid_loss, valid_metrics
 
 
 def train_trimodal_step(model, criterion, optimizer, train_loader):
@@ -186,6 +107,86 @@ def train_trimodal_step(model, criterion, optimizer, train_loader):
     train_loss = {'total': acum_total_loss, 'reconstruction': acum_total_recon_loss,
                   'kld_joint': acum_joint_kld, 'kld_marg': acum_marginal_kld, 'triplet': acum_triplet}
     return train_loss, train_metrics
+
+
+def eval_trimodal_step(model, criterion, valid_loader):
+    model.eval()
+    acum_total_loss, acum_total_recon_loss, acum_joint_kld, acum_marginal_kld, acum_triplet = 0, 0, 0, 0, 0
+    alpha_reconstructed, beta_reconstructed, pep_reconstructed = [], [], []
+    alpha_true, beta_true, pep_true = [], [], []
+    masks_alpha, masks_beta, masks_pep = [], [], []
+    # Batch should be x_alpha, x_beta, x_pep, labels (triplet), +/- pep_weights
+    with torch.no_grad():
+        for batch in valid_loader:
+            if valid_loader.dataset.pep_weighted:
+                x_alpha, x_beta, x_pep, mask_alpha, mask_beta, mask_pep, labels, pep_weights = batch
+            else:
+                x_alpha, x_beta, x_pep, mask_alpha, mask_beta, mask_pep, labels = batch
+                pep_weights = torch.ones([len(labels)])
+            x_alpha, x_beta, x_pep, labels, pep_weights = x_alpha.to(model.device), x_beta.to(model.device), x_pep.to(
+                model.device), labels.to(model.device), pep_weights.to(model.device)
+            mask_alpha, mask_beta, mask_pep = mask_alpha.to(model.device), mask_beta.to(model.device), mask_pep.to(
+                model.device)
+            x_hat_alpha, x_hat_beta, x_hat_pep, mu_joint, logvar_joint, mus_marginal, logvars_marginal = model(x_alpha,
+                                                                                                               x_beta,
+                                                                                                               x_pep)
+            # Should this return all individual loss terms ? Including each marginal? Or just keep it simple with
+            # total reconstruction, marginal KLD, joint KLD, triplet ?
+            recon_loss, kld_joint, kld_marginal, triplet_loss = criterion(x_hat_alpha, x_alpha, x_hat_beta, x_beta,
+                                                                          x_hat_pep, x_pep,
+                                                                          mu_joint, logvar_joint, mus_marginal,
+                                                                          logvars_marginal,
+                                                                          mask_alpha, mask_beta, mask_pep, labels,
+                                                                          pep_weights=pep_weights)
+            loss = recon_loss + kld_marginal + kld_joint + triplet_loss
+            # Accumulate loss and save for metrics, multiplying by shape (and later dividing by nbatch) for normalization
+            acum_total_loss += loss.item() * x_pep.shape[0]
+            acum_total_recon_loss += recon_loss.item() * x_pep.shape[0]
+            acum_joint_kld += kld_joint.item() * x_pep.shape[0]
+            acum_marginal_kld += kld_marginal.item() * x_pep.shape[0]
+            acum_triplet += triplet_loss.item() * x_pep.shape[0]
+            alpha_reconstructed.append(x_hat_alpha.detach().cpu())
+            beta_reconstructed.append(x_hat_beta.detach().cpu())
+            pep_reconstructed.append(x_hat_pep.detach().cpu())
+            alpha_true.append(x_alpha.detach().cpu())
+            beta_true.append(x_beta.detach().cpu())
+            pep_true.append(x_pep.detach().cpu())
+            masks_alpha.append(mask_alpha.detach().cpu())
+            masks_beta.append(mask_beta.detach().cpu())
+            masks_pep.append(mask_pep.detach().cpu())
+
+    # Normalize losses
+    acum_total_loss /= len(valid_loader.dataset)
+    acum_total_recon_loss /= len(valid_loader.dataset)
+    acum_joint_kld /= len(valid_loader.dataset)
+    acum_marginal_kld /= len(valid_loader.dataset)
+    acum_triplet /= len(valid_loader.dataset)
+
+    # Cat reconstructions and compute metrics
+    # Getting really convoluted with everything written out explicitely ...
+    # Maybe there's a more implicit / fewer lines of code way to do this.
+    alpha_reconstructed = torch.cat(alpha_reconstructed)
+    beta_reconstructed = torch.cat(beta_reconstructed)
+    pep_reconstructed = torch.cat(pep_reconstructed)
+    alpha_true = torch.cat(alpha_true)
+    beta_true = torch.cat(beta_true)
+    pep_true = torch.cat(pep_true)
+    masks_alpha = torch.cat(masks_alpha)
+    masks_beta = torch.cat(masks_beta)
+    masks_pep = torch.cat(masks_pep)
+    alpha_metrics = model_reconstruction_stats(model.vae_alpha, alpha_reconstructed, alpha_true,
+                                               return_per_element=False, modality_mask=masks_alpha)
+    beta_metrics = model_reconstruction_stats(model.vae_beta, beta_reconstructed, beta_true, return_per_element=False,
+                                              modality_mask=masks_beta)
+    pep_metrics = model_reconstruction_stats(model.vae_pep, pep_reconstructed, pep_true, return_per_element=False,
+                                             modality_mask=masks_pep)
+    valid_metrics = {'alpha_' + k: v for k, v in alpha_metrics.items()}
+    valid_metrics.update({'beta_' + k: v for k, v in beta_metrics.items()})
+    valid_metrics.update({'pep_' + k: v for k, v in pep_metrics.items()})
+    valid_loss = {'total': acum_total_loss, 'reconstruction': acum_total_recon_loss,
+                  'kld_joint': acum_joint_kld, 'kld_marg': acum_marginal_kld, 'triplet': acum_triplet}
+    return valid_loss, valid_metrics
+
 
 
 def predict_trimodal(model, dataset, dataloader):
@@ -323,7 +324,7 @@ def trimodal_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer, 
 def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELoss, JMVAELoss], optimizer,
                           train_loader):
     model.train()
-    acum_total_loss, acum_recon_marg, acum_recon_joint, acum_kld_marg, acum_kld_joint = 0, 0, 0, 0, 0
+    acum_total_loss, acum_recon_marg, acum_recon_joint, acum_kld_normal, acum_kld_latent = 0, 0, 0, 0, 0
     tcr_marg_recon, tcr_joint_recon, pep_marg_recon, pep_joint_recon = [], [], [], []
     tcr_marg_true, tcr_joint_true, pep_marg_true, pep_joint_true = [], [], [], []
 
@@ -339,7 +340,7 @@ def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELo
             tcr_joint_true.append(batch[1])
             pep_joint_true.append(batch[2])
             pep_marg_true.append(batch[3])
-        # Assumes batch = [x_ma_marg, x_ma_joint, x_mb_joint, x_mb_marg]
+        # Assumes batch = [x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg]
         batch = [x.to(model.device) for x in batch]
         recons, mus, logvars = model(*batch)
         # Batch is `trues` ; Criterion takes list+dicts and returns dicts
@@ -358,8 +359,8 @@ def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELo
         acum_total_loss += loss.item() * len(batch)
         acum_recon_marg += recon_loss_marg.item() * len(batch)
         acum_recon_joint += recon_loss_joint.item() * len(batch)
-        acum_kld_marg += kld_loss_normal.item() * len(batch)
-        acum_kld_joint += kld_loss_latent.item() * len(batch)
+        acum_kld_normal += kld_loss_normal.item() * len(batch)
+        acum_kld_latent += kld_loss_latent.item() * len(batch)
         # Saving reconstruction to assess accuracy
         tcr_marg_recon.append(recons['tcr_marg'].detach().cpu())
         tcr_joint_recon.append(recons['tcr_joint'].detach().cpu())
@@ -370,8 +371,8 @@ def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELo
     acum_total_loss /= len(train_loader.dataset)
     acum_recon_marg /= len(train_loader.dataset)
     acum_recon_joint /= len(train_loader.dataset)
-    acum_kld_marg /= len(train_loader.dataset)
-    acum_kld_joint /= len(train_loader.dataset)
+    acum_kld_normal /= len(train_loader.dataset)
+    acum_kld_latent /= len(train_loader.dataset)
 
     # Cat and reconstruction stats
     tcr_marg_recon = torch.cat(tcr_marg_recon)
@@ -396,13 +397,13 @@ def train_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELo
     train_metrics.update({'pep_joint_' + k: v for k, v in pep_joint_metrics.items()})
     train_metrics.update({'pep_marg_' + k: v for k, v in pep_marg_metrics.items()})
     train_loss = {'total': acum_total_loss, 'recon_marg': acum_recon_marg, 'recon_joint': acum_recon_joint,
-                  'kld_marg': acum_kld_marg, 'kld_joint': acum_kld_joint}
+                  'kld_normal': acum_kld_normal, 'kld_latent': acum_kld_latent}
     return train_loss, train_metrics
 
 
 def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELoss, JMVAELoss], valid_loader):
     model.eval()
-    acum_total_loss, acum_recon_marg, acum_recon_joint, acum_kld_marg, acum_kld_joint = 0, 0, 0, 0, 0
+    acum_total_loss, acum_recon_marg, acum_recon_joint, acum_kld_normal, acum_kld_latent = 0, 0, 0, 0, 0
     tcr_marg_recon, tcr_joint_recon, pep_marg_recon, pep_joint_recon = [], [], [], []
     tcr_marg_true, tcr_joint_true, pep_marg_true, pep_joint_true = [], [], [], []
     with torch.no_grad():
@@ -418,7 +419,7 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
                 tcr_joint_true.append(batch[1])
                 pep_joint_true.append(batch[2])
                 pep_marg_true.append(batch[3])
-            # Assumes batch = [x_ma_marg, x_ma_joint, x_mb_joint, x_mb_marg]
+            # Assumes batch = [x_tcr_marg, x_tcr_joint, x_pep_joint, x_pep_marg]
             batch = [x.to(model.device) for x in batch]
             recons, mus, logvars = model(*batch)
             # Batch is `trues` ; Criterion takes list+dicts and returns dicts
@@ -432,8 +433,8 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
             acum_total_loss += loss.item() * len(batch)
             acum_recon_marg += recon_loss_marg.item() * len(batch)
             acum_recon_joint += recon_loss_joint.item() * len(batch)
-            acum_kld_marg += kld_loss_normal.item() * len(batch)
-            acum_kld_joint += kld_loss_latent.item() * len(batch)
+            acum_kld_normal += kld_loss_normal.item() * len(batch)
+            acum_kld_latent += kld_loss_latent.item() * len(batch)
             # Saving reconstruction to assess accuracy
             tcr_marg_recon.append(recons['tcr_marg'].detach().cpu())
             tcr_joint_recon.append(recons['tcr_joint'].detach().cpu())
@@ -444,8 +445,8 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
     acum_total_loss /= len(valid_loader.dataset)
     acum_recon_marg /= len(valid_loader.dataset)
     acum_recon_joint /= len(valid_loader.dataset)
-    acum_kld_marg /= len(valid_loader.dataset)
-    acum_kld_joint /= len(valid_loader.dataset)
+    acum_kld_normal /= len(valid_loader.dataset)
+    acum_kld_latent /= len(valid_loader.dataset)
 
     # Cat and reconstruction stats
     tcr_marg_recon = torch.cat(tcr_marg_recon)
@@ -470,7 +471,7 @@ def eval_multimodal_step(model: Union[BSSVAE, JMVAE], criterion: Union[BSSVAELos
     valid_metrics.update({'pep_joint_' + k: v for k, v in pep_joint_metrics.items()})
     valid_metrics.update({'pep_marg_' + k: v for k, v in pep_marg_metrics.items()})
     valid_loss = {'total': acum_total_loss, 'recon_marg': acum_recon_marg, 'recon_joint': acum_recon_joint,
-                  'kld_marg': acum_kld_marg, 'kld_joint': acum_kld_joint}
+                  'kld_normal': acum_kld_normal, 'kld_latent': acum_kld_latent}
 
     valid_metrics['wmean_seq_accuracy'] = 0.35 * valid_metrics['tcr_marg_seq_accuracy'] + 0.35 * valid_metrics[
         'tcr_joint_seq_accuracy'] + \
@@ -500,15 +501,15 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
         x_recon_tcr_joint, x_true_tcr_joint = [], []
         x_recon_pep_joint, x_true_pep_joint = [], []
         # Original df, re-ordered
-        paired_df = dataset.df_joint.copy()
+        paired_df = dataset.df_pep_tcr.copy()
         mlt = dataset.max_len_tcr
         mlp = dataset.max_len_pep
         # THIS PART FOR BSSVAE
-        if type(model) == BSSVAE:
-            tcr_df = dataset.df_ma_only.copy()
-            pep_df = dataset.df_mb_only.copy()
+        if type(model) == BSSVAE and not (dataset.pair_only and dataset.return_pair):
+            tcr_df = dataset.df_tcr_only.copy()
+            pep_df = dataset.df_pep_only.copy()
             # marginal TCR first
-            for batch in batch_generator(dataset.x_ma_marg, batch_size):
+            for batch in batch_generator(dataset.x_tcr_marg, batch_size):
                 # Pre saves true_vector to avoid detaching and cpu later
                 x_true_tcr_marg.append(batch)
                 batch = batch.to(model.device)
@@ -522,7 +523,7 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             tcr_df['seq_recon'] = seq_hat_recon
             tcr_df['seq_acc'] = metrics['seq_accuracy']
             # Marginal Peptide part
-            for batch in batch_generator(dataset.x_mb_marg, batch_size):
+            for batch in batch_generator(dataset.x_pep_marg, batch_size):
                 x_true_pep_marg.append(batch)
                 batch = batch.to(model.device)
                 x_hat, z = model.forward_marginal(batch, which='pep')
@@ -537,7 +538,7 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             pep_df['seq_recon'] = seq_hat_recon
             pep_df['seq_acc'] = metrics['seq_accuracy']
             # Joint/Paired data part
-            for batch in paired_batch_generator(dataset.x_ma_joint, dataset.x_mb_joint, batch_size):
+            for batch in paired_batch_generator(dataset.x_tcr_joint, dataset.x_pep_joint, batch_size):
                 x_true_tcr_joint.append(batch[0])
                 x_true_pep_joint.append(batch[1])
                 batch = [b.to(model.device) for b in batch]
@@ -569,7 +570,7 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
             results_df = pd.concat([tcr_df, pep_df, paired_df])
             results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
 
-        elif type(model) == JMVAE and dataset.pair_only and dataset.return_pair:
+        elif type(model) == JMVAE or dataset.pair_only and dataset.return_pair:
             loader = dataset.get_dataloader(batch_size, SequentialSampler)
             for batch in loader:
                 x_true_tcr_joint.append(batch[0])
@@ -613,10 +614,44 @@ def predict_multimodal(model: Union[BSSVAE, JMVAE],
                                      zip(tcr_marg_metrics['seq_accuracy'], tcr_joint_metrics['seq_accuracy'],
                                          pep_marg_metrics['seq_accuracy'], pep_joint_metrics['seq_accuracy'])]
 
+        elif type(model) == BSSVAE and dataset.pair_only and dataset.return_pair:
+            loader = dataset.get_dataloader(batch_size, SequentialSampler)
+            for batch in loader:
+                x_true_tcr_joint.append(batch[0])
+                x_true_pep_joint.append(batch[1])
+                batch = [b.to(model.device) for b in batch]
         else:
             raise ValueError(
                 'Discrepancies between model types and dataset paired/unpaired behaviour!! Check your inputs ; JMVAE expects return_pair.' \
                 f'model {model.__class__.__name__}, Dataset pair only : {dataset.pair_only}, Dataset return pair: {dataset.return_pair}')
+
+    return results_df
+
+
+def embed_multimodal(model: Union[BSSVAE, JMVAE],
+                     dataset: MultimodalPepTCRDataset,
+                     dataloader):
+    """
+    Here, it uses dataset and not dataloader in order to return the entire DF with the missing modalities!
+    So it doesn't use dataloader because dataloader sub-samples the missing modalities based on epochs and we want the full thing
+    Args:
+        model:
+        dataset:
+
+    Returns:
+        predictions_df
+    """
+    model.eval()
+    with torch.no_grad():
+        assert (dataset.return_pair and dataset.pair_only), 'ntr'
+        z_latent = []
+        # Original df, re-ordered
+        results_df = dataset.df_pep_tcr.copy()
+        for batch in dataloader:
+            batch = [b.to(model.device) for b in batch]
+            zs = model.embed(*batch, which='joint')
+            z_latent.append(zs.detach().cpu())
+        results_df[[f'z_{i}' for i in range(model.latent_dim)]] = torch.cat(z_latent)
 
     return results_df
 
@@ -643,7 +678,7 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             tqdm.write(text)
 
             # only save 10 interval models per run + best
-            if e % math.ceil(0.1 * n_epochs)==0 or e == n_epochs:
+            if e % math.ceil(0.1 * n_epochs)==0 or e == 1:
                 fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
                 savedict = {'epoch': e}
                 savedict.update(valid_loss)
@@ -667,8 +702,10 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
     last_filename = 'last_epoch_' + checkpoint_filename.replace('best','')
-    best_dict['epoch']=n_epochs
-    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+    savedict = {'epoch': e}
+    savedict.update(valid_loss)
+    savedict.update(valid_metric)
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=savedict)
 
     print(f'End of training cycles')
     print(best_dict)

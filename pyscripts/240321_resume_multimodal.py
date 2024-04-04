@@ -18,7 +18,7 @@ from src.torch_utils import load_checkpoint, save_model_full, load_model_full, g
     save_json, load_json
 from src.multimodal_models import BSSVAE, JMVAE
 from src.multimodal_train_eval import predict_multimodal, multimodal_train_eval_loops
-from src.datasets import MultimodalPepTCRDataset
+from src.multimodal_datasets import MultimodalPepTCRDataset
 from src.multimodal_metrics import BSSVAELoss, JMVAELoss
 import argparse
 
@@ -132,7 +132,7 @@ def load_previous_run(args, device) -> (Union[BSSVAE, JMVAE], Dict, Dict):
     # update params to disable warmup KLD
     for k in run_params:
         if 'warm_up' in k:
-            run_params[k]=0
+            run_params[k] = 0
     best_dict = model_params.pop('best')
     filter_key = next(filter(lambda x: 'epoch' in x, best_dict.keys()))
     restart_epoch = best_dict[filter_key]
@@ -142,7 +142,8 @@ def load_previous_run(args, device) -> (Union[BSSVAE, JMVAE], Dict, Dict):
     return model, model_params, run_params, dict_curves
 
 
-def update_loss_metric_curves(dict_curves, train_losses_dict, train_metrics_dict, valid_losses_dict, valid_metrics_dict):
+def update_loss_metric_curves(dict_curves, train_losses_dict, train_metrics_dict, valid_losses_dict,
+                              valid_metrics_dict):
     # Do a try/except here because I really couldn't care less if this broke and I need the full script to run
     try:
         if dict_curves is not None:
@@ -154,7 +155,8 @@ def update_loss_metric_curves(dict_curves, train_losses_dict, train_metrics_dict
                 # Meaning dict_old should have the same keys as curve
                 # So I want to concatenate the lists (add the old list first then extend the new list
                 for key_lm in new_dict:
-                    filter_cdt = not ('precision' in key_lm or 'auc_01' in key_lm or key_lm == 'train_accuracy' or key_lm == 'valid_accuracy')
+                    filter_cdt = not (
+                                'precision' in key_lm or 'auc_01' in key_lm or key_lm == 'train_accuracy' or key_lm == 'valid_accuracy')
                     if key_lm in old_dict and filter_cdt:
                         concat = old_dict[key_lm] + new_dict[key_lm]
                         new_dict[key_lm] = concat
@@ -164,6 +166,7 @@ def update_loss_metric_curves(dict_curves, train_losses_dict, train_metrics_dict
         return train_losses_dict, train_metrics_dict, valid_losses_dict, valid_metrics_dict
 
     return train_losses_dict, train_metrics_dict, valid_losses_dict, valid_metrics_dict
+
 
 def main():
     start = dt.now()
@@ -239,10 +242,10 @@ def main():
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
     best_epoch, best_val_loss, best_val_metrics = multimodal_train_eval_loops(args['n_epochs'], model,
-                                                                               criterion, optimizer, train_loader,
-                                                                               valid_loader, checkpoint_filename, outdir,
-                                                                               args['tolerance'])
-    best_epoch = best_epoch+run_params['restart_epoch']
+                                                                              criterion, optimizer, train_loader,
+                                                                              valid_loader, checkpoint_filename, outdir,
+                                                                              args['tolerance'])
+    best_epoch = best_epoch + run_params['restart_epoch']
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
                                           'train')
@@ -254,7 +257,8 @@ def main():
                                            'valid')
     valid_metrics_dict.pop('valid_wmean_seq_accuracy')
 
-    train_losses_dict, train_metrics_dict, valid_losses_dict, valid_metrics_dict = update_loss_metric_curves(dict_curves, train_losses_dict, train_metrics_dict, valid_losses_dict, valid_metrics_dict)
+    train_losses_dict, train_metrics_dict, valid_losses_dict, valid_metrics_dict = update_loss_metric_curves(
+        dict_curves, train_losses_dict, train_metrics_dict, valid_losses_dict, valid_metrics_dict)
     losses_dict = {**train_losses_dict, **valid_losses_dict}
     accs_dict = {**train_metrics_dict, **valid_metrics_dict}
     keys_to_remove = []
@@ -266,7 +270,7 @@ def main():
         del accs_dict[k]
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
         file.write(f'Fold: {args["fold"]}\n')
-        file.write(f"Best valid epoch: {run_params['n_epochs']+best_epoch}\n")
+        file.write(f"Best valid epoch: {best_epoch}\n")
         for k, v in best_val_loss.items():
             file.write(f'{k}:\t{v}\n')
         for k, v in best_val_metrics.items():
@@ -307,6 +311,7 @@ def main():
     else:
         test_seq_acc = None
 
+    save_json(args, f'run_parameters_{unique_filename}.json', outdir)
     with open(f'{outdir}args_{unique_filename}.txt', 'a') as file:
 
         file.write(f'Fold: {kf}')

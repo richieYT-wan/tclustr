@@ -287,15 +287,18 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
         # Adding a new thing where we log the model every 10% of the epochs, could make it easier to re-train to a certain point ??
-        if e in intervals:
-            fn = f'epoch_{e}_interval_' + checkpoint_filename
-            savedict = {'epoch':e}
+        if e % math.ceil(0.1 * n_epochs) == 0 or e == n_epochs:
+            fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
+            savedict = {'epoch': e}
             savedict.update(valid_loss)
             savedict.update(valid_metric)
             save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
-    last_filename = 'last_epoch_' + checkpoint_filename
-    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+    last_filename = 'last_epoch_' + checkpoint_filename.replace('best', '')
+    save_dict = {'epoch': e}
+    save_dict.update(valid_loss)
+    save_dict.update(valid_metric)
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=save_dict)
 
     print(f'End of training cycles')
     print(best_dict)
@@ -427,7 +430,6 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
     train_metrics, valid_metrics, train_losses, valid_losses = [], [], [], []
     best_val_loss, best_val_auc, best_val_auc01, best_epoch = 1000, 0.5, 0.5, 1
     best_val_metrics = {}
-    best_dict = {}
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_classifier_step(model, criterion, optimizer, train_loader)
         valid_loss, valid_metric = eval_classifier_step(model, criterion, valid_loader)
@@ -440,9 +442,18 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
 
-        if e > 1 and (valid_loss <= best_val_loss + tolerance and (
-                valid_metric['auc'] >= (best_val_auc - tolerance) or valid_metric['auc_01'] >= (
-                best_val_auc01 - tolerance))):
+        if e % math.ceil(0.1 * n_epochs)==0 or e == n_epochs:
+            interval_fn = f'epoch_{e}_interval' + checkpoint_filename.replace('best', '')
+            interval_save_dict = {'epoch': e, 'valid_loss':valid_loss}
+            interval_save_dict.update(valid_metric)
+
+            save_checkpoint(model, filename=interval_fn, dir_path=outdir, best_dict=interval_save_dict)
+
+        loss_cdt = valid_loss <= best_val_loss + tolerance
+        auc_cdt = valid_metric['auc'] > best_val_auc
+        auc01_cdt = valid_metric['auc_01'] > best_val_auc01
+        if loss_cdt and (auc_cdt or auc01_cdt):
+            best_dict = {'epoch':e, 'loss':valid_loss}
             best_epoch = e
             best_val_loss = valid_loss
             best_val_auc = valid_metric['auc']
@@ -454,8 +465,23 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             best_dict.update(valid_metric)
             # Saving model
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
-    last_filename = 'last_epoch_' + checkpoint_filename
-    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+        elif auc_cdt or auc01_cdt :
+            auc_save_dict = {'epoch': e, 'loss': valid_loss}
+            auc_save_dict.update(valid_metric)
+            if auc_cdt and auc01_cdt:
+                alternate_fn = checkpoint_filename.replace('best','bestOverall')
+            else:
+                if auc_cdt:
+                    alternate_fn = checkpoint_filename.replace('best', 'bestAUC')
+                elif auc01_cdt:
+                    alternate_fn = checkpoint_filename.replace('best','bestAUC01')
+            save_checkpoint(model, filename=alternate_fn, dir_path=outdir, best_dict=auc_save_dict)
+
+
+    last_filename = 'last_epoch_' + checkpoint_filename.replace('best','')
+    save_dict={'epoch':e, 'valid_loss':valid_loss}
+    save_dict.update(valid_metric)
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=save_dict)
 
     print(f'End of training cycles')
     print(best_dict)
@@ -672,6 +698,14 @@ def twostage_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
         if (n_epochs >= 10 and e % math.ceil(0.05 * n_epochs) == 0) or e == 1 or e == n_epochs:
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
+        # Saving every 10%
+        if e % math.ceil(0.1 * n_epochs) == 0 or e == n_epochs:
+            fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
+            savedict = {'epoch': e}
+            savedict.update(valid_loss)
+            savedict.update(valid_metric)
+            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
+
         # Saving the best model out of 3 conditions (Total loss, VAE reconstruction, MLP AUC)
         loss_condition = valid_loss['total'] <= best_val_loss + tolerance
         recon_condition = valid_metric['seq_accuracy'] >= best_val_reconstruction - tolerance
@@ -690,16 +724,12 @@ def twostage_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             best_dict.update(valid_metric)
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
-        # Adding a new thing where we log the model every 10% of the epochs, could make it easier to re-train to a certain point ??
-        if e in intervals:
-            fn = f'epoch_{e}_interval_' + checkpoint_filename
-            savedict = {'epoch': e}
-            savedict.update(valid_loss)
-            savedict.update(valid_metric)
-            save_checkpoint(model, filename=fn, dir_path=outdir, best_dict=savedict)
 
-    last_filename = 'last_epoch_' + checkpoint_filename
-    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=best_dict)
+    last_filename = 'last_epoch_' + checkpoint_filename.replace('best', '')
+    save_dict = {'epoch': e}
+    save_dict.update(valid_loss)
+    save_dict.update(valid_metric)
+    save_checkpoint(model, filename=last_filename, dir_path=outdir, best_dict=save_dict)
 
     print(f'End of training cycles')
     print(best_dict)

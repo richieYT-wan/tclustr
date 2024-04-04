@@ -1,0 +1,366 @@
+wtf
+/Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD /Users/riwa/Documents/code/tclustr/output/240403_oldLONGVAE_TCRBASE/
+####################
+Name: 240227_TWOSTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1711
+Random ID: LMOR2
+filepath: /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_TWOSTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1711_LMOR2/
+KFold number: 1
+python3 ./do_tcrbase_swaps.py -model_folder /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_TWOSTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1711_LMOR2// -rid LMOR2 -od /Users/riwa/Documents/code/tclustr/output/240403_oldLONGVAE_TCRBASE/ -o tcrbase_240227_TWOSTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1711 -db ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -kf 1
+Starting script:  15:33 03.04.24
+Using : cpu
+Reloading best model:
+Best epoch: 2247
+total: 0.7405639709266627
+reconstruction: 0.5683946311355348
+kld: 0.0
+triplet: 0.0
+BCE: 0.17216932488996672
+seq_accuracy: 0.9171869158744812
+pos_accuracy: 0.9998509883880615
+auc: 0.82226
+auc_01: 0.68293
+auc_01_real: 0.39756
+precision: 0.78978
+accuracy: 0.87064
+AP: 0.58686
+peptide:   0%|          | 0/26 [00:00<?, ?it/s]peptide:  62%|██████▏   | 16/26 [00:02<00:01,  6.22it/s]peptide:  92%|█████████▏| 24/26 [00:03<00:00,  7.14it/s]peptide: 100%|██████████| 26/26 [00:03<00:00,  7.51it/s]
+
+RFPLTFGWCF:	auc=0.935	auc01=0.801
+
+RAKFKQLL:	auc=0.727	auc01=0.653
+
+SLFNTVATLY:	auc=0.628	auc01=0.685
+
+LLWNGPMAV:	auc=0.819	auc01=0.782
+
+GLCTLVAML:	auc=0.712	auc01=0.666
+
+FEDLRVLSF:	auc=0.852	auc01=0.789
+
+CINGVCWTV:	auc=0.814	auc01=0.726
+
+ELAGIGILTV:	auc=0.900	auc01=0.709
+
+DATYQRTRALVR:	auc=0.689	auc01=0.595
+
+RLPGVLPRA:	auc=0.526	auc01=0.579
+
+IVTDFSVIK:	auc=0.605	auc01=0.599
+
+KSKRTPMGF:	auc=0.685	auc01=0.596
+
+ATDALMTGF:	auc=0.807	auc01=0.772
+
+YLQPRTFLL:	auc=0.950	auc01=0.935
+
+RLRAEAQVK:	auc=0.506	auc01=0.474
+
+NLVPMVATV:	auc=0.625	auc01=0.584
+
+FEDLRLLSF:	auc=0.761	auc01=0.579
+
+SPRWYFYYL:	auc=0.626	auc01=0.597
+
+VLFGLGFAI:	auc=0.478	auc01=0.561
+
+RPPIFIRRL:	auc=0.694	auc01=0.737
+
+GILGFVFTL:	auc=0.798	auc01=0.753
+
+KLGGALQAK:	auc=0.580	auc01=0.538
+
+HPVTKYIM:	auc=0.784	auc01=0.725
+
+AVFDRKSDAK:	auc=0.539	auc01=0.518
+
+GPRLGVRAT:	auc=0.690	auc01=0.649
+
+CTELKLSDY:	auc=0.490	auc01=0.482
+####################
+####################
+Name: 240227_TWOSTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1520
+Random ID: LMOR2
+filepath: /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_TWOSTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1520_LMOR2/
+KFold number: 1
+python3 ./do_tcrbase_swaps.py -model_folder /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_TWOSTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1520_LMOR2// -rid LMOR2 -od /Users/riwa/Documents/code/tclustr/output/240403_oldLONGVAE_TCRBASE/ -o tcrbase_240227_TWOSTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1520 -db ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -kf 1
+Starting script:  15:34 03.04.24
+Using : cpu
+Reloading best model:
+Best epoch: 2574
+total: 0.43713054661722356
+reconstruction: 0.3084184634796115
+kld: 0.0
+triplet: 0.0038173320890522167
+BCE: 0.12489475127163907
+seq_accuracy: 0.9319288730621338
+pos_accuracy: 0.999851405620575
+auc: 0.81891
+auc_01: 0.68782
+auc_01_real: 0.40685
+precision: 0.67057
+accuracy: 0.86627
+AP: 0.59066
+peptide:   0%|          | 0/26 [00:00<?, ?it/s]peptide:  62%|██████▏   | 16/26 [00:02<00:01,  6.25it/s]peptide:  92%|█████████▏| 24/26 [00:03<00:00,  6.97it/s]peptide: 100%|██████████| 26/26 [00:03<00:00,  7.38it/s]
+
+RFPLTFGWCF:	auc=0.937	auc01=0.853
+
+RAKFKQLL:	auc=0.758	auc01=0.682
+
+CINGVCWTV:	auc=0.852	auc01=0.796
+
+ELAGIGILTV:	auc=0.899	auc01=0.707
+
+GPRLGVRAT:	auc=0.800	auc01=0.693
+
+CTELKLSDY:	auc=0.562	auc01=0.474
+
+SLFNTVATLY:	auc=0.664	auc01=0.636
+
+LLWNGPMAV:	auc=0.822	auc01=0.796
+
+ATDALMTGF:	auc=0.835	auc01=0.785
+
+VLFGLGFAI:	auc=0.559	auc01=0.564
+
+RLRAEAQVK:	auc=0.555	auc01=0.474
+
+GILGFVFTL:	auc=0.805	auc01=0.750
+
+IVTDFSVIK:	auc=0.673	auc01=0.658
+
+KSKRTPMGF:	auc=0.771	auc01=0.690
+
+GLCTLVAML:	auc=0.739	auc01=0.685
+
+YLQPRTFLL:	auc=0.937	auc01=0.905
+
+RPPIFIRRL:	auc=0.691	auc01=0.737
+
+KLGGALQAK:	auc=0.615	auc01=0.556
+
+HPVTKYIM:	auc=0.789	auc01=0.686
+
+NLVPMVATV:	auc=0.635	auc01=0.590
+
+FEDLRLLSF:	auc=0.723	auc01=0.616
+
+SPRWYFYYL:	auc=0.669	auc01=0.598
+
+FEDLRVLSF:	auc=0.887	auc01=0.789
+
+AVFDRKSDAK:	auc=0.560	auc01=0.510
+
+DATYQRTRALVR:	auc=0.628	auc01=0.611
+
+RLPGVLPRA:	auc=0.448	auc01=0.549
+####################
+####################
+Name: 240227_ONESTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1710
+Random ID: LVTP1
+filepath: /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_ONESTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1710_LVTP1/
+KFold number: 1
+python3 ./do_tcrbase_swaps.py -model_folder /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_ONESTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1710_LVTP1// -rid LVTP1 -od /Users/riwa/Documents/code/tclustr/output/240403_oldLONGVAE_TCRBASE/ -o tcrbase_240227_ONESTAGE_NoTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240229_1710 -db ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -kf 1
+Starting script:  15:35 03.04.24
+Using : cpu
+Reloading best model:
+Best epoch: 5740
+total: 0.9768497408107861
+reconstruction: 0.9611531138420105
+kld: 0.01569660788832752
+triplet: 0.0
+seq_accuracy: 0.9428384304046631
+pos_accuracy: 0.9999088644981384
+peptide:   0%|          | 0/26 [00:00<?, ?it/s]peptide:  62%|██████▏   | 16/26 [00:02<00:01,  5.53it/s]peptide:  92%|█████████▏| 24/26 [00:03<00:00,  6.13it/s]peptide: 100%|██████████| 26/26 [00:04<00:00,  6.50it/s]
+
+SLFNTVATLY:	auc=0.697	auc01=0.605
+
+RAKFKQLL:	auc=0.784	auc01=0.696
+
+IVTDFSVIK:	auc=0.704	auc01=0.683
+
+FEDLRLLSF:	auc=0.690	auc01=0.579
+
+SPRWYFYYL:	auc=0.747	auc01=0.603
+
+FEDLRVLSF:	auc=0.783	auc01=0.744
+
+KLGGALQAK:	auc=0.610	auc01=0.563
+
+HPVTKYIM:	auc=0.883	auc01=0.763
+
+RFPLTFGWCF:	auc=0.849	auc01=0.801
+
+LLWNGPMAV:	auc=0.880	auc01=0.820
+
+GLCTLVAML:	auc=0.765	auc01=0.646
+
+VLFGLGFAI:	auc=0.586	auc01=0.561
+
+RLRAEAQVK:	auc=0.606	auc01=0.520
+
+CINGVCWTV:	auc=0.815	auc01=0.756
+
+ELAGIGILTV:	auc=0.909	auc01=0.725
+
+GPRLGVRAT:	auc=0.906	auc01=0.809
+
+CTELKLSDY:	auc=0.529	auc01=0.493
+
+AVFDRKSDAK:	auc=0.554	auc01=0.522
+
+DATYQRTRALVR:	auc=0.705	auc01=0.606
+
+RLPGVLPRA:	auc=0.288	auc01=0.539
+
+NLVPMVATV:	auc=0.656	auc01=0.597
+
+KSKRTPMGF:	auc=0.669	auc01=0.600
+
+ATDALMTGF:	auc=0.899	auc01=0.781
+
+YLQPRTFLL:	auc=0.985	auc01=0.956
+
+RPPIFIRRL:	auc=0.851	auc01=0.784
+
+GILGFVFTL:	auc=0.835	auc01=0.743
+####################
+####################
+Name: 240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1310
+Random ID: LVTP1
+filepath: /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1310_LVTP1/
+KFold number: 1
+python3 ./do_tcrbase_swaps.py -model_folder /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1310_LVTP1// -rid LVTP1 -od /Users/riwa/Documents/code/tclustr/output/240403_oldLONGVAE_TCRBASE/ -o tcrbase_240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240228_1310 -db ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -kf 1
+Starting script:  15:36 03.04.24
+Using : cpu
+Reloading best model:
+Best epoch: 4657
+total: 0.4913383152897306
+reconstruction: 0.46051170615426273
+kld: 0.011766019259993607
+triplet: 0.0190605959029644
+seq_accuracy: 0.9361777901649475
+pos_accuracy: 0.9997942447662354
+peptide:   0%|          | 0/26 [00:00<?, ?it/s]peptide:  62%|██████▏   | 16/26 [00:02<00:01,  5.74it/s]peptide:  92%|█████████▏| 24/26 [00:03<00:00,  6.26it/s]peptide: 100%|██████████| 26/26 [00:03<00:00,  6.66it/s]
+
+SLFNTVATLY:	auc=0.615	auc01=0.636
+
+RAKFKQLL:	auc=0.795	auc01=0.681
+
+IVTDFSVIK:	auc=0.673	auc01=0.648
+
+KSKRTPMGF:	auc=0.738	auc01=0.635
+
+GPRLGVRAT:	auc=0.898	auc01=0.809
+
+FEDLRVLSF:	auc=0.800	auc01=0.744
+
+KLGGALQAK:	auc=0.567	auc01=0.550
+
+CTELKLSDY:	auc=0.469	auc01=0.474
+
+AVFDRKSDAK:	auc=0.529	auc01=0.507
+
+DATYQRTRALVR:	auc=0.619	auc01=0.622
+
+RLRAEAQVK:	auc=0.421	auc01=0.474
+
+RFPLTFGWCF:	auc=0.835	auc01=0.759
+
+LLWNGPMAV:	auc=0.852	auc01=0.813
+
+FEDLRLLSF:	auc=0.645	auc01=0.616
+
+SPRWYFYYL:	auc=0.668	auc01=0.561
+
+RLPGVLPRA:	auc=0.462	auc01=0.474
+
+CINGVCWTV:	auc=0.781	auc01=0.758
+
+ELAGIGILTV:	auc=0.893	auc01=0.713
+
+ATDALMTGF:	auc=0.887	auc01=0.788
+
+VLFGLGFAI:	auc=0.532	auc01=0.561
+
+RPPIFIRRL:	auc=0.747	auc01=0.766
+
+GILGFVFTL:	auc=0.798	auc01=0.747
+
+NLVPMVATV:	auc=0.726	auc01=0.597
+
+GLCTLVAML:	auc=0.794	auc01=0.668
+
+YLQPRTFLL:	auc=0.974	auc01=0.898
+
+HPVTKYIM:	auc=0.804	auc01=0.725
+####################
+####################
+Name: 240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240227_1755
+Random ID: LMOR1
+filepath: /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240227_1755_LMOR1/
+KFold number: 1
+python3 ./do_tcrbase_swaps.py -model_folder /Users/riwa/Documents/code/tclustr/output/240227_oldVAEs_KF1_LongWU_LowWD/240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240227_1755_LMOR1// -rid LMOR1 -od /Users/riwa/Documents/code/tclustr/output/240403_oldLONGVAE_TCRBASE/ -o tcrbase_240227_ONESTAGE_CosTrp_AddPepswap_PosEnc_PosWeight_f1_KFold_1_240227_1755 -db ../data/filtered/231205_nettcr_old_26pep_with_swaps.csv -kf 1
+Starting script:  15:36 03.04.24
+Using : cpu
+Reloading best model:
+Best epoch: 5339
+total: 0.37129296930115613
+reconstruction: 0.31875230341339994
+kld: 0.026444763184640487
+triplet: 0.02609589759435771
+seq_accuracy: 0.8771010637283325
+pos_accuracy: 0.9990605115890503
+peptide:   0%|          | 0/26 [00:00<?, ?it/s]peptide:  62%|██████▏   | 16/26 [00:02<00:01,  5.49it/s]peptide:  92%|█████████▏| 24/26 [00:03<00:00,  6.51it/s]peptide: 100%|██████████| 26/26 [00:03<00:00,  6.80it/s]
+
+SLFNTVATLY:	auc=0.632	auc01=0.654
+
+RAKFKQLL:	auc=0.772	auc01=0.673
+
+CINGVCWTV:	auc=0.780	auc01=0.711
+
+ELAGIGILTV:	auc=0.892	auc01=0.705
+
+GPRLGVRAT:	auc=0.808	auc01=0.726
+
+FEDLRVLSF:	auc=0.870	auc01=0.744
+
+KLGGALQAK:	auc=0.588	auc01=0.549
+
+RPPIFIRRL:	auc=0.833	auc01=0.784
+
+IVTDFSVIK:	auc=0.694	auc01=0.652
+
+KSKRTPMGF:	auc=0.624	auc01=0.610
+
+ATDALMTGF:	auc=0.899	auc01=0.805
+
+VLFGLGFAI:	auc=0.392	auc01=0.561
+
+RLRAEAQVK:	auc=0.474	auc01=0.474
+
+AVFDRKSDAK:	auc=0.525	auc01=0.521
+
+DATYQRTRALVR:	auc=0.587	auc01=0.596
+
+RLPGVLPRA:	auc=0.500	auc01=0.524
+
+NLVPMVATV:	auc=0.622	auc01=0.570
+
+FEDLRLLSF:	auc=0.806	auc01=0.616
+
+SPRWYFYYL:	auc=0.685	auc01=0.581
+
+CTELKLSDY:	auc=0.540	auc01=0.474
+
+GILGFVFTL:	auc=0.798	auc01=0.726
+
+RFPLTFGWCF:	auc=0.739	auc01=0.727
+
+LLWNGPMAV:	auc=0.841	auc01=0.776
+
+GLCTLVAML:	auc=0.805	auc01=0.661
+
+YLQPRTFLL:	auc=0.976	auc01=0.914
+
+HPVTKYIM:	auc=0.844	auc01=0.847
+####################
