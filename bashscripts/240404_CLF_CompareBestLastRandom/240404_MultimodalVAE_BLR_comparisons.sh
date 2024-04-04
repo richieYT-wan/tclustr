@@ -4,10 +4,8 @@
 #source /home/people/riwa/anaconda3/etc/profile.d/conda.sh
 #source activate cuda
 
-mainfolder='/home/projects/vaccine/people/yatwan/tclustr
-cd \${PYDIR}/output/240404_FirstBestLast_comparison/mmvaes'
-outdir='/home/projects/vaccine/people/yatwan/tclustr
-cd \${PYDIR}/output/240404_FirstBestLast_comparison/clf_outputs/'
+mainfolder='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/mmvaes'
+outdir='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/clf_outputs/'
 mkdir -p ${outdir}
 n_epochs=2000
 #grep_statement=$2
