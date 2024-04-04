@@ -256,7 +256,7 @@ class MultimodalCLFLatentDataset(MultimodalPepTCRDataset):
                  max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
                  encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
                  b3_col='B3', pep_encoding=False, pep_weighted=False, pep_weight_scale=5.33,
-                 pep_col='peptide', add_positional_encoding=False):
+                 pep_col='peptide', add_positional_encoding=False, random_latent=False,tcr_enc=None):
         super(MultimodalCLFLatentDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3,
                                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep,
                                                          encoding, pad_scale,
@@ -266,6 +266,9 @@ class MultimodalCLFLatentDataset(MultimodalPepTCRDataset):
         with torch.no_grad():
             model.eval()
             self.z = model.embed(self.x_tcr_joint, self.x_pep_joint, 'joint').detach()
+            if random_latent:
+                self.z = torch.rand_like(self.z).float()
+
             if pep_encoding == 'none':
                 encoded_peps = torch.empty([len(self.z), 0])
             elif pep_encoding == 'categorical':
@@ -275,6 +278,12 @@ class MultimodalCLFLatentDataset(MultimodalPepTCRDataset):
                 # dim (N, 12, 20) -> (N, 240) after flatten
                 encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, -20).flatten(start_dim=1)
             self.z = torch.cat([self.z, encoded_peps], dim = 1)
+        if tcr_enc is not None:
+            if tcr_enc == 'random':
+                self.z = torch.cat([torch.rand([len(encoded_peps), model.latent_dim]), encoded_peps], dim=1)
+            else:
+                self.z = torch.cat([self.x_tcr_joint.flatten(start_dim=1), encoded_peps], dim=1)
+
         self.labels = torch.from_numpy(self.df_pep_tcr['binder'].values).unsqueeze(1).float()
         print(f'PEPWEIGHTED {pep_weighted}')
         self.pep_weighted = pep_weighted

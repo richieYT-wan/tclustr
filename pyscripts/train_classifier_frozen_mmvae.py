@@ -17,6 +17,7 @@ from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_st
     get_dict_of_lists, get_class_initcode_keys
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full, get_available_device
 from src.models import PeptideClassifier
+from src.multimodal_models import *
 from src.train_eval import predict_classifier, classifier_train_eval_loops
 from src.multimodal_datasets import MultimodalCLFLatentDataset
 from src.metrics import get_metrics
@@ -138,6 +139,12 @@ def args_parser():
                         help='Torch manual seed. Default = 13')
     parser.add_argument('-reset', dest='reset', type=str2bool, default=False,
                         help='Whether to reset the encoder\'s weight for a blank run')
+    parser.add_argument('-random_latent', dest='random_latent', type=str2bool, default=False,
+                        help='Whether to set RANDOM latent vectors')
+    parser.add_argument('-newmodel', dest='newmodel', type=str2bool, default=False,
+                        help='re instanciate a new model from scratch')
+    parser.add_argument('-tcr_enc', dest='tcr_enc', type=str, default=None,
+                        help='Whether to do "alternative" TCR encoding')
     return parser.parse_args()
 
 
@@ -171,7 +178,7 @@ def main():
         device = args['device']
     print("Using : {}".format(device))
 
-    print('#'*500, '\n', device, '\n', '*'*500)
+    print('#' * 500, '\n', device, '\n', '*' * 500)
     outdir = os.path.join(outdir, unique_filename) + '/'
     if args['model_folder'] is not None:
         try:
@@ -198,6 +205,10 @@ def main():
     dfname = args['file'].split('/')[-1].split('.')[0]
     if args['reset']:
         vae.reset_parameters()
+
+    if args['newmodel']:
+        vae = eval(vae.__class__.__name__)(**js)
+
     try:
         train_df = df.query('partition!=@args["fold"]')
         valid_df = df.query('partition==@args["fold"]')
@@ -228,6 +239,15 @@ def main():
     model_params = {k: args[k] for k in model_keys}
     dataset_keys = get_class_initcode_keys(MultimodalCLFLatentDataset, args)
     model_params['n_latent'] = js['latent_dim']
+    if args['tcr_enc'] is not None:
+        if args['tcr_enc'] == 'random':
+            pass
+        else:
+            aa_dim = 20
+            pos_dim = sum([int(v>0) for k, v in args.items() if 'max_len' in k if v > 0]) if args[
+                'add_positional_encoding'] else 0
+            model_params['n_latent'] = (sum([v for k,v in args.items() if 'max_len' in k]) * (aa_dim + pos_dim)) - 12*20
+
     model_params['pep_dim'] = args['max_len_pep'] if args['pep_encoding'] == 'categorical' else 12 * 20
     model_params['add_pep'] = args['pep_encoding'] != 'none'
 

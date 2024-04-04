@@ -263,7 +263,7 @@ class LatentTCRpMHCDataset(FullTCRDataset):
     def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', label_col='binder',
-                 pep_encoding='BL50LO', pep_weighted=False, pep_weight_scale=3.8):
+                 pep_encoding='BL50LO', pep_weighted=False, pep_weight_scale=3.8, random_latent=False):
         super(LatentTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                    max_len_b3, max_len_pep=max_len_pep,
                                                    add_positional_encoding=add_positional_encoding, encoding=encoding,
@@ -278,7 +278,10 @@ class LatentTCRpMHCDataset(FullTCRDataset):
             # for f in [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep]:
             #     print(f'{f}')
             # print('PE', add_positional_encoding)
+
             z_latent = model.embed(self.x)
+            if random_latent:
+                z_latent = torch.rand_like(z_latent).float()
 
         assert pep_encoding in ['categorical', 'none'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \

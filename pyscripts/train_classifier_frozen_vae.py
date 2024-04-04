@@ -162,10 +162,10 @@ def main():
         if not outdir.endswith('/'):
             outdir = outdir + '/'
 
-    if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
-        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and args['debug']:
-            print('Break')
-            return 0
+    # if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
+    #     if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and args['debug']:
+    #         print('Break')
+    #         return 0
 
     outdir = os.path.join(outdir, unique_filename) + '/'
     if torch.cuda.is_available() and args['cuda']:
