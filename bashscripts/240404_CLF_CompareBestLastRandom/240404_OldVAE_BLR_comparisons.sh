@@ -34,6 +34,8 @@ source activate cuda
 
 HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
+cd \${PYDIR}
+
 python3 ./train_classifier_frozen_vae.py -json_file ${json_file} -pt_file ${best_checkpoint} -rid ${random_id} -od "${outdir}" -o "BEST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc BL50LO -pepweight False -kf 0 -seed 0 -device None
 python3 ./train_classifier_frozen_vae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${outdir}" -o "LAST_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc BL50LO -pepweight False -kf 0 -seed 0 -device None
 python3 ./train_classifier_frozen_vae.py -json_file ${json_file} -pt_file ${last_checkpoint} -rid ${random_id} -od "${outdir}" -o "RESET_${name_description}" -cuda True -f ../data/multimodal/240326_nettcr_paired_withswaps.csv -nh 64 -do 0.25 -bn True -n_layers 1 -lr 1e-4 -wd 5e-6 -bs 2048 -ne ${n_epochs} -pepenc BL50LO -pepweight False -kf 0 -seed 0 -device None -reset True
