@@ -169,12 +169,9 @@ def main():
 
     if args['device'] is not None:
         device = args['device']
+    print("Using : {}".format(device))
 
-    # if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
-    #     if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and args['debug']:
-    #         print('Break')
-    #         return 0
-
+    print(device)
     outdir = os.path.join(outdir, unique_filename) + '/'
     if args['model_folder'] is not None:
         try:
@@ -193,7 +190,6 @@ def main():
         vae, js = load_model_full(args['pt_file'], args['json_file'],
                                   return_json=True, map_location=device)
 
-    print("Using : {}".format(device))
     torch.manual_seed(seed)
     if 'vae_kwargs' in js:
         js = js['vae_kwargs']
