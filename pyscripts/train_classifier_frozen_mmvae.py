@@ -136,6 +136,8 @@ def args_parser():
                         help='Adding a random ID taken from a batchscript that will start all crossvalidation folds. Default = ""')
     parser.add_argument('-seed', '--seed', dest='seed', type=int, default=None,
                         help='Torch manual seed. Default = 13')
+    parser.add_argument('-reset', dest='reset', type=str2bool, default=False,
+                        help='Whether to reset the encoder\'s weight for a blank run')
     return parser.parse_args()
 
 
@@ -198,7 +200,8 @@ def main():
     # Convert the activation string codes to their nn counterparts
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
-
+    if args['reset']:
+        vae.reset_parameters()
     try:
         train_df = df.query('partition!=@args["fold"]')
         valid_df = df.query('partition==@args["fold"]')

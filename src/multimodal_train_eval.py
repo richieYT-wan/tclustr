@@ -678,7 +678,7 @@ def multimodal_train_eval_loops(n_epochs, model, criterion, optimizer, train_loa
             tqdm.write(text)
 
             # only save 10 interval models per run + best
-            if e % math.ceil(0.1 * n_epochs)==0 or e == n_epochs:
+            if e % math.ceil(0.1 * n_epochs)==0 or e == 1:
                 fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
                 savedict = {'epoch': e}
                 savedict.update(valid_loss)

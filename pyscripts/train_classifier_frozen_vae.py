@@ -134,6 +134,8 @@ def args_parser():
                         help='Adding a random ID taken from a batchscript that will start all crossvalidation folds. Default = ""')
     parser.add_argument('-seed', '--seed', dest='seed', type=int, default=None,
                         help='Torch manual seed. Default = 13')
+    parser.add_argument('-reset', dest='reset', type=str2bool, default=False,
+                        help='Whether to reset the encoder\'s weight for a blank run')
     return parser.parse_args()
 
 
@@ -206,13 +208,15 @@ def main():
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
 
-    # nique ta mère la pute
     for k in args:
         if 'max_len' in k or 'positional' in k:
             if k not in js:
                 args[k] = 0
             else:
                 args[k] = js[k]
+
+    if args['reset']:
+        vae.reset_parameters()
 
     model_keys = get_class_initcode_keys(PeptideClassifier, args)
     model_params = {k: args[k] for k in model_keys}
