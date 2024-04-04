@@ -2,11 +2,11 @@
 
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
 
-mainfolder='../output/240404_FirstBestLast_comparison/normal_vaes'
-outdir='../output/240404_FirstBestLast_comparison/clf_outputs/'
+mainfolder='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/normal_vaes'
+outdir='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/clf_outputs/'
 n_epochs=2000
 subdir=$(ls -dr ${mainfolder}/*/ | grep "24")
-cd ../pyscripts/
+
 for fullpath in ${subdir}; do
     # Extract inner-most folder name without trailing "/"
     folder_name=$(basename "${fullpath}")

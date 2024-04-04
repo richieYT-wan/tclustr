@@ -4,8 +4,8 @@
 #source /home/people/riwa/anaconda3/etc/profile.d/conda.sh
 #source activate cuda
 
-mainfolder='../output/240404_FirstBestLast_comparison/mmvaes'
-outdir='../output/240404_FirstBestLast_comparison/clf_outputs/'
+mainfolder='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/mmvaes'
+outdir='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/clf_outputs/'
 mkdir -p ${outdir}
 n_epochs=2000
 #grep_statement=$2
@@ -13,7 +13,6 @@ n_epochs=2000
 #subdir=("${mainfolder}"/*/)
 subdir=$(ls -dr ${mainfolder}/*/ | grep "24")
 # Use an array to capture the output
-cd ../pyscripts/
 
 # Use quoted expansion with @ to iterate over the array properly
 for f in ${subdir}; do
