@@ -171,7 +171,7 @@ def main():
         device = args['device']
     print("Using : {}".format(device))
 
-    print(device)
+    print('#'*500, '\n', device, '\n', '*'*500)
     outdir = os.path.join(outdir, unique_filename) + '/'
     if args['model_folder'] is not None:
         try:
