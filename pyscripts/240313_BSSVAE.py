@@ -92,7 +92,7 @@ def args_parser():
                         help='Which activation to use. Will map the correct nn.Module for the following keys:' \
                              '[selu, relu, leakyrelu, elu]')
     # Not implemented as of now
-    parser.add_argument('-do', dest='dropout', type=float, default=0.25,
+    parser.add_argument('-do', dest='dropout', type=float, default=0.,
                         help='Dropout percentage in the hidden layers (0. to disable)')
     parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=True,
                         help='Use batchnorm (True/False)')
