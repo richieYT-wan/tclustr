@@ -442,7 +442,7 @@ def classifier_train_eval_loops(n_epochs, tolerance, model, criterion, optimizer
             text = get_loss_metric_text(e, train_loss, valid_loss, train_metric, valid_metric)
             tqdm.write(text)
 
-        if e % math.ceil(0.1 * n_epochs)==0 or e == n_epochs:
+        if e % math.ceil(0.1 * n_epochs)==0 or e == 1:
             interval_fn = f'epoch_{e}_interval' + checkpoint_filename.replace('best', '')
             interval_save_dict = {'epoch': e, 'valid_loss':valid_loss}
             interval_save_dict.update(valid_metric)

@@ -1,4 +1,8 @@
 # First: Do a run with a "new model" with a VAE using CDR3s only (no pep)
+# Do a new model run using both a Normal VAE and a BSSVAE
+# compare with run with normal VAE with all CDRs as well (see 240404_all_runs_logged last command)
+
+# Do 2 "blank" runs of CDR3 VAEs and BSSVAEs (See 240405_CDR3_only_VAEs and save the first epoch only so I can already pre-run the analysis)
 
 
 nohup python3 train_classifier_frozen_mmvae.py -json_file /Users/riwa/Documents/code/tclustr/output/240404_FirstBestLast_comparison/mmvaes/240325_1327_BSSVAE_addlencTrue_addldecTrue_bnTrue_LONG25kepochs_wd1e-6_lwseq2_nhtcr256_nhpep128_nl100_KFold_0_IzcVOH/checkpoint_best_kcv_f00_240325_1327_BSSVAE_addlencTrue_addldecTrue_bnTrue_LONG25kepochs_wd1e-6_lwseq2_nhtcr256_nhpep128_nl100_KFold_0_IzcVOH_JSON_kwargs.json

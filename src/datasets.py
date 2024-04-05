@@ -263,7 +263,7 @@ class LatentTCRpMHCDataset(FullTCRDataset):
     def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', label_col='binder',
-                 pep_encoding='BL50LO', pep_weighted=False, pep_weight_scale=3.8, random_latent=False):
+                 pep_encoding='BL50LO', pep_weighted=False, pep_weight_scale=3.8, random_latent=False, tcr_enc=None):
         super(LatentTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                    max_len_b3, max_len_pep=max_len_pep,
                                                    add_positional_encoding=add_positional_encoding, encoding=encoding,
@@ -286,7 +286,6 @@ class LatentTCRpMHCDataset(FullTCRDataset):
         assert pep_encoding in ['categorical', 'none'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
-
         if pep_encoding == 'none':
             encoded_peps = torch.empty([len(z_latent), 0])
         elif pep_encoding == 'categorical':
@@ -296,7 +295,14 @@ class LatentTCRpMHCDataset(FullTCRDataset):
             # dim (N, 12, 20) -> (N, 240) after flatten
             encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, -20).flatten(start_dim=1)
 
+        if tcr_enc is not None:
+            if tcr_enc == 'random':
+                z_latent = torch.rand([len(encoded_peps), model.latent_dim])
+            else:
+                z_latent = self.x
+
         self.x = torch.cat([z_latent, encoded_peps], dim=1)
+
         # Here labels are binary "binders" label, instead of pep_label for triplet loss
         self.labels = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
 

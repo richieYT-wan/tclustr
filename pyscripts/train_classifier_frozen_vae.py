@@ -16,7 +16,7 @@ from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
-from src.models import FullTCRVAE, PeptideClassifier
+from src.models import FullTCRVAE, PeptideClassifier, TwoStageVAECLF
 from src.train_eval import predict_classifier, classifier_train_eval_loops
 from src.datasets import LatentTCRpMHCDataset
 from src.metrics import CombinedVAELoss, get_metrics
@@ -137,6 +137,12 @@ def args_parser():
                         help='Torch manual seed. Default = 13')
     parser.add_argument('-reset', dest='reset', type=str2bool, default=False,
                         help='Whether to reset the encoder\'s weight for a blank run')
+    parser.add_argument('-random_latent', dest='random_latent', type=str2bool, default=False,
+                        help='Whether to set RANDOM latent vectors')
+    parser.add_argument('-newmodel', dest='newmodel', type=str2bool, default=False,
+                        help='re instanciate a new model from scratch')
+    parser.add_argument('-tcr_enc', dest='tcr_enc', type=str, default=None,
+                        help='Whether to do "alternative" TCR encoding')
     return parser.parse_args()
 
 
@@ -222,6 +228,8 @@ def main():
 
     if args['reset']:
         vae.reset_parameters()
+    if args['newmodel']:
+        vae = eval(vae.__class__.__name__)(**js)
 
     model_keys = get_class_initcode_keys(PeptideClassifier, args)
     model_params = {k: args[k] for k in model_keys}
