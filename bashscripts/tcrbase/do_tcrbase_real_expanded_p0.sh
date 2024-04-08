@@ -2,7 +2,7 @@
 
 TCRBASE=/home/projects/vaccine/people/morni/tbcr_align/tbcr_align
 DIRECTORY=/home/projects/vaccine/people/yatwan/tclustr/data/tcrbase_expanded_p0_swapped/
-OUTDIR=/home/projects/vaccine/people/yatwan/tclustr/output/tcrbase_expanded_p0_swapped_CDR3ONLY/
+OUTDIR=/home/projects/vaccine/people/yatwan/tclustr/output/tcrbase_expanded_p0_swapped/
 
 mkdir -p ${OUTDIR}
 for f in $(ls ${DIRECTORY} | awk -F[_] '{print $1}' | sort -u)
