@@ -9,5 +9,5 @@ for f in $(ls ${DIRECTORY} | awk -F[_] '{print $1}' | sort -u)
 do
   echo ${f}
   
-  ${TCRBASE} -xs -w 0,0,4,0,0,4 -db "${DIRECTORY}${f}_db_p1.tsv" "${DIRECTORY}${f}_query_p1.tsv" > "${OUTDIR}${f}.txt"
+  ${TCRBASE} -xs -w 0,0,4,0,0,4 -db "${DIRECTORY}${f}_db_p0.tsv" "${DIRECTORY}${f}_query_p0.tsv" > "${OUTDIR}${f}.txt"
 done
