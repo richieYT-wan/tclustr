@@ -227,7 +227,7 @@ def main():
                 args[k] = js[k]
 
     if args['reset']:
-        vae.reset_parameters()
+        vae.reset_parameters(seed=args['seed'])
     if args['newmodel']:
         vae = eval(vae.__class__.__name__)(**js)
 

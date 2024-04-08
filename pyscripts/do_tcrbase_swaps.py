@@ -222,6 +222,8 @@ def args_parser():
                         help='Adding a random ID taken from a batchscript that will start all crossvalidation folds. Default = ""')
     parser.add_argument('-seed', '--seed', dest='seed', type=int, default=13,
                         help='Torch manual seed. Default = 13')
+    parser.add_argument('-reset', dest='reset', type=str2bool, default=False,
+                        help='Whether to reset the encoder\'s weight for a blank run')
     return parser.parse_args()
 
 
@@ -265,6 +267,8 @@ def main():
         vae = vae.vae
         js = js["vae_kwargs"]
 
+    if args['reset']:
+        vae.reset_parameters(seed=args['seed'])
     # print(js, vae)
     # Checking whether we have a query (test) file or using a kf to split the train dataframe
     # and read the data

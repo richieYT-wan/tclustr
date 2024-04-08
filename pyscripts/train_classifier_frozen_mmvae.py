@@ -204,7 +204,7 @@ def main():
     df = pd.read_csv(args['file'])
     dfname = args['file'].split('/')[-1].split('.')[0]
     if args['reset']:
-        vae.reset_parameters()
+        vae.reset_parameters(seed=args['seed'])
 
     if args['newmodel']:
         vae = eval(vae.__class__.__name__)(**js)
