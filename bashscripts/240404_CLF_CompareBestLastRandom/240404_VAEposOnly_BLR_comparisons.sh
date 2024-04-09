@@ -1,7 +1,7 @@
 #! /usr/bin/bash
 
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
-
+## 240408 : Local output paths have been renamed to 240404_BestLastReset_CLF_comparison
 mainfolder='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/posonly_vaes'
 outdir='/home/projects/vaccine/people/yatwan/tclustr/output/240404_FirstBestLast_comparison/clf_outputs/'
 n_epochs=2000
