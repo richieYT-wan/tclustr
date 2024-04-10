@@ -243,7 +243,7 @@ def encode(sequence, max_len=None, encoding='onehot', pad_scale=None):
             tmp = np.concatenate([tmp, pad_scale * np.ones([diff, len(AA_KEYS)], dtype=np.float32)],
                                  axis=0)
         except:
-            print('Here in encode', type(tmp), tmp.shape, len(AA_KEYS), type(diff), type(max_len), type(size), sequence)
+            print('Here in encode', type(tmp), tmp.shape, len(AA_KEYS), type(diff), type(max_len), type(size), diff, sequence)
             #     return tmp, diff, len(AA_KEYS)
             raise Exception
     return torch.from_numpy(tmp).float()

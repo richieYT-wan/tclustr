@@ -243,6 +243,73 @@ class MultimodalPepTCRDataset(VAEDataset):
         self.pep_indices = _randindex(self.n_pep_marg, self.n_paired, random_state=self.counter)
 
 
+class MultimodalMarginalLatentDataset(MultimodalPepTCRDataset):
+    # weight = 5.33 for the 400 datapoints dataset, tested using
+    # loss_tensor = []
+    # for divider in torch.linspace(5.3,5.4, 50):
+    #     pepweights = (np.log2(len(df) / df.groupby(['peptide']).agg(count=(f'B3', 'count'))) / divider.item() ).round(4).to_dict()['count']
+    #     for k in pepweights:
+    #         loss_tensor.extend([pepweights[k]]*count[k])
+    #     print(divider, torch.tensor(loss_tensor).mean())
+
+    def __init__(self, model: Union[BSSVAE, JMVAE], df, max_len_a1=7, max_len_a2=8, max_len_a3=22,
+                 max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=12,
+                 encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2',
+                 b3_col='B3', modality='tcr', pep_encoding=False, pep_weighted=False, pep_weight_scale=5.33,
+                 pep_col='peptide', add_positional_encoding=False, random_latent=False,tcr_enc=None):
+        super(MultimodalMarginalLatentDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3,
+                                                         max_len_b1, max_len_b2, max_len_b3, max_len_pep,
+                                                         encoding, pad_scale,
+                                                         a1_col, a2_col, a3_col, b1_col, b2_col, b3_col,
+                                                         pair_only=True, return_pair=False, pep_col=pep_col,
+                                                         add_positional_encoding=add_positional_encoding)
+        with torch.no_grad():
+            model.eval()
+            if modality == 'tcr':
+                self.z = model.embed(self.x_tcr_marg, self.x_tcr_joint, which='tcr')
+            elif modality == 'pep':
+                self.z = model.embed(self.x_pep_marg, self.x_pep_joint, which='pep')
+                
+            if random_latent:
+                self.z = torch.rand_like(self.z).float()
+
+            if pep_encoding == 'none':
+                encoded_peps = torch.empty([len(self.z), 0])
+            elif pep_encoding == 'categorical':
+                # dim (N, 12)
+                encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
+            else:
+                # dim (N, 12, 20) -> (N, 240) after flatten
+                encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, -20).flatten(start_dim=1)
+            self.z = torch.cat([self.z, encoded_peps], dim = 1)
+        if tcr_enc is not None:
+            if tcr_enc == 'random':
+                self.z = torch.cat([torch.rand([len(encoded_peps), model.latent_dim]), encoded_peps], dim=1)
+            else:
+                self.z = torch.cat([self.x_tcr_joint.flatten(start_dim=1), encoded_peps], dim=1)
+
+        self.labels = torch.from_numpy(self.df_pep_tcr['binder'].values).unsqueeze(1).float()
+        print(f'PEPWEIGHTED {pep_weighted}')
+        self.pep_weighted = pep_weighted
+        if pep_weighted:
+            pepweights = (np.log2(len(self.df_pep_tcr) / self.df_pep_tcr.groupby(['peptide']) \
+                                                             .agg(count=(f'{b3_col}', 'count'))) / pep_weight_scale) \
+                                                .round(5).to_dict()['count']
+            print('HERE PEPWEIGHTED')
+            self.pep_weights = torch.from_numpy(self.df_pep_tcr['peptide'].map(pepweights).values)
+
+        del self.x_tcr_joint, self.x_tcr_marg, self.x_pep_joint, self.x_pep_marg, self.df_tcr_only, self.df_pep_only
+
+    def __getitem__(self, idx):
+        if self.pep_weighted:
+            return self.z[idx], self.pep_weights[idx], self.labels[idx]
+        else:
+            return self.z[idx], self.labels[idx]
+
+    def __len__(self):
+        return len(self.z)
+
+
 class MultimodalCLFLatentDataset(MultimodalPepTCRDataset):
     # weight = 5.33 for the 400 datapoints dataset, tested using
     # loss_tensor = []

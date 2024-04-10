@@ -117,6 +117,7 @@ class FullTCRDataset(VAEDataset):
         for seq_col, max_len, in mldict.items():
             if max_len > 0:
                 df['len_q'] = df[seq_col].apply(len)
+                # print(f'Before filtering for {seq_col}, {len(df)}')
                 df = df.query('len_q <= @max_len')
         self.df = df.drop(columns=['len_q']).reset_index(drop=True)
         x_seq = []
