@@ -11,6 +11,20 @@ import string
 import torch
 from datetime import datetime as dt
 
+def batchify(data, batch_size):
+    """
+    Split the data into batches.
+    
+    Parameters:
+        data (list): The input data to be batchified.
+        batch_size (int): The size of each batch.
+    
+    Returns:
+        list: A list of batches, where each batch is a sublist of the data.
+    """
+    batches = [data[i:i+batch_size] for i in range(0, len(data), batch_size)]
+    return batches
+
 
 def make_filename(args):
     connector = '' if args["out"] == '' else '_'
