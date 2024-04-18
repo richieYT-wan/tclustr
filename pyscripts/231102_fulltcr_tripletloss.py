@@ -135,6 +135,8 @@ def args_parser():
                         help='Whether to run in debug mode (False by default)')
     parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
                         help='Using per-sample (by peptide label) weighted loss')
+    parser.add_argument('-leave_pep_out', dest='leave_pep_out', type=str, default=None,
+                        help='Adding a leave-pep-out behaviour for triplet loss')
     # TODO: TBD what to do with these!
     """
     TODO: Misc. 

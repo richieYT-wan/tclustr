@@ -94,7 +94,7 @@ class FullTCRDataset(VAEDataset):
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
-                 pep_weight_scale=3.8):
+                 pep_weight_scale=3.8, leave_pep_out:str=None):
         super(FullTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
@@ -163,6 +163,15 @@ class FullTCRDataset(VAEDataset):
         else:
             self.pep_weights = torch.ones([len(self.x)])
 
+        # leave_pep_out variable should be a string of the peptide
+        if leave_pep_out is not None:
+            if leave_pep_out not in self.df[pep_col].unique():
+                print(f'Leave Peptide out activated, but {leave_pep_out} was passed as an option and is not among df unique for {pep_col} column.')
+                pass
+            else:
+                self.pep_weighted = True
+                self.pep_weights = torch.from_numpy((df[pep_col]!=leave_pep_out).values).float().flatten()
+
 
 class TCRSpecificDataset(FullTCRDataset):
     """
@@ -171,14 +180,14 @@ class TCRSpecificDataset(FullTCRDataset):
 
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
-                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide',
-                 pep_weighted=False, pep_weight_scale=3.8):
+                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
+                 pep_weight_scale=3.8, leave_pep_out=None):
         super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                  max_len_b3, max_len_pep=max_len_pep,
                                                  add_positional_encoding=add_positional_encoding, encoding=encoding,
                                                  pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
                                                  b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_col=pep_col,
-                                                 pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale)
+                                                 pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale, leave_pep_out=leave_pep_out)
         # Here "labels" are for each peptide, used for the triplet loss
         # MIGHT be overridden wrongly in BimodalTCR dataset!!
         pepmap = {k: v for v, k in enumerate(df[pep_col].unique())} # FIX

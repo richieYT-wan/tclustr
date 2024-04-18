@@ -198,10 +198,12 @@ class TripletLoss(LossParent):
         super(TripletLoss, self).__init__()
         assert dist_type in ['cosine', 'l1',
                              'l2'], f'Distance type must be in ["l1", "l2", "cosine"]! Got {dist_type} instead.'
-        self.distance = {'cosine': compute_cosine_distance, 'l2': torch.cdist, 'l1': torch.cdist}[dist_type]
+        self.distance = {'cosine': compute_cosine_distance,
+                         'l2': torch.cdist,
+                         'l1': torch.cdist}[dist_type]
         self.p = 1 if dist_type == 'l1' else 2 if dist_type == 'l2' else None
         if margin is None:
-            margin = 0.25 if dist_type == 'cosine' else 1.0
+            margin = 0.1 if dist_type == 'cosine' else 1.0
         self.margin = margin
 
     def forward(self, z, labels, **kwargs):
@@ -215,6 +217,7 @@ class TripletLoss(LossParent):
         positive_distances = mask_positive * pairwise_distances
         negative_distances = mask_negative * pairwise_distances
         # Take the relu to encourage error above margin (i.e. threshold)
+        # Here, weights should be 1 if activated, 0 if not.
         loss = torch.nn.functional.relu(positive_distances - negative_distances + self.margin) * weights
         loss = loss.mean()
         return loss
