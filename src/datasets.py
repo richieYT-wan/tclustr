@@ -167,7 +167,7 @@ class FullTCRDataset(VAEDataset):
         if leave_pep_out is not None:
             if leave_pep_out not in self.df[pep_col].unique():
                 print(f'Leave Peptide out activated, but {leave_pep_out} was passed as an option and is not among df unique for {pep_col} column.')
-                pass
+                raise ValueError()
             else:
                 self.pep_weighted = True
                 self.pep_weights = torch.from_numpy((df[pep_col]!=leave_pep_out).values).float().flatten()
