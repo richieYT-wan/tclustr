@@ -219,6 +219,9 @@ class TripletLoss(LossParent):
         # Take the relu to encourage error above margin (i.e. threshold)
         # Here, weights should be 1 if activated, 0 if not.
         loss = torch.nn.functional.relu(positive_distances - negative_distances + self.margin) * weights
+        # 240424: Fixing an error where self-self distance would lead to a loss of self.margin ; The mask now zeroes out those elements
+        diag_mask = torch.ones_like(mask_positive).fill_diagonal_(0)
+        loss = torch.mul(loss, diag_mask)
         loss = loss.mean()
         return loss
 
@@ -462,6 +465,8 @@ class TrimodalVAELoss(LossParent):
 def compute_cosine_distance(z_embedding: torch.Tensor, *args, **kwargs):
     """
     Computes a square cosine distance matrix (All vs ALl) for a given sample of latent Z
+    Cos Sim : AxB = ||A|| ||B|| * cos(theta)
+              in range [-1 ; 1]
     Args:
         z_embedding (torch.Tensor): Latent embedding, dimension N x latent_dim
         *args:
@@ -478,7 +483,7 @@ def compute_cosine_distance(z_embedding: torch.Tensor, *args, **kwargs):
 
     # Compute the pairwise cosine distances
     cosine_distance_matrix = 1 - (dot_product / (norms * norms.t()))
-    # Clamps the negative values to 0
+    # Clamps the low values to 0 for numerical stability
     cosine_distance_matrix[cosine_distance_matrix <= 1e-6] = 0
 
     return cosine_distance_matrix
