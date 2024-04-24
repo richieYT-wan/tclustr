@@ -462,6 +462,23 @@ class TrimodalVAELoss(LossParent):
         return sequence_tensor, positional_encoding_tensor
 
 
+def compute_cosine_similarity(z_embedding: torch.Tensor, *args, **kwargs):
+    """
+    Computes a cosine similarity matrix (All vs All), given Z
+    Cos Sim : AxB = ||A|| ||B|| * cos(theta), value ranges in [-1, 1]
+    Args:
+        z_embedding:
+        *args:
+        **kwargs:
+
+    Returns:
+
+    """
+    dot_product = torch.mm(z_embedding, z_embedding.t())
+    norms = torch.norm(z_embedding, p=2, dim=1, keepdim=True)
+    return dot_product / (norms * norms.t())
+
+
 def compute_cosine_distance(z_embedding: torch.Tensor, *args, **kwargs):
     """
     Computes a square cosine distance matrix (All vs ALl) for a given sample of latent Z
@@ -475,14 +492,8 @@ def compute_cosine_distance(z_embedding: torch.Tensor, *args, **kwargs):
     Returns:
         cosine_distance_matrix (torch.Tensor): Square tensor of dimension NxN containing pairwise cosine distances
     """
-    # Compute the dot product of the embedding matrix
-    dot_product = torch.mm(z_embedding, z_embedding.t())
-
-    # Compute the L2 norms of the vectors
-    norms = torch.norm(z_embedding, p=2, dim=1, keepdim=True)
-
-    # Compute the pairwise cosine distances
-    cosine_distance_matrix = 1 - (dot_product / (norms * norms.t()))
+    cosine_similarity = compute_cosine_similarity(z_embedding)
+    cosine_distance_matrix = 1 - cosine_similarity
     # Clamps the low values to 0 for numerical stability
     cosine_distance_matrix[cosine_distance_matrix <= 1e-6] = 0
 
@@ -594,7 +605,8 @@ def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:
     return auc(fpr, tpr) * 10
 
 
-def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4, no_curves=False) -> dict:
+def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4,
+                no_curves=False) -> dict:
     """
     Computes all classification metrics & returns a dictionary containing the various key/metrics
     incl. ROC curve, AUC, AUC_01, F1 score, Accuracy, Recall
