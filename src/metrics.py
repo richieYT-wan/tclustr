@@ -234,7 +234,7 @@ class CombinedVAELoss(LossParent):
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='none'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
                  positional_weighting=False, weight_seq=1, weight_kld=1e-2, debug=False, warm_up=10, weight_vae=1,
-                 weight_triplet=1, dist_type='cosine', triplet_loss_margin=None):
+                 weight_triplet=1, dist_type='cosine', margin=None):
         super(CombinedVAELoss, self).__init__()
         # TODO: PHASE OUT N BATCHES
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
@@ -244,7 +244,7 @@ class CombinedVAELoss(LossParent):
                                 weight_kld=weight_kld, debug=debug, warm_up=warm_up,
                                 positional_weighting=positional_weighting)
         self.positional_weighting = positional_weighting
-        self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
+        self.triplet_loss = TripletLoss(dist_type, margin=margin)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
         self.norm_factor = (self.weight_triplet + self.weight_vae)

@@ -338,7 +338,7 @@ def main():
 
     wrapper_ = partial(wrapper, preds=concat, args=args, unique_filename=unique_filename, outdir=outdir)
     # Then, on a per-peptide basis, do the TCRbase method
-    text = Parallel(n_jobs=8)(
+    text = Parallel(n_jobs=6)(
         delayed(wrapper_)(peptide=peptide) for peptide in tqdm(concat.peptide.unique(), desc='peptide'))
 
     text = ''.join(text)
