@@ -118,8 +118,17 @@ def args_parser():
                         help='Tolerance for loss variation to log best model')
     parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=1,
                         help='Which beta to use for the seq reconstruction term in the loss')
-    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1e-1,
+    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1e-2,
                         help='Which weight to use for the KLD term in the loss')
+    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
+                        help='Whether to do a warm-up period for the loss (without the KLD term). ' \
+                             'Default = 10. Set to 0 if you want this disabled')
+    parser.add_argument('-kldts', '--kld_tahn_scale', dest='kld_tahn_scale', type=float, default=0.075,
+                        help='Scale for the TanH annealing in the KLD_n term')
+    parser.add_argument('-fp', '--flat_phase', dest='flat_phase', default=50, type=int,
+                        help='If used, the duration (in epochs) of the "flat phase" in the KLD annealing')
+    parser.add_argument('-kld_dec', dest='kld_decrease', type=float, default=2e-2,
+                        help="KLD_N linear decrease rate per epoch")
     parser.add_argument('-lwvae', '--weight_vae', dest='weight_vae', default=1,
                         help='Weight for the VAE term (reconstruction+KLD)')
     parser.add_argument('-lwtrp', '--weight_triplet',
@@ -128,9 +137,7 @@ def args_parser():
                         help='Which distance metric to use ')
     parser.add_argument('-margin', dest='margin', default=None, type=float,
                         help='Margin for the triplet loss (Default is None and will have the default behaviour depending on the distance type)')
-    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=10,
-                        help='Whether to do a warm-up period for the loss (without the KLD term). ' \
-                             'Default = 10. Set to 0 if you want this disabled')
+
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
     parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,

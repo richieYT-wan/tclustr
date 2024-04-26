@@ -1,5 +1,9 @@
+import math
+
 import numpy as np
 import torch
+from overrides import override
+
 from src.torch_utils import mask_modality, filter_modality
 from torch import nn
 from torch.nn import functional as F
@@ -12,6 +16,7 @@ class LossParent(nn.Module):
 
     def __init__(self, debug=False):
         super(LossParent, self).__init__()
+        self.positional_weights = torch.empty(1)
         self.counter = 0
         self.debug = debug
         self.device = 'cpu'
@@ -59,7 +64,8 @@ class VAELoss(LossParent):
 
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='none'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 weight_seq=3, weight_kld=1e-2, debug=False, warm_up=0, positional_weighting=False):
+                 positional_weighting=False, weight_seq=3, weight_kld=1e-2, warm_up=100, tanh_scale=0.1,
+                 kld_decrease=1e-3, flat_phase=100, debug=False):
         super(VAELoss, self).__init__()
         max_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])
         pos_dim = sum([int(mlx) > 0 for mlx in
@@ -85,10 +91,17 @@ class VAELoss(LossParent):
         self.add_positional_encoding = add_positional_encoding
         self.norm_factor = weight_seq + weight_kld
         self.sequence_criterion = sequence_criterion
-        self.weight_seq = weight_seq / self.norm_factor
-        self.base_weight_kld = weight_kld / self.norm_factor
-        self.weight_kld = self.base_weight_kld
-        self.step = 0
+        self.weight_seq = weight_seq #/ self.norm_factor
+        # KLD weight things
+        self.base_weight_kld = weight_kld #/ self.norm_factor
+        self.weight_kld = 0
+        print('here', self.base_weight_kld, self.weight_kld)
+        self.kld_warm_up = warm_up
+        self.kld_tanh_scale = tanh_scale
+        self.flat_phase = warm_up // 3 if flat_phase is None else flat_phase
+        self.kld_decrease = kld_decrease
+
+        self.counter = 0
         self.debug = debug
         self.kld_warm_up = warm_up
         print(f'Weights: seq, kld_base: ', self.weight_seq, self.base_weight_kld)
@@ -120,17 +133,17 @@ class VAELoss(LossParent):
         return reconstruction_loss
 
     def kullback_leibler_divergence(self, mu, logvar):
-        # very basic
+        # 240426 Replaced with TanH regime
         # KLD weight regime control
-        if self.counter < self.kld_warm_up:
-            # While in the warm-up phase, weight_kld is 0
-            self.weight_kld = 0
-        else:
-            # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
-            # until it reaches a minimum of the base weight / 5
-            self.weight_kld = max(
-                self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
-                self.base_weight_kld / 5)
+        # if self.counter < self.kld_warm_up:
+        #     # While in the warm-up phase, weight_kld is 0
+        #     self.weight_kld = 0
+        # else:
+        #     # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
+        #     # until it reaches a minimum of the base weight / 5
+        #     self.weight_kld = max(
+        #         self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
+        #         self.base_weight_kld / 5)
 
         return self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
 
@@ -191,6 +204,60 @@ class VAELoss(LossParent):
 
     def reset_parameters(self):
         self.counter = 0
+        self._kld_weight_regime()
+
+    def _kld_weight_regime(self):
+        """
+        if counter <= warm_up : tanh annealing warm_up procedure
+        else: Starts at 1 * base_weight then decrease 5/1000 of max weight until it reaches base_weight / 5
+        Should be called at each increment counter step!
+        Returns:
+            -
+        """
+        # TanH warm-up phase
+        if self.counter <= self.kld_warm_up:
+            self.weight_kld = self._tanh_annealing(self.counter, self.base_weight_kld,
+                                                   self.kld_tanh_scale, self.kld_warm_up, shift=None)
+        # "flat" phase : No need to update
+        if self.kld_warm_up < self.counter <= (self.kld_warm_up + self.flat_phase):
+            self.weight_kld = self.base_weight_kld
+        # Start to decrease weight once counter > warm_up+flat phase for KLD
+        elif self.counter > self.kld_warm_up + self.flat_phase:
+            self.weight_kld = max(
+                self.base_weight_kld - (self.kld_decrease * self.base_weight_kld * (self.counter - (self.kld_warm_up + self.flat_phase))),
+                self.base_weight_kld / 4)
+    @staticmethod
+    def _tanh_annealing(counter, base_weight, scale, warm_up, shift=None):
+        """
+        epoch_shift sets the epoch at which weight==weight/2, should be set at warm_up//2
+        Only updates self.weight_kld as current weight, doesn't return anything
+        Computes a 1-shifted (y-axis) tanh and 2/3 * self.warm_up shifted (x-axis) to compute the weight
+        using 1+tanh(speed * (epoch - shift))
+        Args:
+            base_weight: base total weight
+            scale: ramp-up speed ~ range [0.05, 0.5]
+            epoch_shift:
+
+        Returns:
+            weight: kld_weight_n at current epoch
+        """
+
+        shift = 2 * warm_up / 3 if shift is None else shift
+        return base_weight * (
+                1 + math.tanh(scale * (counter - shift))) / 2
+        #
+        # return self.base_weight_kld_n * (
+        #         1 + math.tanh(self.kld_tanh_scale * (self.counter - 2 * self.kld_warm_up / 3))) / 2
+
+    @override
+    def increment_counter(self):
+        super(VAELoss, self).increment_counter()
+        self._kld_weight_regime()
+
+    @override
+    def set_counter(self, counter):
+        super(VAELoss, self).set_counter(counter)
+        self._kld_weight_regime()
 
 
 class TripletLoss(LossParent):
@@ -233,16 +300,18 @@ class CombinedVAELoss(LossParent):
 
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='none'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 positional_weighting=False, weight_seq=1, weight_kld=1e-2, debug=False, warm_up=10, weight_vae=1,
-                 weight_triplet=1, dist_type='cosine', margin=None):
+                 positional_weighting=False, weight_seq=1, weight_kld=1e-2, warm_up=100, kld_tanh_scale=0.1,
+                 kld_decrease=5e-3, flat_phase=None, weight_vae=1, weight_triplet=1, dist_type='cosine', margin=None,
+                 debug=False):
         super(CombinedVAELoss, self).__init__()
         # TODO: PHASE OUT N BATCHES
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
-                                add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up,
-                                positional_weighting=positional_weighting)
+                                add_positional_encoding=add_positional_encoding,
+                                positional_weighting=positional_weighting, weight_seq=weight_seq, weight_kld=weight_kld,
+                                warm_up=warm_up, tanh_scale=kld_tanh_scale, kld_decrease=kld_decrease, flat_phase=flat_phase,
+                                debug=debug)
         self.positional_weighting = positional_weighting
         self.triplet_loss = TripletLoss(dist_type, margin=margin)
         self.weight_triplet = weight_triplet
@@ -260,6 +329,38 @@ class CombinedVAELoss(LossParent):
         return recon_loss, kld_loss, triplet_loss
 
 
+    def _kld_weight_regime(self):
+        """
+        if counter <= warm_up : tanh annealing warm_up procedure
+        else: Starts at 1 * base_weight then decrease 5/1000 of max weight until it reaches base_weight / 5
+        Should be called at each increment counter step!
+        Returns:
+            -
+        """
+        # TanH warm-up phase
+        if self.counter <= self.kld_warm_up:
+            self.weight_kld_n = self._tanh_annealing(self.counter, self.base_weight_kld_n,
+                                                     self.kld_tanh_scale, self.kld_warm_up,
+                                                     shift=None)
+            # using hard-coded parameters for the KLD_z annealing
+            self.weight_kld_z = self.base_weight_kld_z  # self._tanh_annealing(self.counter, self.base_weight_kld_z,
+            #       0.8, 50)
+        # "flat" phase : No need to update
+        if self.kld_warm_up < self.counter <= (self.kld_warm_up + self.flat_phase):
+            self.weight_kld_n = self.base_weight_kld_n
+            self.weight_kld_z = self.base_weight_kld_z
+        # Start to decrease weight once counter > warm_up+flat phase for KLD_N
+        # No decrease for KLD_Z
+        elif self.counter > self.kld_warm_up + self.flat_phase:
+            self.weight_kld_n = max(
+                self.base_weight_kld_n - (
+                        self.kld_decrease * self.base_weight_kld_n * (
+                        self.counter - (self.kld_warm_up + self.flat_phase))),
+                self.base_weight_kld_n / 4)
+
+
+
+
 class TwoStageVAELoss(LossParent):
     # Here
     def __init__(self, sequence_criterion=nn.MSELoss(reduction='none'), aa_dim=20, max_len_a1=0, max_len_a2=0,
@@ -271,9 +372,9 @@ class TwoStageVAELoss(LossParent):
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
-                                add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up,
-                                positional_weighting=positional_weighting)
+                                add_positional_encoding=add_positional_encoding,
+                                positional_weighting=positional_weighting, weight_seq=weight_seq, weight_kld=weight_kld,
+                                warm_up=warm_up, debug=debug)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.classification_loss = nn.BCEWithLogitsLoss(reduction='none')
         self.positional_weighting = positional_weighting

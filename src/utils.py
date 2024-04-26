@@ -11,6 +11,7 @@ import string
 import torch
 from datetime import datetime as dt
 
+
 def batchify(data, batch_size):
     """
     Split the data into batches.
@@ -22,7 +23,7 @@ def batchify(data, batch_size):
     Returns:
         list: A list of batches, where each batch is a sublist of the data.
     """
-    batches = [data[i:i+batch_size] for i in range(0, len(data), batch_size)]
+    batches = [data[i:i + batch_size] for i in range(0, len(data), batch_size)]
     return batches
 
 
@@ -37,35 +38,49 @@ def make_filename(args):
 
 
 def plot_criterion_annealing(n_epochs, criterion, xlim=0.9):
+    assert hasattr(criterion, 'weight_kld_n') or hasattr(criterion, 'weight_kld') or hasattr(criterion,
+                                                                                             'vae_loss'), f'No weight kld in criterion of class {type(criterion)}!'
     x = torch.arange(n_epochs)
     y = []
     for i in range(n_epochs):
-        y.append(criterion.weight_kld_n)
+        if hasattr(criterion, 'weight_kld_n'):
+            y.append(criterion.weight_kld_n)
+        elif hasattr(criterion, 'weight_kld'):
+            y.append(criterion.weight_kld)
+        elif hasattr(criterion, 'vae_loss'):
+            y.append(criterion.vae_loss.weight_kld)
         criterion.increment_counter()
     y = torch.tensor(y)
-    print(y)
+    # print(y)
     # return y
-    base_weight = criterion.base_weight_kld_n
-    p50 = torch.where((y < 0.5025 * base_weight) & (y > 0.4975 * base_weight))[0]
-    if len(p50)>1 :
-        p50 = p50[0].item()
-    last_1m6 = torch.where(y >= 1e-6)[0][0].item()
-    last_1m4 = torch.where(y >= 1e-4)[0][0].item()
-    max_ish = torch.where(y >= 0.99 * base_weight)[0][0].item()
-    p25 = torch.where(y >= .25 * base_weight)[0][0].item()
-    f,ax = plt.subplots(1,1, figsize=(7,3))
+    if hasattr(criterion, 'base_weight_kld_n'):
+        base_weight = criterion.base_weight_kld_n
+    elif hasattr(criterion, 'base_weight_kld'):
+        base_weight = criterion.base_weight_kld
+    elif hasattr(criterion, 'vae_loss'):
+        base_weight = criterion.vae_loss.base_weight_kld
+
+    f, ax = plt.subplots(1, 1, figsize=(7, 3))
 
     ax.plot(x.numpy()[:int(xlim * n_epochs)], y.numpy()[:int(xlim * n_epochs)])
+    # bunch of lines and prints
+    max_ish = torch.where(y >= 0.99 * base_weight)[0][0].item()
     ax.axvline(max_ish, c='k', ls='--', lw=0.5,
-                label=f'99% at {max_ish}')
+               label=f'99% at {max_ish}')
+
+    last_1m6 = torch.where(y >= 1e-6)[0][0].item()
     ax.axvline(last_1m6, c='g', ls=':', lw=0.25,
-                label=f'>1e-6 at {last_1m6}')
+               label=f'>1e-6 at {last_1m6}')
+    last_1m4 = torch.where(y >= 1e-4)[0][0].item()
     ax.axvline(last_1m4, c='g', ls=':', lw=0.25,
-                label=f'>1e-4 at {last_1m4}')
+               label=f'>1e-4 at {last_1m4}')
+
+    p50 = torch.where(y >= .5 * base_weight)[0][0].item()
+    print('wtf', p50, 0.5*base_weight, base_weight)
     ax.axvline(p50, c='m', ls=':', lw=0.5,
-                label=f'50% at {p50}')
-    ax.axvline(p25, c='c', ls=':', lw=0.5,
-                label=f'25% at {p25}')
+               label=f'50% at {p50}')
+    p25 = torch.where(y >= .25 * base_weight)[0][0].item()
+    ax.axvline(p25, c='c', ls=':', lw=0.5, label=f'25% at {p25}')
 
     plt.legend()
     plt.title("Scaled Tanh Weight Factor")
@@ -74,6 +89,7 @@ def plot_criterion_annealing(n_epochs, criterion, xlim=0.9):
     plt.grid(True)
     plt.show()
     return y
+
 
 def plot_tanh_annealing(n_epochs, base_weight, scale, warm_up, shift=None):
     x = torch.arange(0, n_epochs, 1)
