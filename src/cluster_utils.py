@@ -1,0 +1,343 @@
+import glob
+
+import numpy as np
+import pandas as pd
+import torch
+from matplotlib import pyplot as plt
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import auc, silhouette_score, adjusted_rand_score
+from sklearn.metrics import calinski_harabasz_score as ch_score, davies_bouldin_score as db_score
+import seaborn as sns
+from sklearn.preprocessing import LabelEncoder
+from torch.utils.data import SequentialSampler
+from tqdm.auto import tqdm
+
+from src.datasets import FullTCRDataset
+from src.models import TwoStageVAECLF, FullTCRVAE
+from src.multimodal_datasets import MultimodalMarginalLatentDataset
+from src.multimodal_models import BSSVAE, JMVAE
+from src.multimodal_train_eval import predict_multimodal
+from src.sim_utils import make_dist_matrix
+from src.torch_utils import load_model_full
+from src.train_eval import predict_model
+from src.utils import get_palette
+
+
+##################################
+#           PIPELINES            #
+##################################
+
+def cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder,
+                           decimals=5, n_points=1500):
+    # Getting clustering at all thresholds
+    limits = get_linspace(dist_array, decimals, n_points)
+    results = []
+    for t in tqdm(limits):
+        c = AgglomerativeClustering(n_clusters=None, metric='precomputed', distance_threshold=t, linkage='complete')
+        c.fit(dist_array)
+        results.append(get_all_metrics(t, features, c, dist_array, labels, encoded_labels, label_encoder))
+    results = pd.DataFrame(results)
+    results['retention'] = (dist_array.shape[0] - results['n_singletons']) / dist_array.shape[0]
+    return results
+
+
+def vae_clustering_pipeline(model_folder, input_df, name, dataset_params=None, n_points=500):
+    model = get_model(model_folder, map_location='cpu')
+    latent_df = get_latent_df(model, input_df, dataset_params)
+    dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(
+        latent_df)
+    results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
+    results['input_type'] = name
+    return results
+
+
+def plot_pipeline(results, b, plot_title='None', fig_fn=None, filter=None, palette=None, more=False,
+                  add_cluster_size=False):
+    runs = pd.concat([b, results])
+    # plotting options
+    if filter is None:
+        filter = ['TBCRalign', 'KernelSim', 'tcrdist3'] + list(results.input_type.unique())
+
+    if palette is None:
+        palette = 'gnuplot2'
+    if more:
+        palette = get_palette(palette, n_colors=len(filter) - 3)
+    else:
+        palette = sns.color_palette(palette, n_colors=len(filter) - 3)
+
+    sns.set_palette(palette)
+    f, a = plt.subplots(1, 1, figsize=(9, 9))
+    a.set_xlim([0, 1])
+    a.set_ylim([0, 1])
+    a.set_xlabel('Retention', fontweight='semibold', fontsize=14)
+    a.set_ylabel('Avg Purity', fontweight='semibold', fontsize=14)
+    # Setting major ticks
+    major_ticks = np.arange(0, 1.1, 0.1)
+    a.set_xticks(major_ticks)
+    a.set_yticks(major_ticks)
+    # Setting minor ticks
+    minor_ticks = np.arange(0, 1.1, 0.05)
+    a.set_xticks(minor_ticks, minor=True)
+    a.set_yticks(minor_ticks, minor=True)
+    plt.grid(which='both', linestyle='--', linewidth=0.5)
+    print(runs.duplicated().any())
+    if add_cluster_size:
+        ax2 = a.twinx()  # instantiate a second axes that shares the same x-axis
+        ax2.set_yscale('log', base=2)
+
+    for i, input_type in enumerate(filter):
+        query = runs.query('input_type==@input_type')
+        retentions = query['retention'].values[1:-1]
+        purities = query['mean_purity'].values[1:-1]
+        print(input_type, '\t', round(get_retpur_auc(retentions, purities), 4))
+        ls = '-' if i % 2 == 0 else '--'
+        if add_cluster_size:
+            cluster_sizes = query['mean_cluster_size'].values[1:-1]
+        # Plotting baselines with fixed styles colors etc
+        if input_type == "TBCRalign":
+            a.plot(retentions, purities, label='TBCRalign', ls=':', c='k', lw=1.)
+            if add_cluster_size:
+                ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='x', lw=0.5, s=8, c='k')
+        elif input_type == "KernelSim":
+            a.plot(retentions, purities, label='KernelSim', ls=':', c='m', lw=1.)
+            if add_cluster_size:
+                ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='v', lw=0.1, s=8, c='m')
+        elif input_type == "tcrdist3":
+            a.plot(retentions, purities, label='tcrdist3', ls=':', c='y', lw=1.)
+            if add_cluster_size:
+                ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='*', lw=0.1, s=8, c='y')
+        # Plotting the actual things
+        else:
+            a.plot(retentions, purities, label=input_type.lstrip('_').replace('_', ' ').replace('checkpoint best', ''),
+                   ls=ls, lw=1.)
+            if add_cluster_size:
+                ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='+', lw=1.15, s=12)
+
+    a.axhline(0.6, label='60% purity cut-off', ls=':', lw=.75, c='m')
+    a.axhline(0.7, label='70% purity cut-off', ls=':', lw=.75, c='c')
+    a.axhline(0.8, label='80% purity cut-off', ls=':', lw=.75, c='y')
+
+    a.legend(title='distance matrix', title_fontproperties={'size': 14, 'weight': 'semibold'},
+             prop={'weight': 'semibold', 'size': 12})
+
+    f.suptitle(f'{plot_title}', fontweight='semibold', fontsize=15)
+    f.tight_layout()
+    if fig_fn is not None:
+        f.savefig(f'../output/240411_ClusteringTests/{fig_fn}.png', dpi=200)
+    return runs
+
+
+##################################
+#      LOAD MODEL / LATENT       #
+##################################
+
+def get_retpur_auc(retentions, purities):
+    return auc(retentions, purities)
+
+
+def get_model(folder, map_location='cpu'):
+    pt = glob.glob(folder + '/*checkpoint_best*.pt')
+    pt = [x for x in pt if 'interval' not in x][0]
+    js = glob.glob(folder + '/*checkpoint*.json')[0]
+    model = load_model_full(pt, js, map_location='cpu')
+    # Extract the vae part if the model comes from a two stage VAE
+    if type(model) == TwoStageVAECLF:
+        model = model.vae
+    model.eval()
+    return model
+
+
+def get_latent_df(model, df, dataset_params: dict = None):
+    # Init dataset and pred fct depending on model type
+    dataset_params = dict(max_len_a1=7, max_len_a2=8, max_len_a3=22,
+                          max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=0,
+                          encoding='BL50LO', pad_scale=-20,
+                          a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
+                          pep_col='peptide') if dataset_params is None else dataset_params
+
+    if hasattr(model, 'vae'):
+        model = model.vae
+        if model.max_len > 7 + 8 + 22 + 6 + 7 + 23:
+            dataset_params['max_len_pep'] = 12
+        else:
+            dataset_params['max_len_pep'] = 0
+
+    dataset_params['add_positional_encoding'] = model.add_positional_encoding
+
+    if type(model) == FullTCRVAE:
+        print(dataset_params)
+        dataset = FullTCRDataset(df, **dataset_params)
+        dataloader = dataset.get_dataloader(512, SequentialSampler)
+        latent_df = predict_model(model, dataset, dataloader)
+
+    elif type(model) in [BSSVAE, JMVAE]:
+        pred_fct = predict_multimodal
+        dataset_params['pair_only'] = True
+        dataset_params['return_pair'] = type(model) == JMVAE
+        dataset_params['modality'] = 'tcr'
+        dataset = MultimodalMarginalLatentDataset(model, df, **dataset_params)
+        latent_df = df.copy()
+        zdim = dataset.z.shape[1]
+        latent_df[[f'z_{i}' for i in range(zdim)]] = dataset.z
+
+    return latent_df
+
+
+def get_distances_labels_from_latent(latent_df, label_col='peptide', seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3')):
+    # Columns for making distmatrix
+    rest_cols = list(x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'origin', 'binder'])
+    # Getting distmatrix and arrays
+    dist_matrix = make_dist_matrix(latent_df, label_col, seq_cols, cols=rest_cols)
+    dist_array = dist_matrix.iloc[:len(dist_matrix), :len(dist_matrix)].values
+    # Getting label encoder and features for computing metrics
+    features = latent_df[[z for z in latent_df.columns if z.startswith('z_')]].values
+    label_encoder = LabelEncoder()
+    labels = latent_df[label_col].values
+    encoded_labels = label_encoder.fit_transform(labels)
+    return dist_matrix, dist_array, features, labels, encoded_labels, label_encoder
+
+
+##################################
+#        tbcralign fcts          #
+##################################
+def get_merged_distances_labels(dist_matrix, original_df, index_tcr_df, label_col='peptide', query_subset=None):
+    # Assumes a square matrix with no other columns, and that the original_df and index_tcr_df match
+    merged = pd.merge(index_tcr_df, original_df[
+        [x for x in original_df.columns if x in ['seq_id', 'peptide', 'partition', 'binder', 'origin', 'fulltcr']]],
+                      left_on=['q_index', 'tcr'], right_on=['seq_id', 'fulltcr'])
+
+    assert ((merged['seq_id'] == merged['q_index']).all() and (merged['tcr'] == merged['fulltcr']).all()), 'fuck'
+    merged = merged.set_index('q_index')[
+        [x for x in merged.columns if x in ['peptide', 'partition', 'binder', 'origin']]]
+    merged_dist_matrix = pd.merge(dist_matrix, merged, left_index=True, right_index=True)
+    extra_cols = merged_dist_matrix.columns.difference(dist_matrix.columns)
+
+    if query_subset is not None:
+        query = merged_dist_matrix.query(query_subset)
+        merged_dist_matrix = query[list(str(x) for x in query.index) + list(extra_cols)]
+
+    return merged_dist_matrix, extra_cols
+
+
+def get_distances_labels_from_distmatrix(dist_matrix, original_df, index_tcr_df, label_col='peptide',
+                                         query_subset=None):
+    merged_dist_matrix, extra_cols = get_merged_distances_labels(dist_matrix, original_df, index_tcr_df, label_col,
+                                                                 query_subset)
+    dist_array = merged_dist_matrix.iloc[:, :-len(extra_cols)].values
+    features = torch.randn([dist_array.shape[0], 3])
+    label_encoder = LabelEncoder()
+    labels = merged_dist_matrix[label_col].values
+    encoded_labels = label_encoder.fit_transform(labels)
+    return merged_dist_matrix, dist_array, features, labels, encoded_labels, label_encoder
+
+
+##################################
+#            METRICS             #
+##################################
+
+def get_purity(counts):
+    # Purity in absolute % of a cluster, taking the majority label
+    # high = better
+    sorted_counts = dict(sorted(counts.items(), key=lambda item: item[1], reverse=True))
+    return sorted_counts[list(sorted_counts.keys())[0]] / sum(sorted_counts.values())
+
+
+def get_mixity(counts):
+    # how many different labels are inside a cluster, weighted by the number of members
+    # low = better
+    return len(counts.keys()) / sum(counts.values())
+
+
+def get_coherence(dist_array):
+    # Assumes dist_array is the subset of the distance array for a given cluster label
+    # mean distance within a cluster
+    # low = better
+
+    # get upper triangle mask without the diagonale
+    mask = np.triu(np.ones(dist_array.shape), k=0) - np.eye(dist_array.shape[0])
+    flat_array = dist_array[mask == 1]
+    return np.mean(flat_array)
+
+
+def get_purity_mixity_coherence(cluster_label: int,
+                                true_labels: list,
+                                pred_labels: list,
+                                dist_array: np.array,
+                                label_encoder):
+    """
+        For a given cluster label (int) returned by clustering.labels_,
+        Return the purity, mixity, coherence, cluster_size, and scale (==cluster_size/total_size)
+        scale should be used to get a weighted average metric at the end
+    """
+    indices = np.where(pred_labels == cluster_label)[0]
+    cluster_size = len(indices)
+    if cluster_size <= 1:
+        # return np.nan, np.nan, np.nan, 1, 1/len(true_labels)
+        return {'purity': np.nan, 'coherence': np.nan, 'cluster_size': 1}
+
+    # Query the subset of the true labels belonging to this cluster using indices
+    # Convert to int label encodings in order to use np.bincount to get purity and mixity
+    subset = true_labels[indices]
+    encoded_subset = label_encoder.transform(subset)
+    counts = {i: k for i, k in enumerate(np.bincount(encoded_subset)) if k > 0}
+    purity = get_purity(counts)
+    # mixity = get_mixity(counts)
+    # index the distance matrix and return the mean distance within this cluster (i.e. coherence)
+    coherence = get_coherence(dist_array[indices][:, indices])
+
+    # return purity, mixity, coherence, cluster_size, cluster_size / len(true_labels)
+    return {'purity': purity, 'coherence': coherence, 'cluster_size': cluster_size}
+
+
+def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_encoder):
+    n_cluster = np.sum((np.bincount(c.labels_) > 1))
+    n_singletons = (np.bincount(c.labels_) == 1).sum()
+    try:
+        s_score = silhouette_score(features, c.labels_, metric='cosine')
+    except:
+        s_score = np.nan
+    try:
+        c_score = ch_score(features, c.labels_)
+    except:
+        c_score = np.nan
+    try:
+        d_score = db_score(features, c.labels_)
+    except:
+        d_score = np.nan
+    try:
+        ari_score = adjusted_rand_score(encoded_labels, c.labels_)
+    except:
+        ari_score = np.nan
+
+    xd = pd.concat(
+        [pd.DataFrame(get_purity_mixity_coherence(k, true_labels, c.labels_, array, label_encoder), index=[0])
+         for k in set(c.labels_)]).dropna()
+    mean_purity = xd['purity'].mean()
+    mean_coherence = xd['coherence'].mean()
+    mean_cs = xd['cluster_size'].mean()
+    nc_07 = len(xd.query('purity>=0.7'))
+    return {'threshold': t,
+            'n_cluster': n_cluster, 'n_singletons': n_singletons,
+            'n_cluster_over_70p': nc_07,
+            'mean_purity': xd['purity'].mean(),
+            'min_purity': xd['purity'].min(),
+            'max_purity': xd['purity'].max(),
+            'mean_coherence': xd['coherence'].mean(),
+            'min_coherence': xd['coherence'].min(),
+            'max_coherence': xd['coherence'].max(),
+            'mean_cluster_size': xd['cluster_size'].mean(),
+            'min_cluster_size': xd['cluster_size'].min(),
+            'max_cluster_size': xd['cluster_size'].max(),
+            'silhouette': s_score,
+            'ch_index': c_score, 'db_index': d_score, 'ARI': ari_score}
+
+
+def get_bounds(array, decimals=5):
+    lower_bound = array[array > 0].min()
+    upper_bound = array.max()
+    factor = 10 ** decimals
+    return np.floor(lower_bound * factor) / factor, np.ceil(upper_bound * factor) / factor
+
+
+def get_linspace(array, decimals=5, n_points=1500):
+    return np.round(np.linspace(*get_bounds(array, decimals), n_points), decimals)
