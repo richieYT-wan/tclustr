@@ -6,19 +6,51 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import roc_auc_score
 from src.metrics import compute_cosine_distance
 
+def make_self_db_distmatrix(preds, peptide, label_col='peptide', cols=('peptide','original_peptide')):
+    # Set self as db using the positives and query as the whole set
+    db = preds.query('peptide==@peptide and binder==1').assign(set='db')
+    query = preds.copy().assign(set='query')
+    # Use the set columns to remove dupes and rearrange matrix
+    dist_matrix = make_dist_matrix(pd.concat([db, query]), label_col, seq_cols=('A1','A2','A3','B1','B2','B3','set'), cols=cols)
+    no_query = [x for x in dist_matrix.columns if 'query' not in x]
+    only_query = [x for x in dist_matrix.index if 'query' in x]
+    dist_matrix = dist_matrix.loc[only_query][no_query]
+    dist_matrix.drop_duplicates(inplace=True)
+    dist_matrix.columns = dist_matrix.columns.str.replace('db','')
+    dist_matrix.index = dist_matrix.index.str.replace('query','')
+    # Puts nan to ignore during sorting
+    dist_matrix.replace(0., np.nan, inplace=True)
+    dist_matrix['label'] = (dist_matrix[label_col]==peptide).astype(int)
+    return dist_matrix, db, query
 
 def make_dist_matrix(df, label_col='peptide',
                      seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'), cols=('peptide', 'original_peptide')):
+    """
+    From a latent vector dataframe, compute a square distance matrix with cosine distance
+    Args:
+        df:
+        label_col:
+        seq_cols:
+        cols:
+
+    Returns:
+
+    """
     df['seq'] = df.apply(lambda x: ''.join([x[c] for c in seq_cols]), axis=1)
     seqs = df.seq.values
     # Getting dist matrix
     zcols = [z for z in df.columns if z.startswith("z_")]
     zs = torch.from_numpy(df[zcols].values)
+    print(len(zs))
     dist_matrix = pd.DataFrame(compute_cosine_distance(zs),
                                columns=seqs, index=seqs)
     dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[list(cols)],
-                           left_index=True, right_index=True)  # .rename(columns={label_col: 'label'})
+                           left_index=True, right_index=True).drop_duplicates()  # .rename(columns={label_col: 'label'})
+    # ensure the columns are sorted same as the index to get a symetric square mtrx
+    # dm.drop_duplicates()
+    dist_matrix = dist_matrix[dist_matrix.index.to_list() + list(cols)]
     return dist_matrix
+
 
 
 def get_tcrbase_method(tcr, ref):

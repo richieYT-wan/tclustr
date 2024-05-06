@@ -1,4 +1,6 @@
 import glob
+import os
+import re
 
 import numpy as np
 import pandas as pd
@@ -26,7 +28,20 @@ from src.utils import get_palette
 ##################################
 #           PIPELINES            #
 ##################################
+def pipeline_best_model_clustering(model_folder, input_df, name, n_points=500):
+    # Assuming we are using VAE based models
+    model = get_model(model_folder,
+                      map_location='cpu')
+    latent_df = get_latent_df(model, input_df)
+    print(len(latent_df))
+    dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(
+        latent_df)
+    results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
+    results['input_type'] = name
+    return results
 
+
+# Here, do a run ith only the best
 def cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder,
                            decimals=5, n_points=1500):
     # Getting clustering at all thresholds
@@ -51,6 +66,7 @@ def vae_clustering_pipeline(model_folder, input_df, name, dataset_params=None, n
     return results
 
 
+# Here, do a run ith only the best
 def plot_pipeline(results, b, plot_title='None', fig_fn=None, filter=None, palette=None, more=False,
                   add_cluster_size=False):
     runs = pd.concat([b, results])
@@ -125,6 +141,93 @@ def plot_pipeline(results, b, plot_title='None', fig_fn=None, filter=None, palet
     if fig_fn is not None:
         f.savefig(f'../output/240411_ClusteringTests/{fig_fn}.png', dpi=200)
     return runs
+
+
+def sort_key(item):
+    if item == 'last_epoch':
+        return float('inf'), 1  # last_epoch will be the second last
+    elif item == 'checkpoint_best':
+        return float('inf'), 2  # checkpoint_best will be last
+    else:
+        # Extract the number from strings like 'epoch_6000' and convert to integer
+        return int(re.search(r'\d+', item).group()), 0
+
+
+def run_interval_clustering(model_folder, input_df, identifier='VAEmodel', n_points=1500):
+    # Assuming we are using VAE based models
+    files = glob.glob(f'{model_folder}*.pt')
+    js = glob.glob(f'{model_folder}*JSON*.json')[0]
+    # Get the epochs and sort them
+    epochs = ['_'.join(os.path.basename(x.replace(model_folder, '')).split('_')[:2]) for x in files]
+    sorted_epochs = sorted(epochs, key=sort_key)
+    # Get the mapping to load the files in the correct order
+    map_epochs_files = {k: v for k, v in zip(epochs, files)}
+
+    # Run the analysis for each of these VAE models
+    cat_results = []
+    for name in sorted_epochs:
+        if 'last_epoch' in name:
+            continue
+        checkpoint = map_epochs_files[name]
+        model = load_model_full(checkpoint, js, map_location='cpu')
+        latent_df = get_latent_df(model, input_df)
+        dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(latent_df)
+        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
+        results['input_type'] = f'{identifier}_{name}'
+        cat_results.append(results)
+    return pd.concat(cat_results)
+
+
+def run_interval_plot_pipeline(model_folder, input_df, identifier='', n_points=250,
+                               baselines=None, plot_title='None', fig_fn=None):
+    try:
+        interval_runs = run_interval_clustering(model_folder, input_df, identifier, n_points)
+    except:
+        print('\n\n\n\n', model_folder, identifier, '\n\n\n\n')
+        raise ValueError(model_folder, identifier)
+    # Only do TBCRalign and tcrdist3 because we know we are better than KernelSim by a good margin
+    interval_runs = pd.concat([baselines.query('input_type=="TBCRalign"'),
+                               baselines.query('input_type == "tcrdist3"'),
+                               interval_runs])
+    # plotting options
+    sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)
+    f, a = plt.subplots(1, 1, figsize=(9, 9))
+    a.set_xlim([0, 1])
+    a.set_ylim([0, 1])
+    a.set_xlabel('Retention', fontweight='semibold', fontsize=14)
+    a.set_ylabel('Avg Purity', fontweight='semibold', fontsize=14)
+    # Setting major ticks
+    major_ticks = np.arange(0, 1.1, 0.1)
+    a.set_xticks(major_ticks)
+    a.set_yticks(major_ticks)
+    # Setting minor ticks
+    minor_ticks = np.arange(0, 1.1, 0.05)
+    a.set_xticks(minor_ticks, minor=True)
+    a.set_yticks(minor_ticks, minor=True)
+    plt.grid(which='both', linestyle='--', linewidth=0.5)
+
+    for input_type in interval_runs.input_type.unique():
+        query = interval_runs.query('input_type==@input_type')
+        retentions = query['retention'][1:-1].values
+        purities = query['mean_purity'][1:-1].values
+        if input_type == "TBCRalign":
+            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='-.', c='g', lw=1.)
+        elif input_type == "tcrdist3":
+            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='-.', c='y', lw=1.)
+        else:
+            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='--', lw=1.)
+
+    a.axhline(0.6, label='60% purity cut-off', ls=':', lw=.75, c='m')
+    a.axhline(0.7, label='70% purity cut-off', ls=':', lw=.75, c='c')
+    a.axhline(0.8, label='80% purity cut-off', ls=':', lw=.75, c='y')
+
+    a.legend(title='distance matrix', title_fontproperties={'size': 14, 'weight': 'semibold'},
+             prop={'weight': 'semibold', 'size': 12})
+    f.suptitle(f'{plot_title}\t{identifier}', fontweight='semibold', fontsize=15)
+    f.tight_layout()
+    if fig_fn is not None:
+        f.savefig(f'../output/240411_ClusteringTests/{fig_fn}.png', dpi=200)
+    return interval_runs
 
 
 ##################################
