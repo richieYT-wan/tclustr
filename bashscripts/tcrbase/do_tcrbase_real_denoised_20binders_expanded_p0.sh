@@ -1,7 +1,7 @@
 #! /usr/bin/bash
 
 TCRBASE=/home/projects/vaccine/people/morni/tbcr_align/tbcr_align
-DIRECTORY=/home/projects/vaccine/people/ygatwan/tclustr/data/TCRBASE/tcrbase_expanded_denoised_p0_20binders_swapped/
+DIRECTORY=/home/projects/vaccine/people/yatwan/tclustr/data/TCRBASE/tcrbase_expanded_denoised_p0_20binders_swapped/
 OUTDIR=/home/projects/vaccine/people/yatwan/tclustr/output/TCRBASE/tcrbase_expanded_denoised_p0_20binders_swapped/
 
 mkdir -p ${OUTDIR}
