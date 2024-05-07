@@ -44,9 +44,9 @@ def make_dist_matrix(df, label_col='peptide',
     print(len(zs))
     dist_matrix = pd.DataFrame(compute_cosine_distance(zs),
                                columns=seqs, index=seqs)
-    dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[list(cols)],
-                           left_index=True, right_index=True).drop_duplicates()  # .rename(columns={label_col: 'label'})
-    # ensure the columns are sorted same as the index to get a symetric square mtrx
+    # dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[list(cols)],
+    #                        left_index=True, right_index=True).drop_duplicates()  # .rename(columns={label_col: 'label'})
+    dist_matrix = pd.concat([dist_matrix, df.set_index('seq')[list(cols)]], axis=1)
     # dm.drop_duplicates()
     dist_matrix = dist_matrix[dist_matrix.index.to_list() + list(cols)]
     return dist_matrix
