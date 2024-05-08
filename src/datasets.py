@@ -46,11 +46,12 @@ class VAEDataset(Dataset):
         return self
 
     def get_dataloader(self, batch_size, sampler, **kwargs):
-        if issubclass(sampler.__class__, MinorityClassSampler):
-            dataloader = DataLoader(self, batch_size=batch_size,
-                                    sampler=sampler(self.labels, batch_size, self.minority_classes))
-        elif sampler.__class__ == RandomSampler or sampler.__class__ == SequentialSampler:
+        if issubclass(sampler, MinorityClassSampler):
+            dataloader = DataLoader(self, batch_sampler=sampler(self.labels, batch_size, self.minority_classes))
+        elif sampler == RandomSampler or sampler == SequentialSampler:
             dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
+        else:
+            raise ValueError('wtf sampler')
         return dataloader
 
     def increment_counter(self):
@@ -205,7 +206,7 @@ class TCRSpecificDataset(FullTCRDataset):
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
-                 pep_weight_scale=3.8, leave_pep_out=None, minority_count=75):
+                 pep_weight_scale=3.8, leave_pep_out=None, minority_count=50):
         super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                  max_len_b3, max_len_pep=max_len_pep,
                                                  add_positional_encoding=add_positional_encoding, encoding=encoding,

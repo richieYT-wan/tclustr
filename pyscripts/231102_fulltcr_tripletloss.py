@@ -18,6 +18,7 @@ from src.torch_utils import load_checkpoint, save_model_full, get_available_devi
 from src.models import FullTCRVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import TCRSpecificDataset
+from src.samplers import GroupClassBatchSampler, MinorityClassSampler
 from src.metrics import CombinedVAELoss, get_metrics
 from sklearn.metrics import roc_auc_score, precision_score
 import argparse
@@ -83,6 +84,11 @@ def args_parser():
                         help='Adding positional encoding to the sequence vector. False by default')
     parser.add_argument('-posweight', '--positional_weighting', dest='positional_weighting', type=str2bool, default=False,
                         help='Whether to use positional weighting in reconstruction loss to prioritize CDR3 chains.')
+    parser.add_argument('-minority_sampler', dest='minority_sampler', default=False, type=str2bool,
+                        help='Whether to use a custom batch sampler to handle minority classes')
+    parser.add_argument('-minority_count', dest='minority_count', default=50, type=int,
+                        help='Counts to consider a class a minority classes')
+
     """
     Models args 
     """
@@ -137,6 +143,14 @@ def args_parser():
                         help='Which distance metric to use ')
     parser.add_argument('-margin', dest='margin', default=None, type=float,
                         help='Margin for the triplet loss (Default is None and will have the default behaviour depending on the distance type)')
+    parser.add_argument('-dwpos', dest='pos_dist_weight', default=1, type=float,
+                        help='Weight for the positive distance part of triplet loss')
+    parser.add_argument('-dwneg', dest='neg_dist_weight', default=1, type=float,
+                        help='Weight for the positive distance part of triplet loss')
+    parser.add_argument('-wutrp', dest='triplet_warm_up', default=None, type=int,
+                        help='Warm-up period for the triplet loss')
+    parser.add_argument('-cdtrp', dest='triplet_cool_down', default=None, type=int,
+                        help='Cooldown period for the triplet loss')
 
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
@@ -227,7 +241,8 @@ def main():
     valid_dataset = TCRSpecificDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
-    train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
+    train_sampler = GroupClassBatchSampler if args['minority_sampler'] else RandomSampler
+    train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=train_sampler)
     valid_loader = valid_dataset.get_dataloader(batch_size=args["batch_size"] * 2, sampler=SequentialSampler)
 
     fold_filename = f'kcv_{dfname}_f{args["fold"]:02}_{unique_filename}'
