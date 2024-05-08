@@ -261,7 +261,7 @@ class VAELoss(LossParent):
 
 
 class TripletLoss(LossParent):
-    def __init__(self, dist_type='cosine', margin=None):
+    def __init__(self, dist_type='cosine', margin=None, pos_dist_weight=1, neg_dist_weight=1):
         super(TripletLoss, self).__init__()
         assert dist_type in ['cosine', 'l1',
                              'l2'], f'Distance type must be in ["l1", "l2", "cosine"]! Got {dist_type} instead.'
@@ -272,6 +272,8 @@ class TripletLoss(LossParent):
         if margin is None:
             margin = 0.1 if dist_type == 'cosine' else 1.0
         self.margin = margin
+        self.pos_dist_weight = pos_dist_weight
+        self.neg_dist_weight = neg_dist_weight
 
     def forward(self, z, labels, **kwargs):
         weights = kwargs['pep_weights'] if (
@@ -285,7 +287,7 @@ class TripletLoss(LossParent):
         negative_distances = mask_negative * pairwise_distances
         # Take the relu to encourage error above margin (i.e. threshold)
         # Here, weights should be 1 if activated, 0 if not.
-        loss = torch.nn.functional.relu(positive_distances - negative_distances + self.margin) * weights
+        loss = torch.nn.functional.relu(self.pos_dist_weight*positive_distances - self.neg_dist_weight*negative_distances + self.margin) * weights
         # 240424: Fixing an error where self-self distance would lead to a loss of self.margin ; The mask now zeroes out those elements
         diag_mask = torch.ones_like(mask_positive).fill_diagonal_(0)
         loss = torch.mul(loss, diag_mask)
@@ -302,7 +304,7 @@ class CombinedVAELoss(LossParent):
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
                  positional_weighting=False, weight_seq=1, weight_kld=1e-2, warm_up=100, kld_tanh_scale=0.1,
                  kld_decrease=5e-3, flat_phase=None, weight_vae=1, weight_triplet=1, dist_type='cosine', margin=None,
-                 debug=False):
+                 debug=False, pos_dist_weight=1, neg_dist_weight=1, triplet_warm_up=None, triplet_cool_down=None):
         super(CombinedVAELoss, self).__init__()
         # TODO: PHASE OUT N BATCHES
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
@@ -313,7 +315,12 @@ class CombinedVAELoss(LossParent):
                                 warm_up=warm_up, tanh_scale=kld_tanh_scale, kld_decrease=kld_decrease, flat_phase=flat_phase,
                                 debug=debug)
         self.positional_weighting = positional_weighting
-        self.triplet_loss = TripletLoss(dist_type, margin=margin)
+        self.triplet_loss = TripletLoss(dist_type, margin=margin, pos_dist_weight=pos_dist_weight, neg_dist_weight=neg_dist_weight)
+        # Very crude triplet weight regime rn ; quick fix
+        # TODO: Implement a proper regime (like KLD) with warm-up and down if needed
+        self.triplet_warm_up = triplet_warm_up
+        self.triplet_cool_down = triplet_cool_down
+        self.triplet_activated = weight_triplet>0
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
         self.norm_factor = (self.weight_triplet + self.weight_vae)
@@ -325,8 +332,18 @@ class CombinedVAELoss(LossParent):
         recon_loss, kld_loss = self.vae_loss(x_hat, x, mu, logvar)
         recon_loss = self.weight_vae * recon_loss / self.norm_factor
         kld_loss = self.weight_vae * kld_loss / self.norm_factor
-        triplet_loss = self.weight_triplet * self.triplet_loss(z, labels, **kwargs) / self.norm_factor
+        if self.triplet_activated:
+            triplet_loss = self.weight_triplet * self.triplet_loss(z, labels, **kwargs) / self.norm_factor
+        else:
+            triplet_loss = torch.zeros_like(recon_loss)
         return recon_loss, kld_loss, triplet_loss
+
+    def _triplet_weight_regime(self):
+        # TODO : Maybe use the KLD regime with slightly different schedules
+        # warm-up means activating triplet after `triplet_warm_up` epochs. STARTING WITHOUT TRIPLET
+        wu_cdt = self.counter <= self.triplet_warm_up if self.triplet_warm_up is not None else True
+        cd_cdt = self.counter >= self.triplet_cool_down if self.triplet_cool_down is not None else True
+        self.triplet_activated = wu_cdt & cd_cdt & self.weight_triplet>0
 
 
     def _kld_weight_regime(self):
@@ -334,6 +351,7 @@ class CombinedVAELoss(LossParent):
         if counter <= warm_up : tanh annealing warm_up procedure
         else: Starts at 1 * base_weight then decrease 5/1000 of max weight until it reaches base_weight / 5
         Should be called at each increment counter step!
+        # TODO : Maybe include the triplet weight in this regime // copy straight from this with slightly different schedules
         Returns:
             -
         """
