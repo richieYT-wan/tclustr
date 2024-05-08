@@ -1,10 +1,12 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data import DataLoader, Dataset, Sampler, SequentialSampler, RandomSampler
 from src.data_processing import encode_batch, batch_encode_cat, batch_positional_encode, V_MAP, J_MAP, PEP_MAP, \
     encoding_matrix_dict
 from overrides import override
+
+from src.samplers import MinorityClassSampler
 
 
 class MinoritySampler(Sampler):
@@ -12,13 +14,13 @@ class MinoritySampler(Sampler):
     Custom Sampler class to batch minority classes together
     Assumes labels and minority classes are iterators of ints
     """
+
     def __init__(self, labels, batch_size, minority_classes):
         super(MinoritySampler, self).__init__()
         pass
 
     def __iter__(self):
         pass
-
 
 
 class VAEDataset(Dataset):
@@ -29,6 +31,8 @@ class VAEDataset(Dataset):
     def __init__(self, df, x=torch.empty([10, 1])):
         super(VAEDataset, self).__init__()
         self.df = df
+        self.labels = torch.empty_like(x)
+        self.minority_classes = [0]
         self.x = x
         self.counter = 0
 
@@ -42,7 +46,11 @@ class VAEDataset(Dataset):
         return self
 
     def get_dataloader(self, batch_size, sampler, **kwargs):
-        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
+        if issubclass(sampler.__class__, MinorityClassSampler):
+            dataloader = DataLoader(self, batch_size=batch_size,
+                                    sampler=sampler(self.labels, batch_size, self.minority_classes))
+        elif sampler.__class__ == RandomSampler or sampler.__class__ == SequentialSampler:
+            dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
         return dataloader
 
     def increment_counter(self):
@@ -56,6 +64,7 @@ class VAEDataset(Dataset):
         # for c in self.children():
         #     if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
         #         c.set_counter(counter)
+
 
 class CDR3BetaDataset(VAEDataset):
     """
@@ -108,7 +117,7 @@ class FullTCRDataset(VAEDataset):
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
-                 pep_weight_scale=3.8, leave_pep_out:str=None):
+                 pep_weight_scale=3.8, leave_pep_out: str = None):
         super(FullTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
@@ -180,11 +189,12 @@ class FullTCRDataset(VAEDataset):
         # leave_pep_out variable should be a string of the peptide
         if leave_pep_out is not None:
             if leave_pep_out not in self.df[pep_col].unique():
-                print(f'Leave Peptide out activated, but {leave_pep_out} was passed as an option and is not among df unique for {pep_col} column.')
+                print(
+                    f'Leave Peptide out activated, but {leave_pep_out} was passed as an option and is not among df unique for {pep_col} column.')
                 raise ValueError()
             else:
                 self.pep_weighted = True
-                self.pep_weights = torch.from_numpy((df[pep_col]!=leave_pep_out).values).float().flatten()
+                self.pep_weights = torch.from_numpy((df[pep_col] != leave_pep_out).values).float().flatten()
 
 
 class TCRSpecificDataset(FullTCRDataset):
@@ -201,12 +211,13 @@ class TCRSpecificDataset(FullTCRDataset):
                                                  add_positional_encoding=add_positional_encoding, encoding=encoding,
                                                  pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
                                                  b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_col=pep_col,
-                                                 pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale, leave_pep_out=leave_pep_out)
+                                                 pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale,
+                                                 leave_pep_out=leave_pep_out)
         # Here "labels" are for each peptide, used for the triplet loss
         # MIGHT be overridden wrongly in BimodalTCR dataset!!
-        pepmap = {k: v for v, k in enumerate(df[pep_col].unique())} # FIX
+        pepmap = {k: v for v, k in enumerate(df[pep_col].unique())}  # FIX
         self.pepmap = pepmap
-        self.inverse_pepmap = {v:k for k,v in pepmap.items()}
+        self.inverse_pepmap = {v: k for k, v in pepmap.items()}
         self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
         # 240507 : Adding minority class saving to get custom batching
         low_number = self.df.groupby('peptide').agg(count=(b3_col, 'count')).query('count<=@minority_count').index
@@ -248,7 +259,7 @@ class TwoStageTCRpMHCDataset(TCRSpecificDataset):
         # self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
         # Here, should now try to use the swapped peptide as labels for the triplet loss. This should mess everything up
         # why is this shit hard-coded"???
-        pepmap = {k: v for v, k in enumerate(df['peptide'].unique())} # FIXED
+        pepmap = {k: v for v, k in enumerate(df['peptide'].unique())}  # FIXED
         self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
 
         self.x_pep = encoded_peps
@@ -341,5 +352,3 @@ class LatentTCRpMHCDataset(FullTCRDataset):
             return self.x[idx], self.pep_weights[idx], self.labels[idx]
         else:
             return self.x[idx], self.labels[idx]
-
-
