@@ -3,7 +3,7 @@ import os, sys
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
-import wandb
+# import wandb
 import torch
 from torch import optim
 from torch import nn
@@ -192,8 +192,8 @@ def main():
     valid_df = df.query('partition==@fold')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
-    if args['log_wandb']:
-        wandb.login()
+    # if args['log_wandb']:
+    #     wandb.login()
     # File-saving stuff
     unique_filename, kf, rid, connector = make_filename(args)
 
@@ -240,10 +240,10 @@ def main():
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
-    if args['log_wandb']:
-        # wandb stuff
-        wandb.init(project=unique_filename, name=f'fold_{args["fold"]:02}', config=args)
-        wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
+    # if args['log_wandb']:
+    #     # wandb stuff
+    #     wandb.init(project=unique_filename, name=f'fold_{args["fold"]:02}', config=args)
+    #     wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
     best_epoch, best_val_loss, best_val_metrics = multimodal_train_eval_loops(args['n_epochs'], model,
