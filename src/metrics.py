@@ -83,7 +83,7 @@ class VAELoss(LossParent):
             pep_weights = torch.full([max_len_pep, 1], 1)
             self.positional_weights = torch.cat([alpha_weights, beta_weights, pep_weights], dim=0).to(self.device)
             assert self.positional_weights.shape == (max_len, 1), 'wrong shape for pos weights'
-            print('Here in Vae loss pos weights', self.positional_weights.device, self.positional_weighting)
+            print('Here in Vae loss pos weights init', self.positional_weights.device, self.positional_weighting)
 
         self.max_len = max_len
         self.aa_dim = aa_dim

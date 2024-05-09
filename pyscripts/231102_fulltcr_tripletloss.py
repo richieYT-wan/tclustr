@@ -260,7 +260,7 @@ def main():
     #     # wandb stuff
     #     wandb.init(project=unique_filename, name=f'fold_{args["fold"]:02}', config=args)
     #     wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
-
+    print(f'Main script device check : model={model.device}; crit={criterion.device}')
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
         best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
                                                                        criterion, optimizer, train_loader, valid_loader,
