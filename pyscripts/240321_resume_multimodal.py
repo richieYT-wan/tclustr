@@ -4,7 +4,7 @@ import os, sys
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
-import wandb
+# import wandb
 import glob
 import torch
 from torch import optim
@@ -200,8 +200,8 @@ def main():
     valid_df = df.query('partition==@fold')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
-    if 'log_wandb' in args and args['log_wandb']:
-        wandb.login()
+    # if 'log_wandb' in args and args['log_wandb']:
+    #     wandb.login()
     # File-saving stuff
     unique_filename, kf, rid, connector = make_filename(args)
 
