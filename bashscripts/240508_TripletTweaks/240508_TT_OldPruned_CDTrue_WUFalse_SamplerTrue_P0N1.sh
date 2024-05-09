@@ -1,3 +1,7 @@
+#! /usr/bin/bash
+HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
+PYDIR=${HOMEDIR}pyscripts/
+
 source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
 source activate cuda
 
