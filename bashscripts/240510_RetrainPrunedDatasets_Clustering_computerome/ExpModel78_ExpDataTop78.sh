@@ -2,7 +2,7 @@
 HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
 
-source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda
+source /home/projects/vaccine/people/yatwan/anaconda.sh3/etc/profile.d/conda.sh
 source activate cuda
 
 # Get the full path of the script
