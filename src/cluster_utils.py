@@ -81,7 +81,7 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
             latent_df, index_col=index_col)
         if 'checkpoint_best' in checkpoint and best_dm is None and 'interval' not in checkpoint:
             best_dm = dist_matrix
-        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
+            results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
         results['input_type'] = f'{identifier}_{name}'
         retentions = results['retention'].values[1:-1]
         purities = results['mean_purity'].values[1:-1]

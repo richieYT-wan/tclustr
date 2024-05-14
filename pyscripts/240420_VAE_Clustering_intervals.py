@@ -147,7 +147,7 @@ def main():
     else:
         assert 'raw_index' in df.columns or 'original_index' in df.columns, 'Index col not in df! (neither raw_index or original_index)'
         index_col = 'raw_index' if 'raw_index' in df.columns else 'original_index'
-
+    df = df.query(f'{index_col}!="VDJdb_4837"')
     tbcralign = pd.read_csv(args['tbcralign_file'], index_col=0)
     tcrdist = pd.read_csv(args['tcrdist_file'], index_col=0)
 
