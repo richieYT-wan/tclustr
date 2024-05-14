@@ -28,6 +28,156 @@ from src.utils import get_palette
 ##################################
 #           PIPELINES            #
 ##################################
+
+
+def do_baseline(baseline_distmatrix, identifier='baseline', label_col='peptide', n_points=500):
+    cols = [str(x) for x in baseline_distmatrix.index.to_list()] if type(
+        baseline_distmatrix.columns[0] == str) else baseline_distmatrix.index.to_list()
+    dist_array = baseline_distmatrix[cols].values
+    encoder = LabelEncoder()
+    labels = baseline_distmatrix[label_col].values
+    encoded_labels = encoder.fit_transform(labels)
+    results = cluster_all_thresholds(dist_array, torch.rand([len(dist_array), 1]),
+                                     labels, encoded_labels, encoder, n_points=n_points)
+    results['input_type'] = identifier
+    return results
+
+
+def sort_key(item):
+    if item == 'last_epoch':
+        return float('inf'), 1  # last_epoch will be the second last
+    elif item == 'checkpoint_best':
+        return float('inf'), 2  # checkpoint_best will be last
+    else:
+        # Extract the number from strings like 'epoch_6000' and convert to integer
+        return int(re.search(r'\d+', item).group()), 0
+
+
+def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmodel', n_points=1500):
+    # Assuming we are using VAE based models
+    if not model_folder.endswith("/"):
+        model_folder = model_folder+'/'
+    files = glob.glob(f'{model_folder}*.pt')
+    js = glob.glob(f'{model_folder}*JSON*.json')[0]
+    # Get the epochs and sort them
+    epochs = ['_'.join(os.path.basename(x.replace(model_folder, '')).split('_')[:2]) for x in files]
+    sorted_epochs = sorted(epochs, key=sort_key)
+    # Get the mapping to load the files in the correct order
+    map_epochs_files = {k: v for k, v in zip(epochs, files)}
+
+    # Run the analysis for each of these VAE models
+    cat_results = []
+    best_dm = None
+    best_auc = -1
+    for name in sorted_epochs:
+        if 'last_epoch' in name:
+            continue
+        checkpoint = map_epochs_files[name]
+        model = load_model_full(checkpoint, js, map_location='cpu')
+        if hasattr(model, 'vae'):
+            model = model.vae
+        latent_df = get_latent_df(model, input_df)
+        dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(
+            latent_df, index_col=index_col)
+        if 'checkpoint_best' in checkpoint and best_dm is None and 'interval' not in checkpoint:
+            best_dm = dist_matrix
+        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
+        results['input_type'] = f'{identifier}_{name}'
+        retentions = results['retention'].values[1:-1]
+        purities = results['mean_purity'].values[1:-1]
+        p70_r35_auc = get_retpur_auc(retentions, purities, min_retention=0.35, min_purity=0.70)
+        if p70_r35_auc > best_auc:
+            best_auc = p70_r35_auc
+            best_dm = dist_matrix
+        cat_results.append(results)
+    cat_results = pd.concat(cat_results)
+    return cat_results, best_dm
+
+
+def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbcr_dm, identifier='', n_points=250,
+                               baselines=None, plot_title='None', fig_fn=None):
+    try:
+        interval_runs, best_dm = run_interval_clustering(model_folder, input_df, index_col, identifier, n_points)
+    except:
+        print('\n\n\n\n', model_folder, identifier, '\n\n\n\n')
+        raise ValueError(model_folder, identifier)
+    # Only do TBCRalign and tcrdist3 because we know we are better than KernelSim by a good margin
+    tbcr_dm, tbcr_da = resort_baseline(tbcr_dm, best_dm, index_col)
+    agg_results = do_agg_clustering_best(best_dm, tbcr_dm, index_col, label_col, n_points)
+    interval_runs = pd.concat([baselines.query('input_type=="TBCRalign"'),
+                               baselines.query('input_type == "tcrdist3"'),
+                               interval_runs,
+                               agg_results.assign(input_type = f'agg_{identifier}')])
+    # plotting options
+    sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)
+    f, a = plt.subplots(1, 1, figsize=(9, 9))
+    a.set_xlim([0, 1])
+    a.set_ylim([0, 1])
+    a.set_xlabel('Retention', fontweight='semibold', fontsize=14)
+    a.set_ylabel('Avg Purity', fontweight='semibold', fontsize=14)
+    # Setting major ticks
+    major_ticks = np.arange(0, 1.1, 0.1)
+    a.set_xticks(major_ticks)
+    a.set_yticks(major_ticks)
+    # Setting minor ticks
+    minor_ticks = np.arange(0, 1.1, 0.05)
+    a.set_xticks(minor_ticks, minor=True)
+    a.set_yticks(minor_ticks, minor=True)
+    plt.grid(which='both', linestyle='--', linewidth=0.5)
+
+    for input_type in interval_runs.input_type.unique():
+        query = interval_runs.query('input_type==@input_type')
+        retentions = query['retention'][1:-1].values
+        purities = query['mean_purity'][1:-1].values
+        if input_type == "TBCRalign":
+            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='-.', c='g', lw=1.)
+        elif input_type == "tcrdist3":
+            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='-.', c='y', lw=1.)
+        else:
+            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='--', lw=1.)
+
+    a.axhline(0.6, label='60% purity cut-off', ls=':', lw=.75, c='m')
+    a.axhline(0.7, label='70% purity cut-off', ls=':', lw=.75, c='c')
+    a.axhline(0.8, label='80% purity cut-off', ls=':', lw=.75, c='y')
+
+    a.legend(title='distance matrix', title_fontproperties={'size': 14, 'weight': 'semibold'},
+             prop={'weight': 'semibold', 'size': 12})
+    f.suptitle(f'{plot_title}\t{identifier}', fontweight='semibold', fontsize=15)
+    f.tight_layout()
+    if fig_fn is not None:
+        f.savefig(f'{fig_fn}.png', dpi=200)
+    return interval_runs
+
+
+def do_agg_clustering_best(input_dm, other_dm_labelled, index_col, label_col='peptide', n_points=500):
+    # provide either a model path or an actual loaded model
+    baseline_dm, baseline_da = resort_baseline(other_dm_labelled, input_dm, index_col)
+    input_da = input_dm.iloc[:len(baseline_da), :len(baseline_da)].values
+    labels = input_dm[label_col].values
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit(labels)
+    agg_array = 1 - np.multiply(1 - input_da, 1 - baseline_da)
+    results = cluster_all_thresholds(agg_array, torch.rand([len(agg_array), 1]),
+                                     labels, encoded_labels, label_encoder, n_points=n_points)
+    return results
+
+
+def do_agg_clustering(model, input_df, other_dm_labelled, n_points=500):
+    # provide either a model path or an actual loaded model
+    if type(model) == str:
+        model = get_model(model)
+    # Assuming both input_df and other_dm_labelled have the raw_index...
+    latent_df = get_latent_df(model, input_df)
+    # Sort it accordingly
+    latent_df = latent_df.set_index('raw_index').loc[other_dm_labelled['raw_index'].values].reset_index()
+    dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(
+        latent_df)
+    other_array = other_dm_labelled.iloc[:other_dm_labelled, :other_dm_labelled].values
+    agg_array = 1 - np.multiply((1 - dist_array, 1 - other_array))
+    results = cluster_all_thresholds(agg_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
+    return results
+
+
 def pipeline_best_model_clustering(model_folder, input_df, name, n_points=500):
     # Assuming we are using VAE based models
     model = get_model(model_folder,
@@ -43,7 +193,7 @@ def pipeline_best_model_clustering(model_folder, input_df, name, n_points=500):
 
 # Here, do a run ith only the best
 def cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder,
-                           decimals=5, n_points=1500):
+                           decimals=5, n_points=500):
     # Getting clustering at all thresholds
     limits = get_linspace(dist_array, decimals, n_points)
     results = []
@@ -143,99 +293,68 @@ def plot_pipeline(results, b, plot_title='None', fig_fn=None, filter=None, palet
     return runs
 
 
-def sort_key(item):
-    if item == 'last_epoch':
-        return float('inf'), 1  # last_epoch will be the second last
-    elif item == 'checkpoint_best':
-        return float('inf'), 2  # checkpoint_best will be last
-    else:
-        # Extract the number from strings like 'epoch_6000' and convert to integer
-        return int(re.search(r'\d+', item).group()), 0
-
-
-def run_interval_clustering(model_folder, input_df, identifier='VAEmodel', n_points=1500):
-    # Assuming we are using VAE based models
-    files = glob.glob(f'{model_folder}*.pt')
-    js = glob.glob(f'{model_folder}*JSON*.json')[0]
-    # Get the epochs and sort them
-    epochs = ['_'.join(os.path.basename(x.replace(model_folder, '')).split('_')[:2]) for x in files]
-    sorted_epochs = sorted(epochs, key=sort_key)
-    # Get the mapping to load the files in the correct order
-    map_epochs_files = {k: v for k, v in zip(epochs, files)}
-
-    # Run the analysis for each of these VAE models
-    cat_results = []
-    for name in sorted_epochs:
-        if 'last_epoch' in name:
-            continue
-        checkpoint = map_epochs_files[name]
-        model = load_model_full(checkpoint, js, map_location='cpu')
-        latent_df = get_latent_df(model, input_df)
-        dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(latent_df)
-        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
-        results['input_type'] = f'{identifier}_{name}'
-        cat_results.append(results)
-    return pd.concat(cat_results)
-
-
-def run_interval_plot_pipeline(model_folder, input_df, identifier='', n_points=250,
-                               baselines=None, plot_title='None', fig_fn=None):
-    try:
-        interval_runs = run_interval_clustering(model_folder, input_df, identifier, n_points)
-    except:
-        print('\n\n\n\n', model_folder, identifier, '\n\n\n\n')
-        raise ValueError(model_folder, identifier)
-    # Only do TBCRalign and tcrdist3 because we know we are better than KernelSim by a good margin
-    interval_runs = pd.concat([baselines.query('input_type=="TBCRalign"'),
-                               baselines.query('input_type == "tcrdist3"'),
-                               interval_runs])
-    # plotting options
-    sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)
-    f, a = plt.subplots(1, 1, figsize=(9, 9))
-    a.set_xlim([0, 1])
-    a.set_ylim([0, 1])
-    a.set_xlabel('Retention', fontweight='semibold', fontsize=14)
-    a.set_ylabel('Avg Purity', fontweight='semibold', fontsize=14)
-    # Setting major ticks
-    major_ticks = np.arange(0, 1.1, 0.1)
-    a.set_xticks(major_ticks)
-    a.set_yticks(major_ticks)
-    # Setting minor ticks
-    minor_ticks = np.arange(0, 1.1, 0.05)
-    a.set_xticks(minor_ticks, minor=True)
-    a.set_yticks(minor_ticks, minor=True)
-    plt.grid(which='both', linestyle='--', linewidth=0.5)
-
-    for input_type in interval_runs.input_type.unique():
-        query = interval_runs.query('input_type==@input_type')
-        retentions = query['retention'][1:-1].values
-        purities = query['mean_purity'][1:-1].values
-        if input_type == "TBCRalign":
-            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='-.', c='g', lw=1.)
-        elif input_type == "tcrdist3":
-            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='-.', c='y', lw=1.)
-        else:
-            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='--', lw=1.)
-
-    a.axhline(0.6, label='60% purity cut-off', ls=':', lw=.75, c='m')
-    a.axhline(0.7, label='70% purity cut-off', ls=':', lw=.75, c='c')
-    a.axhline(0.8, label='80% purity cut-off', ls=':', lw=.75, c='y')
-
-    a.legend(title='distance matrix', title_fontproperties={'size': 14, 'weight': 'semibold'},
-             prop={'weight': 'semibold', 'size': 12})
-    f.suptitle(f'{plot_title}\t{identifier}', fontweight='semibold', fontsize=15)
-    f.tight_layout()
-    if fig_fn is not None:
-        f.savefig(f'../output/240411_ClusteringTests/{fig_fn}.png', dpi=200)
-    return interval_runs
-
-
 ##################################
 #      LOAD MODEL / LATENT       #
 ##################################
 
-def get_retpur_auc(retentions, purities):
+def resort_baseline(baseline_dm, input_dm, index_col,
+                    cols=['peptide', 'original_peptide', 'binder', 'partition']):
+    """
+    Resorts the baseline_dm to match input_dm in order to do agg_clustering
+    Args:
+        baseline_dm:
+        input_dm:
+        index_col:
+
+    Returns:
+
+    """
+    if index_col not in cols:
+        cols.append(index_col)
+    baseline_copy = baseline_dm.copy()
+    baseline_copy = baseline_copy.drop_duplicates(index_col)
+    original_index_col = baseline_dm.index.name
+    reindex = input_dm[index_col].values
+    baseline_copy = baseline_copy.reset_index().set_index(index_col).loc[reindex].reset_index().set_index(
+        original_index_col)
+    idxcols = [str(x) for x in baseline_copy.index.to_list()] if type(
+        [x for x in baseline_copy.columns if x not in cols][0]) == str else baseline_copy.index.to_list()
+    # print(idxcols+cols)
+    baseline_copy = baseline_copy[idxcols + cols]
+    # baseline_copy = baseline_copy.reset_index().set_index(original_index_col)
+    baseline_array = baseline_copy.iloc[:len(baseline_copy), :len(baseline_copy)].values
+    return baseline_copy, baseline_array
+
+
+def get_retpur_auc(retentions, purities, min_retention=0.0, max_retention=1.0, min_purity=0.0, max_purity=1.0):
+    ridx = np.where((min_retention <= retentions) & (retentions <= max_retention))
+    pidx = np.where((min_purity <= purities) & (purities <= max_purity))
+    idx = np.intersect1d(ridx, pidx)
+    if len(idx) <= 1:
+        return -1
+    retentions = retentions[idx]
+    purities = purities[idx]
     return auc(retentions, purities)
+
+
+def get_all_rpauc(retentions, purities, input_type=None, name=None):
+    total_auc = get_retpur_auc(retentions, purities)
+    p60_auc = get_retpur_auc(retentions, purities, min_purity=0.6)
+    p70_auc = get_retpur_auc(retentions, purities, min_purity=0.7)
+
+    p60_r40_auc = get_retpur_auc(retentions, purities, min_retention=0.4, min_purity=0.6)
+    p70_r35_auc = get_retpur_auc(retentions, purities, min_retention=0.35, min_purity=0.70)
+    p70_r50_auc = get_retpur_auc(retentions, purities, min_retention=0.5, min_purity=0.70)
+    out = {'input_type': input_type,
+           'name': name,
+           'total_auc': total_auc,
+           'p70_auc': p70_auc,
+           'p60_auc': p60_auc,
+           'p60_r40_auc': p60_r40_auc,
+           'p70_r35_auc': p70_r35_auc,
+           'p70_r50_auc': p70_r50_auc}
+
+    return out
 
 
 def get_model(folder, map_location='cpu'):
@@ -273,6 +392,7 @@ def get_latent_df(model, df, dataset_params: dict = None):
         dataloader = dataset.get_dataloader(512, SequentialSampler)
         latent_df = predict_model(model, dataset, dataloader)
 
+    # TODO: This part is not properly handled
     elif type(model) in [BSSVAE, JMVAE]:
         pred_fct = predict_multimodal
         dataset_params['pair_only'] = True
@@ -286,16 +406,18 @@ def get_latent_df(model, df, dataset_params: dict = None):
     return latent_df
 
 
-def get_distances_labels_from_latent(latent_df, label_col='peptide', seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3')):
+def get_distances_labels_from_latent(latent_df, label_col='peptide', seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'),
+                                     index_col='original_index'):
     # Columns for making distmatrix
-    rest_cols = list(x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'origin', 'binder'])
+    rest_cols = list(
+        x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'origin', 'binder', index_col])
     # Getting distmatrix and arrays
     dist_matrix = make_dist_matrix(latent_df, label_col, seq_cols, cols=rest_cols)
     dist_array = dist_matrix.iloc[:len(dist_matrix), :len(dist_matrix)].values
     # Getting label encoder and features for computing metrics
     features = latent_df[[z for z in latent_df.columns if z.startswith('z_')]].values
     label_encoder = LabelEncoder()
-    labels = latent_df[label_col].values
+    labels = dist_matrix[label_col].values
     encoded_labels = label_encoder.fit_transform(labels)
     return dist_matrix, dist_array, features, labels, encoded_labels, label_encoder
 
