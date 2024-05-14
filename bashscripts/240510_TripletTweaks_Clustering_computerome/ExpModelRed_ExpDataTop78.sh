@@ -1,4 +1,4 @@
- 
+#! /usr/bin/b
 HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
 
