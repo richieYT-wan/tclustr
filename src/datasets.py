@@ -206,7 +206,7 @@ class TCRSpecificDataset(FullTCRDataset):
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
-                 pep_weight_scale=3.8, leave_pep_out=None, minority_count=50):
+                 pep_weight_scale=3.8, leave_pep_out=None, minority_count=50, conv=False):
         super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                  max_len_b3, max_len_pep=max_len_pep,
                                                  add_positional_encoding=add_positional_encoding, encoding=encoding,
@@ -220,6 +220,10 @@ class TCRSpecificDataset(FullTCRDataset):
         self.pepmap = pepmap
         self.inverse_pepmap = {v: k for k, v in pepmap.items()}
         self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
+        if conv:
+            self.x = self.x.view(-1, sum([self.max_len_a1, self.max_len_a2, self.max_len_a3,
+                                          self.max_len_b1, self.max_len_b2, self.max_len_b3,
+                                          self.max_len_pep]), self.matrix_dim)
         # 240507 : Adding minority class saving to get custom batching
         low_number = self.df.groupby('peptide').agg(count=(b3_col, 'count')).query('count<=@minority_count').index
         self.df['minority_class'] = self.df[pep_col].apply(lambda x: x in low_number)

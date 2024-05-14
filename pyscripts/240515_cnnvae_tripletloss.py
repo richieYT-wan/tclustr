@@ -15,7 +15,7 @@ from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, make_filename
 from src.torch_utils import load_checkpoint, save_model_full, get_available_device, save_json
-from src.models import FullTCRVAE
+from src.conv_models import CNNVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import TCRSpecificDataset
 from src.samplers import GroupClassBatchSampler, MinorityClassSampler
@@ -36,8 +36,8 @@ def args_parser():
 
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
-    parser.add_argument('-f', '--file', dest='file', required=True, type=str,
-                        default='../data/filtered/230921_nettcr_immrepnegs_noswap.csv',
+    parser.add_argument('-f', '--file', dest='file', required=False, type=str,
+                        default='../data/filtered/240515_mock_df.csv',
                         help='filename of the input train file')
     parser.add_argument('-tf', '--test_file', dest='test_file', type=str,
                         default=None, help='External test set (None by default)')
@@ -80,11 +80,11 @@ def args_parser():
     parser.add_argument('-pad', '--pad_scale', dest='pad_scale', type=float, default=None, required=False,
                         help='Number with which to pad the inputs if needed; ' \
                              'Default behaviour is 0 if onehot, -20 is BLOSUM')
-    parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=False,
+    parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=True,
                         help='Adding positional encoding to the sequence vector. False by default')
-    parser.add_argument('-posweight', '--positional_weighting', dest='positional_weighting', type=str2bool, default=False,
+    parser.add_argument('-posweight', '--positional_weighting', dest='positional_weighting', type=str2bool, default=True,
                         help='Whether to use positional weighting in reconstruction loss to prioritize CDR3 chains.')
-    parser.add_argument('-minority_sampler', dest='minority_sampler', default=False, type=str2bool,
+    parser.add_argument('-minority_sampler', dest='minority_sampler', default=True, type=str2bool,
                         help='Whether to use a custom batch sampler to handle minority classes')
     parser.add_argument('-minority_count', dest='minority_count', default=50, type=int,
                         help='Counts to consider a class a minority classes')
@@ -92,21 +92,32 @@ def args_parser():
     """
     Models args 
     """
-    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=256,
-                        help='Number of hidden units in the VAE. Default = 256')
+    parser.add_argument('-ks_in', dest='kernel_size_in', type=int, default=9,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-str_in', dest='stride_in', type=int, default=4,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-pad_in', dest='pad_in', type=int, default=2,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-ks_trans', dest='kernel_size_trans', type=int, default=9,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-str_trans', dest='stride_trans', type=int, default=4,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-pad_trans', dest='pad_trans', type=int, default=2,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-op_trans_1', dest='output_padding_trans_1', type=int, default=1,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-op_trans_2', dest='output_padding_trans_2', type=int, default=0,
+                        help='kernel size for conv in layer')
+    parser.add_argument('-nh', '--hidden_dim', dest='hidden_dim', type=int, default=128,
+                        help='Number of hidden units in the VAE. Default = 128')
     parser.add_argument('-nl', '--latent_dim', dest='latent_dim', type=int, default=128,
                         help='Size of the latent dimension. Default = 128')
     parser.add_argument('-act', '--activation', dest='activation', type=str, default='selu',
                         help='Which activation to use. Will map the correct nn.Module for the following keys:' \
                              '[selu, relu, leakyrelu, elu]')
-    parser.add_argument('-ale', dest='add_layer_encoder', default=False, type=str2bool,
-                        help='Add an extra encoder layer')
-    parser.add_argument('-ald', dest='add_layer_decoder', default=False, type=str2bool,
-                        help='Add an extra decoder layer')
-    parser.add_argument('-bn' ,dest='batchnorm', default=False, type=str2bool,
+    parser.add_argument('-bn' ,dest='batchnorm', default=True, type=str2bool,
                         help='Add Batchnorm to the layers')
-    parser.add_argument('-ob', dest='old_behaviour', default=True, type=str2bool,
-                        help='switchcase to have old behaviour to ahve models we can load/save')
+
 
 
     """
@@ -167,7 +178,7 @@ def args_parser():
     # later on, it makes no sense to concatenate the latent dimensions so we need to figure something else out.
     # parser.add_argument('-s', '--split', dest='split', required=False, type=int,
     #                     default=5, help='How to split the train/test data (test size=1/X)')
-    parser.add_argument('-kf', '--fold', dest='fold', required=False, type=int, default=None,
+    parser.add_argument('-kf', '--fold', dest='fold', required=False, type=int, default=0,
                         help='If added, will split the input file into the train/valid for kcv')
     parser.add_argument('-rid', '--random_id', dest='random_id', type=str, default=None,
                         help='Adding a random ID taken from a batchscript that will start all crossvalidation folds. Default = ""')
@@ -215,8 +226,8 @@ def main():
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_init_code = FullTCRVAE.__init__.__code__
-    model_init_code = FullTCRVAE.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
+    model_init_code = CNNVAE.__init__.__code__
+    model_init_code = CNNVAE.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
     model_keys = [x for x in args.keys() if x in model_init_code]
     dataset_init_code = TCRSpecificDataset.__init__.__code__
     dataset_init_code = TCRSpecificDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
@@ -227,6 +238,7 @@ def main():
 
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
+    dataset_params['conv']=True
     loss_params = {k: args[k] for k in loss_keys}
     # loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
@@ -237,6 +249,11 @@ def main():
     # Dump args to json for potential resume training.
     save_json(args, f'run_parameters_{unique_filename}.json', outdir)
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
+    if args['debug']:
+        train_df = train_df.sample(n=1024)
+        valid_df = valid_df.sample(n=256)
+        args['batch_size'] = 128
+        args['n_epochs'] = 500
     train_dataset = TCRSpecificDataset(train_df, **dataset_params)
     valid_dataset = TCRSpecificDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
@@ -250,7 +267,7 @@ def main():
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = FullTCRVAE(**model_params)
+    model = CNNVAE(**model_params)
     model.to(device)
     criterion = CombinedVAELoss(**loss_params)
     criterion.to(device)
