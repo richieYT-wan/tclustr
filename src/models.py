@@ -495,6 +495,9 @@ class TwoStageVAECLF(NetParent):
         return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)
 
 
+
+
+
 class StandardizerSequence(nn.Module):
     def __init__(self, n_feats=20):
         super(StandardizerSequence, self).__init__()
