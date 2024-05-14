@@ -1,13 +1,5 @@
 #! /usr/bin/bash
 
-# 140 peps
--tbcralign ../output/240411_ClusteringTests/dist_matrices/2404XX_OUTPUT_tbcralign_distmatrix_140peps_labeled.csv 
--tcrdist ../output/240411_ClusteringTests/dist_matrices/tcrdist3_distmatrix_140peps_new_labeled.csv
-
-# 26 peps
-tbcralign=../output/240411_ClusteringTests/dist_matrices/2404XX_OUTPUT_tbcralign_distmatrix_26peps_labeled.csv 
-tcrdist=../output/240411_ClusteringTests/dist_matrices/tcrdist3_distmatrix_26peps_old_labeled.csv
-
 sampler=(True False)
 warmup=(True False)
 cooldown=(True False)
