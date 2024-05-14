@@ -37,7 +37,7 @@ for samp in "${sampler[@]}";do
 						# Define the pattern to match to find the model_folder
 						pattern="TripletTweak_${ds}_CD${cd}_WU${wu}_Sampler${samp}_${tw}"
 						match=$(ls /home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/ | grep ${pattern})
-						filename="$(pwd)/${pattern}_${input_df[i]}.sh"
+						filename="$(pwd)/${pattern}_${input_id[i]}.sh"
 						model_folder="/home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/${match}"
 						script_content=$(cat <<EOF
 source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
