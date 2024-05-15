@@ -1,9 +1,7 @@
-#! /usr/bin/b
 HOMEDIR=/Users/riwa/Documents/code/tclustr/
 PYDIR=${HOMEDIR}pyscripts/
-
-# source/home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda
-# sourceactivate cuda
+source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda
+source activate cuda
 
 # Get the full path of the script
 script_path="$(readlink -f "$0")"
