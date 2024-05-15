@@ -238,7 +238,7 @@ def main():
 
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
-    dataset_params['conv']=True
+    dataset_params['conv'] = True
     loss_params = {k: args[k] for k in loss_keys}
     # loss_params['max_len'] = sum([v for k, v in model_params.items() if 'max_len' in k])
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}

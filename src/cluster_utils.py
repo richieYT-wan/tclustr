@@ -1,10 +1,12 @@
 import glob
 import os
 import re
+from functools import partial
 
 import numpy as np
 import pandas as pd
 import torch
+from joblib import Parallel, delayed
 from matplotlib import pyplot as plt
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import auc, silhouette_score, adjusted_rand_score
@@ -14,6 +16,7 @@ from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import SequentialSampler
 from tqdm.auto import tqdm
 
+from src.conv_models import CNNVAE
 from src.datasets import FullTCRDataset
 from src.models import TwoStageVAECLF, FullTCRVAE
 from src.multimodal_datasets import MultimodalMarginalLatentDataset
@@ -53,10 +56,10 @@ def sort_key(item):
         return int(re.search(r'\d+', item).group()), 0
 
 
-def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmodel', n_points=1500):
+def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmodel', n_points=1500, n_jobs=1):
     # Assuming we are using VAE based models
     if not model_folder.endswith("/"):
-        model_folder = model_folder+'/'
+        model_folder = model_folder + '/'
     files = glob.glob(f'{model_folder}*.pt')
     js = glob.glob(f'{model_folder}*JSON*.json')[0]
     # Get the epochs and sort them
@@ -82,7 +85,7 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
         if 'checkpoint_best' in checkpoint and best_dm is None and 'interval' not in checkpoint:
             best_dm = dist_matrix
 
-        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points)
+        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points, n_jobs=n_jobs)
         results['input_type'] = f'{identifier}_{name}'
         retentions = results['retention'].values[1:-1]
         purities = results['mean_purity'].values[1:-1]
@@ -96,9 +99,9 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
 
 
 def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbcr_dm, identifier='', n_points=250,
-                               baselines=None, plot_title='None', fig_fn=None):
+                               baselines=None, plot_title='None', fig_fn=None, n_jobs=1):
     try:
-        interval_runs, best_dm = run_interval_clustering(model_folder, input_df, index_col, identifier, n_points)
+        interval_runs, best_dm = run_interval_clustering(model_folder, input_df, index_col, identifier, n_points, n_jobs=n_jobs)
     except:
         print('\n\n\n\n', model_folder, identifier, '\n\n\n\n')
         raise ValueError(model_folder, identifier)
@@ -108,7 +111,7 @@ def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbc
     interval_runs = pd.concat([baselines.query('input_type=="TBCRalign"'),
                                baselines.query('input_type == "tcrdist3"'),
                                interval_runs,
-                               agg_results.assign(input_type = f'agg_{identifier}')])
+                               agg_results.assign(input_type=f'agg_{identifier}')])
     # plotting options
     sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)
     f, a = plt.subplots(1, 1, figsize=(9, 9))
@@ -192,17 +195,26 @@ def pipeline_best_model_clustering(model_folder, input_df, name, n_points=500):
     return results
 
 
+def cluster_single_threshold(dist_array, features, labels, encoded_labels, label_encoder, threshold):
+    c = AgglomerativeClustering(n_clusters=None, metric='precomputed', distance_threshold=threshold, linkage='complete')
+    c.fit(dist_array)
+    return get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder)
+
+
 # Here, do a run ith only the best
 def cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder,
-                           decimals=5, n_points=500):
+                           decimals=5, n_points=500, n_jobs=1):
     # Getting clustering at all thresholds
     limits = get_linspace(dist_array, decimals, n_points)
-    results = []
-    for t in tqdm(limits):
-        c = AgglomerativeClustering(n_clusters=None, metric='precomputed', distance_threshold=t, linkage='complete')
-        c.fit(dist_array)
-        results.append(get_all_metrics(t, features, c, dist_array, labels, encoded_labels, label_encoder))
-    results = pd.DataFrame(results)
+    if n_jobs>1:
+        print('HERE')
+        wrapper = partial(cluster_single_threshold, dist_array=dist_array, features=features, labels=labels, encoded_labels=encoded_labels, label_encoder=label_encoder)
+        results = Parallel(n_jobs=n_jobs)(delayed(wrapper)(threshold=t) for t in tqdm(limits))
+    else:
+        results = []
+        for t in tqdm(limits):
+            results.append(cluster_single_threshold(dist_array, features, labels, encoded_labels, label_encoder, t))
+    results = pd.DataFrame(results).sort_values('threshold')
     results['retention'] = (dist_array.shape[0] - results['n_singletons']) / dist_array.shape[0]
     return results
 
@@ -393,9 +405,14 @@ def get_latent_df(model, df, dataset_params: dict = None):
         dataloader = dataset.get_dataloader(512, SequentialSampler)
         latent_df = predict_model(model, dataset, dataloader)
 
-    # TODO: This part is not properly handled
+    elif type(model) == CNNVAE:
+        dataset_params['conv'] = True
+        dataset = FullTCRDataset(df, **dataset_params)
+        dataloader = dataset.get_dataloader(512, SequentialSampler)
+        latent_df = predict_model(model, dataset, dataloader)
+
+    # TODO: This part probly not properly handled
     elif type(model) in [BSSVAE, JMVAE]:
-        pred_fct = predict_multimodal
         dataset_params['pair_only'] = True
         dataset_params['return_pair'] = type(model) == JMVAE
         dataset_params['modality'] = 'tcr'

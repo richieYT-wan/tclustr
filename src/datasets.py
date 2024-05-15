@@ -118,7 +118,7 @@ class FullTCRDataset(VAEDataset):
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
-                 pep_weight_scale=3.8, leave_pep_out: str = None):
+                 pep_weight_scale=3.8, leave_pep_out: str = None, conv=False):
         super(FullTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
@@ -175,8 +175,9 @@ class FullTCRDataset(VAEDataset):
             x_pos = torch.stack(x_pos, dim=2)
             # Add the pos encode to the seq tensor (N, sum(ML), 20) -> (N, sum(ML), 20+n_chains)
             x_seq = torch.cat([x_seq, x_pos], dim=2)
-
-        self.x = x_seq.flatten(start_dim=1)
+        if not conv:
+            x_seq = x_seq.flatten(start_dim=1)
+        self.x = x_seq
         self.pep_weighted = pep_weighted
         # Here save a weight that is peptide specific to give more/less importance to peptides that are less/more frequent
         if pep_weighted:
@@ -213,18 +214,18 @@ class TCRSpecificDataset(FullTCRDataset):
                                                  pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
                                                  b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_col=pep_col,
                                                  pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale,
-                                                 leave_pep_out=leave_pep_out)
+                                                 leave_pep_out=leave_pep_out, conv=conv)
         # Here "labels" are for each peptide, used for the triplet loss
         # MIGHT be overridden wrongly in BimodalTCR dataset!!
         pepmap = {k: v for v, k in enumerate(df[pep_col].unique())}  # FIX
         self.pepmap = pepmap
         self.inverse_pepmap = {v: k for k, v in pepmap.items()}
         self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
-        if conv:
-            self.x = self.x.view(-1, sum([self.max_len_a1, self.max_len_a2, self.max_len_a3,
-                                          self.max_len_b1, self.max_len_b2, self.max_len_b3,
-                                          self.max_len_pep]), self.matrix_dim)
-        # 240507 : Adding minority class saving to get custom batching
+        # if conv:
+        #     self.x = self.x.view(-1, sum([self.max_len_a1, self.max_len_a2, self.max_len_a3,
+        #                                   self.max_len_b1, self.max_len_b2, self.max_len_b3,
+        #                                   self.max_len_pep]), self.matrix_dim)
+        # # 240507 : Adding minority class saving to get custom batching
         low_number = self.df.groupby('peptide').agg(count=(b3_col, 'count')).query('count<=@minority_count').index
         self.df['minority_class'] = self.df[pep_col].apply(lambda x: x in low_number)
         self.minority_classes = [pepmap[x] for x in self.df.query('minority_class').peptide.unique()]

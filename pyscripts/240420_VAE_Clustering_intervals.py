@@ -1,3 +1,5 @@
+import glob
+
 import pandas as pd
 import os, sys
 
@@ -85,6 +87,12 @@ def args_parser():
                         help='index col to sort both baselines and latent df')
     parser.add_argument('-label_col', type=str, required=False, default='peptide',
                         help='column containing the labels (eg peptide)')
+    parser.add_argument('-rb', type=str2bool, required=False, dest='reload_baselines', default=None,
+                        help='True/False to reload baselines')
+    parser.add_argument('-bf', type=str, required=False, dest='baselines_folder', default=None,
+                        help='path containing the baselines (eg peptide)')
+    parser.add_argument('-dn', type=str, required=False, dest='dataset_name', default=None,
+                        help="name of dataset of baseline to use ['OldDataTop15', 'ExpDataTop78', 'OldDataTop20', 'OldDataNoPrune','ExpData17peps']")
     """
     Training hyperparameters & args
     """
@@ -111,6 +119,8 @@ def args_parser():
                         help='re instanciate a new model from scratch')
     parser.add_argument('-tcr_enc', dest='tcr_enc', type=str, default=None,
                         help='Whether to do "alternative" TCR encoding')
+    parser.add_argument('-n_jobs', dest='n_jobs', default=1, type=int,
+                        help='Multiprocessing')
     return parser.parse_args()
 
 
@@ -159,8 +169,7 @@ def main():
 
     if args['fold'] is not None:
         kf = args['fold']
-        train_baselines = []
-        valid_baselines = []
+
         # Here need to re-sort baseline based on the input, in case we are trying to cluster reduced versions of the datasets
         train_df = df.query('partition!=@kf')
         valid_df = df.query('partition==@kf')
@@ -168,22 +177,34 @@ def main():
         tcrdist_train, _ = resort_baseline(tcrdist.query('partition!=@kf'), train_df, index_col)
         tbcralign_valid, _ = resort_baseline(tbcralign.query('partition==@kf'), valid_df, index_col)
         tcrdist_valid, _ = resort_baseline(tcrdist.query('partition==@kf'), valid_df, index_col)
-        train_baselines.append(do_baseline(tbcralign_train, identifier='TBCRalign', label_col=args['label_col'],
-                                           n_points=args['n_points']))
-        train_baselines.append(
-            do_baseline(tcrdist_train, identifier='tcrdist3', label_col=args['label_col'], n_points=args['n_points']))
-        valid_baselines.append(do_baseline(tbcralign_valid, identifier='TBCRalign', label_col=args['label_col'],
-                                           n_points=args['n_points']))
-        valid_baselines.append(
-            do_baseline(tcrdist_valid, identifier='tcrdist3', label_col=args['label_col'], n_points=args['n_points']))
-        train_baselines = pd.concat(train_baselines)
-        valid_baselines = pd.concat(valid_baselines)
+
+        if args['reload_baselines'] and args['baselines_folder'] is not None and args['dataset_name'] is not None:
+            if not args['baselines_folder'].endswith('/'):
+                args['baselines_folder'] = args['baselines_folder']+'/'
+            tf = glob.glob(f'{args["baselines_folder"]}*train*.csv')[0]
+            vf = glob.glob(f'{args["baselines_folder"]}*valid*.csv')[0]
+            train_baselines = pd.read_csv(tf).query('db==@args["dataset_name"]')
+            valid_baselines = pd.read_csv(vf).query('db==@args["dataset_name"]')
+
+        else:
+            train_baselines = []
+            valid_baselines = []
+            train_baselines.append(do_baseline(tbcralign_train, identifier='TBCRalign', label_col=args['label_col'],
+                                               n_points=args['n_points']))
+            train_baselines.append(
+                do_baseline(tcrdist_train, identifier='tcrdist3', label_col=args['label_col'], n_points=args['n_points']))
+            valid_baselines.append(do_baseline(tbcralign_valid, identifier='TBCRalign', label_col=args['label_col'],
+                                               n_points=args['n_points']))
+            valid_baselines.append(
+                do_baseline(tcrdist_valid, identifier='tcrdist3', label_col=args['label_col'], n_points=args['n_points']))
+            train_baselines = pd.concat(train_baselines)
+            valid_baselines = pd.concat(valid_baselines)
         train_results = run_interval_plot_pipeline(args['model_folder'], train_df, index_col, args['label_col'],
                                                    tbcralign_train, args['out'], args['n_points'], train_baselines,
-                                                   f"Train {args['out']}", outdir + unique_filename + 'train_pur_ret_curve')
+                                                   f"Train {args['out']}", outdir + unique_filename + 'train_pur_ret_curve', n_jobs=args['n_jobs'])
         valid_results = run_interval_plot_pipeline(args['model_folder'], valid_df, index_col, args['label_col'],
                                                    tbcralign_valid, args['out'], args['n_points'], valid_baselines,
-                                                   f"Valid {args['out']}", outdir + unique_filename + 'valid_pur_ret_curve')
+                                                   f"Valid {args['out']}", outdir + unique_filename + 'valid_pur_ret_curve', n_jobs=args['n_jobs'])
 
         train_results.to_csv(f'{outdir}{unique_filename}_train_results.csv')
         valid_results.to_csv(f'{outdir}{unique_filename}_valid_results.csv')
