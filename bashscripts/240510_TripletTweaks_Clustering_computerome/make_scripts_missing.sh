@@ -28,7 +28,7 @@ for samp in "${sampler[@]}";do
 					for i in "${!input_df[@]}"; do
 
 						# Define the pattern to match to find the model_folder
-						pattern="${input_id[i]}_TripletTweak_${ds}_CD${cd}_WU${wu}_Sampler${samp}_${tw}"
+						pattern="TripletTweak_${ds}_CD${cd}_WU${wu}_Sampler${samp}_${tw}"
 						ntm=$(ls "/home/projects/vaccine/people/yatwan/tclustr/output/240516_TripletTweaks_IntervalClustering/${input_id[i]}/" | grep ${pattern} | wc -l)
 						echo ${ntm}
 						if [ "$ntm" -eq 0 ]; then
@@ -47,7 +47,7 @@ tbcralign=${tbcralign}
 tcrdist=${tcrdist}
 iid=${input_id[i]}
 idf=${input_df[i]}
-python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o ${pattern} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder}
+python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o \${iid}_${pattern} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder} -rb True -n_jobs 40 -dn \${iid} -bf ../output/240515_IntervalClustering
 EOF
 )
 							echo "$script_content" > "${filename}"
