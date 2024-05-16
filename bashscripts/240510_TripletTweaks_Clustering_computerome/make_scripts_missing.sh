@@ -29,32 +29,32 @@ for samp in "${sampler[@]}";do
 
 						# Define the pattern to match to find the model_folder
 						pattern="${input_id[i]}_TripletTweak_${ds}_CD${cd}_WU${wu}_Sampler${samp}_${tw}"
-						ntm=$(ls "/home/projects/vaccine/people/yatwan/tclustr/output/240516_TripletTweaks_IntervalClustering/${input_id[i]}/" | grep ${pattern}| wc -l)
-
+						ntm=$(ls "/home/projects/vaccine/people/yatwan/tclustr/output/240516_TripletTweaks_IntervalClustering/${input_id[i]}/" | grep ${pattern} | wc -l)
+						echo ${ntm}
 						if [ "$ntm" -eq 0 ]; then
 							match=$(ls /home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/ | grep ${pattern})
 							filename="$(pwd)/scripts_redo/${pattern}_${input_id[i]}.sh"
 							model_folder="/home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/${match}"
 							script_content=$(cat <<EOF
-	source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-	source activate cuda
+source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+source activate cuda
 
-	HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
-	PYDIR=\${HOMEDIR}pyscripts/
-	cd \${PYDIR}
-	model_folder=${model_folder}
-	tbcralign=${tbcralign}
-	tcrdist=${tcrdist}
-	iid=${input_id[i]}
-	idf=${input_df[i]}
-	python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o ${pattern} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder}
-	EOF
-	)
+HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
+PYDIR=\${HOMEDIR}pyscripts/
+cd \${PYDIR}
+model_folder=${model_folder}
+tbcralign=${tbcralign}
+tcrdist=${tcrdist}
+iid=${input_id[i]}
+idf=${input_df[i]}
+python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o ${pattern} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder}
+EOF
+)
 							echo "$script_content" > "${filename}"
 							chmod +x ${filename}
+						else 
+							echo "ntr"
 						fi
-
-
 					done
 				done
 			done
