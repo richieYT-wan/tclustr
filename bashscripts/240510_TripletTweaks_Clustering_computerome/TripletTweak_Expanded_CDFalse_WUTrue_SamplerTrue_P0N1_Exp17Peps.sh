@@ -9,4 +9,4 @@ tbcralign=/home/projects/vaccine/people/yatwan/tclustr/output/240411_ClusteringT
 tcrdist=/home/projects/vaccine/people/yatwan/tclustr/output/240411_ClusteringTests/dist_matrices/tcrdist3_distmatrix_140peps_new_labeled.csv
 iid=Exp17Peps
 idf=/home/projects/vaccine/people/yatwan/tclustr/data/filtered/240418_nettcr_expanded_20binders_17pep_POSONLY.csv
-python3 ./240420_VAE_Clustering_intervals.py -np 400 -kf 0 -o TripletTweak_Expanded_CDFalse_WUTrue_SamplerTrue_P0N1_ -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign ${tbcralign} -tcrdist ${tcrdist} -f ${idf} -model_folder ${model_folder}
+python3 ./240420_VAE_Clustering_intervals.py -np 400 -kf 0 -o TripletTweak_Expanded_CDFalse_WUTrue_SamplerTrue_P0N1 -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign ${tbcralign} -tcrdist ${tcrdist} -f ${idf} -n_jobs 40 -model_folder ${model_folder}

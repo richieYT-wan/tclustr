@@ -111,7 +111,8 @@ def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbc
     interval_runs = pd.concat([baselines.query('input_type=="TBCRalign"'),
                                baselines.query('input_type == "tcrdist3"'),
                                interval_runs,
-                               agg_results.assign(input_type=f'agg_{identifier}')])
+                               agg_results.assign(input_type=f'agg')])
+    interval_runs['input_type'] = interval_runs['input_type'].apply(lambda x: x.replace(identifier,'').lstrip('_').rstrip('_'))
     # plotting options
     sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)
     f, a = plt.subplots(1, 1, figsize=(9, 9))
@@ -146,7 +147,7 @@ def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbc
 
     a.legend(title='distance matrix', title_fontproperties={'size': 14, 'weight': 'semibold'},
              prop={'weight': 'semibold', 'size': 12})
-    f.suptitle(f'{plot_title}\t{identifier}', fontweight='semibold', fontsize=15)
+    f.suptitle(f'{plot_title}', fontweight='semibold', fontsize=15)
     f.tight_layout()
     if fig_fn is not None:
         f.savefig(f'{fig_fn}.png', dpi=200)
