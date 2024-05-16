@@ -31,7 +31,7 @@ for samp in "${sampler[@]}";do
 						pattern="${input_id[i]}_TripletTweak_${ds}_CD${cd}_WU${wu}_Sampler${samp}_${tw}"
 						ntm=$(ls "/home/projects/vaccine/people/yatwan/tclustr/output/240516_TripletTweaks_IntervalClustering/${input_id[i]}/" | grep ${pattern}| wc -l)
 
-						if [[ $ntm -eq 0 ]]; then
+						if [ "$ntm" -eq 0 ]; then
 							match=$(ls /home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/ | grep ${pattern})
 							filename="$(pwd)/scripts_redo/${pattern}_${input_id[i]}.sh"
 							model_folder="/home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/${match}"

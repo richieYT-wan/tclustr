@@ -43,7 +43,7 @@ tbcralign=${tbcralign}
 tcrdist=${tcrdist}
 iid=${input_id[i]}
 idf=${input_df[i]}
-python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o ${pattern}_${iid} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder}
+python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o \${iid}_${pattern} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder}
 EOF
 )
 						echo "$script_content" > "${filename}"
