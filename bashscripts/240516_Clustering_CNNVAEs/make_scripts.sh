@@ -19,11 +19,11 @@ for model_size in "${ms[@]}";do
 
 		fi
 		for i in "${!input_df[@]}"; do
-
+			pattern="${datasource}_${model_size}"
 			# Define the pattern to match to find the model_folder
-			match=$(ls /home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/ | grep ${datasource} | grep ${model_size})
+			match=$(ls /home/projects/vaccine/people/yatwan/tclustr/output/240516_CNNVAE_DiffDatasets/ | grep ${datasource} | grep ${model_size})
 			filename="$(pwd)/clustering_${datasource}_${model_size}_${input_id[i]}.sh"
-			model_folder="/home/projects/vaccine/people/yatwan/tclustr/output/240508_TripletTweaks/${match}"
+			model_folder="/home/projects/vaccine/people/yatwan/tclustr/output/240516_CNNVAE_DiffDatasets/${match}"
 			script_content=$(cat <<EOF
 source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
 source activate cuda
@@ -36,10 +36,11 @@ tbcralign=${tbcralign}
 tcrdist=${tcrdist}
 iid=${input_id[i]}
 idf=${input_df[i]}
-python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o \${iid}_${pattern} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder} -rb True -n_jobs 40 -dn \${iid} -bf ../output/240515_IntervalClustering
+python3 ./240420_VAE_Clustering_intervals.py -np 500 -kf 0 -o \${iid}_CNNVAE_${datasource}_${model_size} -od ../output/240516_TripletTweaks_IntervalClustering/ -tbcralign \${tbcralign} -tcrdist \${tcrdist} -f \${idf} -model_folder \${model_folder} -rb True -n_jobs 40 -dn \${iid} -bf ../output/240515_IntervalClustering
 EOF
 )
-		echo "$script_content" > "${filename}"
-		chmod +x ${filename}
+			echo "$script_content" > "${filename}"
+			chmod +x ${filename}
+		done
 	done
 done
