@@ -195,7 +195,8 @@ def args_parser():
                         help='Adding positional encoding to the sequence vector. False by default')
     parser.add_argument('-pepenc', '--pep_encoding', dest='pep_encoding', type=str, default='categorical',
                         help='Which encoding to use for the peptide (onehot, BL50LO, BL62LO, BL62FREQ, categorical; Default = categorical)')
-
+    parser.add_argument('-conv', dest='conv', type=str2bool, default=False,
+                        help='Whether to use conv models and switch the dataset options')
     """
     Models args 
     """
