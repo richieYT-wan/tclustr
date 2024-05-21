@@ -188,7 +188,6 @@ def main():
             if len(train_baselines) == 0 or valid_baselines == 0:
                 # reload valid baselines just to get the db names
                 valid_baselines = pd.read_csv(vf)
-                ds_name = 
                 raise ValueError(f'Baselines are empty after querying! Dataset name provided is {args["dataset_name"]} but dataset names in baselines are : {valid_baselines.db.unique()}')
 
         else:
