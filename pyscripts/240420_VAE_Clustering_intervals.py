@@ -185,6 +185,7 @@ def main():
             vf = glob.glob(f'{args["baselines_folder"]}*valid*.csv')[0]
             train_baselines = pd.read_csv(tf).query('db==@args["dataset_name"]')
             valid_baselines = pd.read_csv(vf).query('db==@args["dataset_name"]')
+            print(train_baselines.groupby('db').count())
             if len(train_baselines) == 0 or len(valid_baselines)  == 0:
                 # reload valid baselines just to get the db names
                 valid_baselines = pd.read_csv(vf)
