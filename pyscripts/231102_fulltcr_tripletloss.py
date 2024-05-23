@@ -13,7 +13,7 @@ from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
-    get_dict_of_lists, make_filename
+    get_dict_of_lists, make_filename, get_class_initcode_keys
 from src.torch_utils import load_checkpoint, save_model_full, get_available_device, save_json
 from src.models import FullTCRVAE
 from src.train_eval import predict_model, train_eval_loops
@@ -43,6 +43,8 @@ def args_parser():
                         default=None, help='External test set (None by default)')
     parser.add_argument('-o', '--out', dest='out', required=False,
                         type=str, default='', help='Additional output name')
+    parser.add_argument('-od', '--outdir', dest='outdir', required=False,
+                        type=str, default=None, help='Additional output directory')
     parser.add_argument('-a1', '--a1_col', dest='a1_col', default='A1', type=str, required=False,
                         help='Name of the column containing B3 sequences (inputs)')
     parser.add_argument('-a2', '--a2_col', dest='a2_col', default='A2', type=str, required=False,
@@ -207,23 +209,31 @@ def main():
 
     # File-saving stuff
     unique_filename, kf, rid, connector = make_filename(args)
-
+    outdir = '../output/'
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
-    outdir = os.path.join('../output/', unique_filename) + '/'
-    mkdirs(outdir)
+    if args['outdir'] is not None:
+        outdir = os.path.join(outdir, args['outdir'])
+        if not outdir.endswith('/'):
+            outdir = outdir + '/'
+    outdir = os.path.join(outdir, unique_filename) + '/'
 
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
-    model_init_code = FullTCRVAE.__init__.__code__
-    model_init_code = FullTCRVAE.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
-    model_keys = [x for x in args.keys() if x in model_init_code]
-    dataset_init_code = TCRSpecificDataset.__init__.__code__
-    dataset_init_code = TCRSpecificDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
-    dataset_keys = [x for x in args.keys() if x in dataset_init_code]
-    loss_init_code = CombinedVAELoss.__init__.__code__
-    loss_init_code = CombinedVAELoss.__init__.__code__.co_varnames[1:loss_init_code.co_argcount]
-    loss_keys = [x for x in args.keys() if x in loss_init_code]
+    # model_init_code = FullTCRVAE.__init__.__code__
+    # model_init_code = FullTCRVAE.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
+    # model_keys = [x for x in args.keys() if x in model_init_code]
+    # dataset_init_code = TCRSpecificDataset.__init__.__code__
+    # dataset_init_code = TCRSpecificDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
+    # dataset_keys = [x for x in args.keys() if x in dataset_init_code]
+    # loss_init_code = CombinedVAELoss.__init__.__code__
+    # loss_init_code = CombinedVAELoss.__init__.__code__.co_varnames[1:loss_init_code.co_argcount]
+    # loss_keys = [x for x in args.keys() if x in loss_init_code]
+
+    # Def params so it's tidy
+    model_keys = get_class_initcode_keys(CNNVAE, args)
+    dataset_keys = get_class_initcode_keys(TCRSpecificDataset, args)
+    loss_keys = get_class_initcode_keys(CombinedVAELoss, args)
 
     model_params = {k: args[k] for k in model_keys}
     dataset_params = {k: args[k] for k in dataset_keys}

@@ -25,7 +25,7 @@ from src.multimodal_train_eval import predict_multimodal
 from src.sim_utils import make_dist_matrix
 from src.torch_utils import load_model_full
 from src.train_eval import predict_model
-from src.utils import get_palette
+from src.utils import get_palette, get_class_initcode_keys
 
 
 ##################################
@@ -76,7 +76,7 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
         if 'last_epoch' in name:
             continue
         checkpoint = map_epochs_files[name]
-        model = load_model_full(checkpoint, js, map_location='cpu')
+        model, model_json = load_model_full(checkpoint, js, map_location='cpu', return_json=True)
         if hasattr(model, 'vae'):
             model = model.vae
         latent_df = get_latent_df(model, input_df)
@@ -440,6 +440,12 @@ def get_latent_df(model, df, dataset_params: dict = None):
             dataset_params['max_len_pep'] = 0
 
     dataset_params['add_positional_encoding'] = model.add_positional_encoding
+    dataset_params['max_len_a1'] = model.max_len_a1
+    dataset_params['max_len_a2'] = model.max_len_a2
+    dataset_params['max_len_a3'] = model.max_len_a3
+    dataset_params['max_len_b1'] = model.max_len_b1
+    dataset_params['max_len_b2'] = model.max_len_b2
+    dataset_params['max_len_b3'] = model.max_len_b3
 
     if type(model) == FullTCRVAE:
         print(dataset_params)
