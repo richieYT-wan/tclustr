@@ -216,7 +216,7 @@ def main():
         if not outdir.endswith('/'):
             outdir = outdir + '/'
     outdir = os.path.join(outdir, unique_filename) + '/'
-
+    mkdirs(outdir)
     # Def params so it's tidy
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
@@ -231,7 +231,7 @@ def main():
     # loss_keys = [x for x in args.keys() if x in loss_init_code]
 
     # Def params so it's tidy
-    model_keys = get_class_initcode_keys(CNNVAE, args)
+    model_keys = get_class_initcode_keys(FullTCRVAE, args)
     dataset_keys = get_class_initcode_keys(TCRSpecificDataset, args)
     loss_keys = get_class_initcode_keys(CombinedVAELoss, args)
 

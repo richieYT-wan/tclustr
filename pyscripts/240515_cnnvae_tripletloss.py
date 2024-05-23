@@ -227,7 +227,7 @@ def main():
         if not outdir.endswith('/'):
             outdir = outdir + '/'
     outdir = os.path.join(outdir, unique_filename) + '/'
-
+    mkdirs(outdir)
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
     # model_init_code = CNNVAE.__init__.__code__
