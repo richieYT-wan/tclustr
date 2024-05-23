@@ -10,7 +10,7 @@ tbcralign=/home/projects/vaccine/people/yatwan/tclustr/output/240411_ClusteringT
 tcrdist=/home/projects/vaccine/people/yatwan/tclustr/output/240411_ClusteringTests/dist_matrices/tcrdist3_distmatrix_26peps_old_labeled.csv
 iid=OldDataTop20
 # Set outdirs
-outname="CDR3_CNNVAE_sm_lowEpochs_params1_${iid}"
+outname="LD50_KD1_CDR3_CNNVAE_sm_lowEpochs_params1_${iid}"
 outdir='240523_DiagnogsticExperiments'
 RESDIR="${HOMEDIR}output/${outdir}/"
 
