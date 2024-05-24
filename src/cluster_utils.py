@@ -436,16 +436,14 @@ def get_latent_df(model, df, dataset_params: dict = None):
         model = model.vae
         if model.max_len > 7 + 8 + 22 + 6 + 7 + 23:
             dataset_params['max_len_pep'] = 12
-        else:
+        elif model.max_len <= 22 + 23:
+            dataset_params['max_len_a1'] = 0
+            dataset_params['max_len_a2'] = 0
+            dataset_params['max_len_b1'] = 0
+            dataset_params['max_len_b2'] = 0
             dataset_params['max_len_pep'] = 0
 
     dataset_params['add_positional_encoding'] = model.add_positional_encoding
-    dataset_params['max_len_a1'] = model.max_len_a1
-    dataset_params['max_len_a2'] = model.max_len_a2
-    dataset_params['max_len_a3'] = model.max_len_a3
-    dataset_params['max_len_b1'] = model.max_len_b1
-    dataset_params['max_len_b2'] = model.max_len_b2
-    dataset_params['max_len_b3'] = model.max_len_b3
 
     if type(model) == FullTCRVAE:
         print(dataset_params)
