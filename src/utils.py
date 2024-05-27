@@ -33,7 +33,7 @@ def make_filename(args):
     rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') \
         else get_random_id() if (args['random_id'] == '' or args['random_id'] is None) else args['random_id']
 
-    unique_filename = f'{get_datetime_string()}_{args["out"]}{connector}KFold_{kf}_{rid}'
+    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
     return unique_filename, kf, rid, connector
 
 
