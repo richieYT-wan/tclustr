@@ -438,7 +438,7 @@ def get_latent_df(model, df, dataset_params: dict = None):
 
     if model.max_len > 7 + 8 + 22 + 6 + 7 + 23:
         dataset_params['max_len_pep'] = 12
-        
+
     elif model.max_len <= 22 + 23:
         dataset_params['max_len_a1'] = 0
         dataset_params['max_len_a2'] = 0

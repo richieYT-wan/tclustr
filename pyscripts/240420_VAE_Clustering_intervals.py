@@ -7,7 +7,7 @@ module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
 from datetime import datetime as dt
-from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string
+from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, make_filename
 import argparse
 from src.cluster_utils import resort_baseline, do_baseline, run_interval_plot_pipeline
 
@@ -131,15 +131,8 @@ def main():
     args = vars(args_parser())
     assert not all([args[k] is None for k in ['model_folder', 'pt_file', 'json_file']]), \
         'Please provide either the path to the folder containing the .pt and .json or paths to each file (.pt/.json) separately!'
-    connector = '' if args["out"] == '' else '_'
-    kf = '-1' if args["fold"] is None else args['fold']
-    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args[
-                                                                                                                       'random_id'] == '' else \
-        args['random_id']
-
     dfname = args['file'].split('/')[-1].split('.')[0]
-
-    unique_filename = f'{args["out"]}{connector}{dfname}_{get_datetime_string()}_{rid}'
+    unique_filename, kf, rid, connector = make_filename(args)
 
     outdir = '../output/'
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
