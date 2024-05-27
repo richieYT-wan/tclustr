@@ -251,7 +251,7 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
     # To normalize the mean accuracy thing depending on the amount of different metrics we are using
     # Only consider the sequence reconstruction, but report the positional enc reconstruction in the prints and saves
     # Because positional encoding reconstruction _should_ be trivial
-    intervals = (np.arange(0.2,1,0.2) * n_epochs).astype(int)
+    early_intervals = np.arange(0, 4500, 500)
     best_dict = {}
     for e in tqdm(range(1, n_epochs + 1), desc='epochs', leave=False):
         train_loss, train_metric = train_model_step(model, criterion, optimizer, train_loader)
@@ -286,7 +286,7 @@ def train_eval_loops(n_epochs, tolerance, model, criterion, optimizer,
             save_checkpoint(model, filename=checkpoint_filename, dir_path=outdir, best_dict=best_dict)
 
         # Adding a new thing where we log the model every 10% of the epochs, could make it easier to re-train to a certain point ??
-        if e % math.ceil(0.1 * n_epochs) == 0 or e == n_epochs:
+        if e % math.ceil(0.1 * n_epochs) == 0 or e == n_epochs or e in early_intervals:
             fn = f'epoch_{e}_interval_' + checkpoint_filename.replace('best', '')
             savedict = {'epoch': e}
             savedict.update(valid_loss)
