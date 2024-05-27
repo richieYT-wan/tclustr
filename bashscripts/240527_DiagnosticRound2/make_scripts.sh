@@ -71,14 +71,11 @@ EOF
 				fi
 				for idx in ${!input_id[@]};do
 					cluster_content=$(cat <<EOF
-
-
 outmatch=\$(ls -t \${RESDIR} | grep \${random_id} | head -n 1)
 iid=${input_id[i]}
 idf=${input_df[i]}
 # Run clustering part
 python3 ./240420_VAE_Clustering_intervals.py -rid \${random_id} -np 500 -kf 0 -o \${outname}_${iid} -od ../output/\${outdir}/clustering/ -tbcralign ${tbcralign} -tcrdist ${tcrdist} -f ${idf} -model_folder "\${RESDIR}/\${outmatch}" -rb True -n_jobs 40 -dn ${iid} -bf ../output/240515_IntervalClustering
-
 EOF
 )
 					echo "${cluster_content}$" >> "${SCRIPTDIR}/${filename}".sh
