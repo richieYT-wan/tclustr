@@ -1,6 +1,7 @@
 #! /usr/bin/bash
 
 SCRIPTDIR=$(pwd)
+echo ${SCRIPTDIR}
 trainsource=(ExpAll OldAll)
 trainfile=(240326_nettcr_paired_NOswaps.csv 240416_nettcr_old_26pep_no_swaps.csv)
 model_type=(VAE CNNVAE)
@@ -52,7 +53,7 @@ outname=${filename}
 python3 ./${python_script} -f \${HOMEDIR}data/filtered/${tf} -od \${outdir} -pad -20 -enc BL50LO -ne 20000 -cuda True -lwseq 1 -lwkld ${kl} -lwtrp 3 -dist_type cosine -margin 0.2 -mla1 7 -mla2 8 -mla3 22 -mlb1 6 -mlb2 7 -mlb3 23 -mlpep 0 -nl ${ld} -nh 128 -bs 512 -lr 1e-4 -wd 1e-4 -wu 150 -fp 50 -kld_dec 1e-2 -kldts 0.075 -o \${outname} -kf 0 -seed 0 -addpe True -bn True -ale True -ald True -ob False -pepweight False -posweight True -rid \${random_id}
 EOF
 )
-				echo "$script_content" > "${SCRIPTDIR}${filename}".sh
+				echo "$script_content" > "${SCRIPTDIR}/${filename}".sh
 				# After writing the first script_content to the file
 				# use a loop to go over input_df tbcr_align etc and append to the script using >>
 				if [ "$ds" = "78peps" -o "$ds" = "ExpAll" ]; then
@@ -80,7 +81,7 @@ python3 ./240420_VAE_Clustering_intervals.py -rid \${random_id} -np 500 -kf 0 -o
 
 EOF
 )
-					echo "${cluster_content}$" >> "${SCRIPTDIR}${filename}".sh
+					echo "${cluster_content}$" >> "${SCRIPTDIR}/${filename}".sh
 				chmod +x ${filename}.sh
 				done
 			done
