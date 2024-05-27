@@ -353,7 +353,7 @@ def plot_pipeline(results, b, plot_title='None', fig_fn=None, filter=None, palet
 ##################################
 
 def resort_baseline(baseline_dm, input_dm, index_col,
-                    cols=['peptide', 'original_peptide', 'binder', 'partition']):
+                    cols=('peptide', 'original_peptide', 'binder', 'partition')):
     """
     Resorts the baseline_dm to match input_dm in order to do agg_clustering
     Args:
@@ -364,6 +364,7 @@ def resort_baseline(baseline_dm, input_dm, index_col,
     Returns:
 
     """
+    cols = list(cols)
     if index_col not in cols:
         cols.append(index_col)
     baseline_copy = baseline_dm.copy()
