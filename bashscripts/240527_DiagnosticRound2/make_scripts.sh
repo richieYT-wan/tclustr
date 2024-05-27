@@ -14,7 +14,7 @@ for model in ${model_type[@]};do
 	else
 		python_script=231102_fulltcr_tripletloss.py
 	fi
-	for ld in ${ms[@]};do
+	for ld in ${latdims[@]};do
 		for kl in ${klds[@]};do
 			for ts in "${!trainsource[@]}"; do
 				ds=${trainsource[ts]}
