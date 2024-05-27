@@ -26,7 +26,7 @@ for model in ${model_type[@]};do
 				# USE THE RANDOM ID TO GREP THE CORRECT FOLDER FOR THE INPUT OF THE MODEL
 				
 				filename="RedoHP_${model}_latent_${ld}_kld_${kl}_train_${ds}"
-
+				echo "Making ${SCRIPTDIR}/${filename}.sh"
 				script_content=$(cat <<EOF
 source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
 source activate cuda
@@ -82,7 +82,7 @@ python3 ./240420_VAE_Clustering_intervals.py -rid \${random_id} -np 500 -kf 0 -o
 EOF
 )
 					echo "${cluster_content}$" >> "${SCRIPTDIR}/${filename}".sh
-				chmod +x ${filename}.sh
+				chmod +x "${SCRIPTDIR}/${filename}".sh
 				done
 			done
 		done
