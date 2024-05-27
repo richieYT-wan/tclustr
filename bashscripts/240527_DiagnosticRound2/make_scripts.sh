@@ -76,9 +76,10 @@ iid=${input_id[idx]}
 idf=${input_df[idx]}
 # Run clustering part
 python3 ./240420_VAE_Clustering_intervals.py -rid \${random_id} -np 500 -kf 0 -o \${outname}_${iid} -od ../output/\${outdir}/clustering/ -tbcralign ${tbcralign} -tcrdist ${tcrdist} -f ${idf} -model_folder "\${RESDIR}/\${outmatch}" -rb True -n_jobs 40 -dn ${iid} -bf ../output/240515_IntervalClustering
+
 EOF
 )
-					echo "${cluster_content}$" >> "${SCRIPTDIR}/${filename}".sh
+					echo "${cluster_content}" >> "${SCRIPTDIR}/${filename}".sh
 				chmod +x "${SCRIPTDIR}/${filename}".sh
 				done
 			done
