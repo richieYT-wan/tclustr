@@ -18,7 +18,7 @@ RESDIR="${HOMEDIR}output/${outdir}/"
 
 cd ${PYDIR}
 # Run CNNVAE
-python3 ./231102_fulltcr_tripletloss.py -f ${file} -od ${outdir} -pad -20 -enc BL50LO -ne 5000 -cuda True -lwseq 1 -lwkld 1e-4 -lwtrp 3 -dist_type cosine -margin 0.2 -mla1 7 -mla2 8 -mla3 22 -mlb1 6 -mlb2 7 -mlb3 23 -mlpep 0 -nl 50 -nh 256 -bs 1024 -lr 5e-4 -wd 1e-5 -wu 150 -fp 50 -kld_dec 1e-2 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -ale True -ald True -ob False -pepweight False -posweight True 
+# python3 ./231102_fulltcr_tripletloss.py -f ${file} -od ${outdir} -pad -20 -enc BL50LO -ne 5000 -cuda True -lwseq 1 -lwkld 1e-4 -lwtrp 3 -dist_type cosine -margin 0.2 -mla1 7 -mla2 8 -mla3 22 -mlb1 6 -mlb2 7 -mlb3 23 -mlpep 0 -nl 50 -nh 256 -bs 1024 -lr 5e-4 -wd 1e-5 -wu 150 -fp 50 -kld_dec 1e-2 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -ale True -ald True -ob False -pepweight False -posweight True 
 
 
 outmatch=$(ls -t ${RESDIR} | grep ${outname} | head -n 1)

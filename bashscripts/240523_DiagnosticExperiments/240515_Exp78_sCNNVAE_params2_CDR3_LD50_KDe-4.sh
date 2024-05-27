@@ -18,7 +18,7 @@ RESDIR="${HOMEDIR}output/${outdir}/"
 
 cd ${PYDIR}
 # Run CNNVAE
-python3 ./240515_cnnvae_tripletloss.py -od ${outdir} -f ${file} -pad -20 -enc BL50LO -ne 20000 -cuda True -lwseq 1 -lwkld 1e-4 -lwtrp 10 -dist_type cosine -margin 0.2 -mla1 0 -mla2 0 -mla3 22 -mlb1 0 -mlb2 0 -mlb3 23 -mlpep 0 -op_trans_1 2 -nl 50 -nh 128 -bs 512 -lr 2.5e-4 -wd 1e-4 -wu 150 -fp 150 -kld_dec 1e-3 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -pepweight False -posweight True -minority_sampler True -minority_count 50 
+# python3 ./240515_cnnvae_tripletloss.p -od ${outdir} -f ${file} -pad -20 -enc BL50LO -ne 20000 -cuda True -lwseq 1 -lwkld 1e-4 -lwtrp 10 -dist_type cosine -margin 0.2 -mla1 0 -mla2 0 -mla3 22 -mlb1 0 -mlb2 0 -mlb3 23 -mlpep 0 -op_trans_1 2 -nl 50 -nh 128 -bs 512 -lr 2.5e-4 -wd 1e-4 -wu 150 -fp 150 -kld_dec 1e-3 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -pepweight False -posweight True -minority_sampler True -minority_count 50 
 
 outmatch=$(ls -t ${RESDIR} | grep ${outname} | head -n 1)
 # Run Clustering
