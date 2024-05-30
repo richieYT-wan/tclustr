@@ -82,20 +82,26 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
         latent_df = get_latent_df(model, input_df)
         dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(
             latent_df, index_col=index_col)
-        if 'checkpoint_best' in checkpoint and best_dm is None and 'interval' not in checkpoint:
-            best_dm = dist_matrix
 
         results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points, n_jobs=n_jobs)
         results['input_type'] = f'{identifier}_{name}'
         retentions = results['retention'].values[1:-1]
         purities = results['mean_purity'].values[1:-1]
         p70_r35_auc = get_retpur_auc(retentions, purities, min_retention=0.35, min_purity=0.70)
-        if p70_r35_auc > best_auc:
-            best_auc = p70_r35_auc
+
+        # Saving just the best in case nothing beats the best AUC and no best_dm has been found
+        if 'checkpoint_best' in checkpoint and best_dm is None and 'interval' not in checkpoint:
             best_dm = dist_matrix
+            best_auc = p70_r35_auc
+            best_name = 'checkpoint_best'
+        # Then do the actual auc check
+        if p70_r35_auc > best_auc:
+            best_dm = dist_matrix
+            best_auc = p70_r35_auc
+            best_name = name
         cat_results.append(results)
     cat_results = pd.concat(cat_results)
-    return cat_results, best_dm
+    return cat_results, best_dm, best_name
 
 
 def plot_pipeline_all(runs, title=None, fn=None, palette='gnuplot2'):
@@ -142,7 +148,7 @@ def plot_pipeline_all(runs, title=None, fn=None, palette='gnuplot2'):
 def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbcr_dm, identifier='', n_points=250,
                                baselines=None, plot_title='None', fig_fn=None, n_jobs=1):
     try:
-        interval_runs, best_dm = run_interval_clustering(model_folder, input_df, index_col, identifier, n_points, n_jobs=n_jobs)
+        interval_runs, best_dm, best_name = run_interval_clustering(model_folder, input_df, index_col, identifier, n_points, n_jobs=n_jobs)
     except:
         print('\n\n\n\n', model_folder, identifier, '\n\n\n\n')
         raise ValueError(model_folder, identifier)
@@ -152,7 +158,7 @@ def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbc
     interval_runs = pd.concat([baselines.query('input_type=="TBCRalign"'),
                                baselines.query('input_type == "tcrdist3"'),
                                interval_runs,
-                               agg_results.assign(input_type=f'agg')])
+                               agg_results.assign(input_type=f'agg_{best_name}')])
     interval_runs['input_type'] = interval_runs['input_type'].apply(lambda x: x.replace(identifier,'').lstrip('_').rstrip('_'))
     # plotting options
     sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)

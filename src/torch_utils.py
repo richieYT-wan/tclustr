@@ -51,7 +51,6 @@ def batch_generator(x_tensor, batch_size):
 def get_available_device():
     # Check the number of available GPUs
     num_gpus = torch.cuda.device_count()
-
     if num_gpus == 0:
         print("No GPUs available. Using CPU.")
         return 'cpu'
