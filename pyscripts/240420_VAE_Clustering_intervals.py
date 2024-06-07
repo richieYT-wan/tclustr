@@ -101,7 +101,8 @@ def args_parser():
                         help='Whether to run in debug mode (False by default)')
     parser.add_argument('-np', '--n_points', dest='n_points', type=int, default=500,
                         help='How many points to do for the bounds limits')
-
+    parser.add_argument('-link', '--linkage', dest='linkage', type=str, default='complete',
+                        help='Which linkage to use for AgglomerativeClustering')
     """
     TODO: Misc. 
     """

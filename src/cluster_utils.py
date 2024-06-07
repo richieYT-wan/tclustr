@@ -162,7 +162,7 @@ def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbc
     interval_runs['input_type'] = interval_runs['input_type'].apply(lambda x: x.replace(identifier,'').lstrip('_').rstrip('_'))
     # plotting options
     sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)
-    f, a = plt.subplots(1, 1, figsize=(9, 9))
+    f, a = plt.subplots(1, 1, figsize=(15, 15))
     a.set_xlim([0, 1])
     a.set_ylim([0, 1])
     a.set_xlabel('Retention', fontweight='semibold', fontsize=14)

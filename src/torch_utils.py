@@ -266,6 +266,9 @@ def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True,
     if dir_path is not None:
         filename = os.path.join(dir_path, filename)
     try:
+        if 'map_location' not in kwargs:
+            DEVICE = get_available_device()
+            kwargs['map_location'] = DEVICE
         checkpoint = torch.load(filename, **kwargs)
         if 'best' in checkpoint.keys():
             best = checkpoint.pop('best')
