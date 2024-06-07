@@ -20,7 +20,7 @@ random_id="${first_char}${rest_chars}"
 outname=RedoHP_CNNVAE_latent_256_kld_1e-2_train_ExpAll
 
 # Run VAE
-python3 ./240515_cnnvae_tripletloss.py -f ${HOMEDIR}data/filtered/240326_nettcr_paired_NOswaps.csv -od ${outdir} -pad -20 -enc BL50LO -ne 20000 -cuda True -lwseq 1 -lwkld 1e-2 -lwtrp 3 -dist_type cosine -margin 0.2 -mla1 7 -mla2 8 -mla3 22 -mlb1 6 -mlb2 7 -mlb3 23 -mlpep 0 -nl 256 -nh 128 -bs 512 -lr 1e-4 -wd 1e-4 -wu 150 -fp 50 -kld_dec 1e-2 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -ale True -ald True -ob False -pepweight False -posweight True -rid ${random_id}
+python3 ./240515_cnnvae_tripletloss.py -f ${HOMEDIR}data/filtered/240326_nettcr_paired_NOswaps.csv -od ${outdir} -pad -20 -enc BL50LO -ne 20000 -cuda True -lwseq 1 -lwkld 1e-2 -lwtrp 3 -dist_type cosine -margin 0.2 -mla1 7 -mla2 8 -mla3 22 -mlb1 6 -mlb2 7 -mlb3 23 -mlpep 0 -nl 256 -nh 256 -bs 512 -lr 1e-4 -wd 1e-4 -wu 150 -fp 50 -kld_dec 1e-2 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -ale True -ald True -ob False -pepweight False -posweight True -rid ${random_id}
 outmatch=$(ls -t ${RESDIR} | grep ${random_id} | head -n 1)
 iid=ExpData17peps
 idf=/home/projects/vaccine/people/yatwan/tclustr/data/filtered/240418_nettcr_expanded_20binders_17pep_POSONLY.csv
