@@ -350,14 +350,14 @@ class FullTCRVAE(NetParent):
 
 class PeptideClassifier(NetParent):
 
-    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
+    def __init__(self, pep_dim=12, latent_dim=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
                  decrease_hidden=False, add_pep=True):
         super(PeptideClassifier, self).__init__()
         # self.sigmoid = nn.Sigmoid()
 
         # self.softmax = nn.Softmax()
 
-        in_dim = pep_dim + n_latent if add_pep else n_latent
+        in_dim = pep_dim + latent_dim if add_pep else latent_dim
         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU()]
         if batchnorm:
             in_layer.append(nn.BatchNorm1d(n_hidden_clf))

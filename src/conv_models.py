@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from src.data_processing import encoding_matrix_dict
-from src.models import NetParent
+from src.models import NetParent, PeptideClassifier
 
 
 class CNNEncoder(NetParent):
@@ -175,3 +175,61 @@ class CNNVAE(NetParent):
         sequence, positional_encoding = self.slice_x(x_hat)
         seq_idx = self.recover_indices(sequence)
         return seq_idx, positional_encoding
+
+
+class TwoStageCNNVAECLF(NetParent):
+    def __init__(self, vae_kwargs, clf_kwargs, warm_up_clf=0):
+        super(TwoStageCNNVAECLF, self).__init__()
+        self.vae = CNNVAE(**vae_kwargs)
+        self.clf = PeptideClassifier(**clf_kwargs)
+        self.warm_up_clf = warm_up_clf
+        self.counter = 0
+
+    def forward(self, x_tcr, x_pep):
+        """
+        Needs to back-propagate on and return :
+            x_hat -> reconstruction loss
+            mu/logvar -> KLD loss
+            mu -> Triplet/Contrastive loss: This is just `z_embed` without reparameterisation !
+            x_out -> Prediction loss (Binary Cross Entropy? MSE?)
+        Args:
+            x_tcr:
+            x_pep:
+
+        Returns:
+            x_hat: reconstructed input
+            mu: Mean latent vector (used for KLD + Triplet)
+            logvar: std latent vector (used for KLD)
+            x_out: pMHC-TCR prediction output logit (used for classifier loss)
+        """
+        x_hat, mu, logvar = self.vae(x_tcr)
+        # Mu is the non-reparameterised Z_latent ; So we just take that as the embedding and concat with x_pep
+        z = torch.cat([mu, x_pep.flatten(start_dim=1)], dim=1)
+        # Only do the CLF part if the counter is above the warm_up threshold ; This is redundant but just in case
+        if self.counter < self.warm_up_clf:
+            with torch.no_grad():
+                x_out = self.clf(z)
+        else:
+            x_out = self.clf(z)
+        return x_hat, mu, logvar, x_out
+
+    def reconstruct_hat(self, x):
+        return self.vae.reconstruct_hat(x)
+
+    def slice_x(self, x):
+        return self.vae.slice_x(x)
+
+    def reconstruct(self, z):
+        return self.vae.reconstruct(z)
+
+    def embed(self, x):
+        return self.vae.embed(x)
+
+    def sample_latent(self, n_samples):
+        return self.vae.sample_latent(n_samples)
+
+    def recover_indices(self, seq_tensor):
+        return self.vae.recover_indices(seq_tensor)
+
+    def recover_sequences_blosum(self, seq_tensor, AA_KEYS='ARNDCQEGHILKMFPSTWYVX'):
+        return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)

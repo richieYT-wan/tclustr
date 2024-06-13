@@ -226,7 +226,7 @@ class TCRSpecificDataset(FullTCRDataset):
         #                                   self.max_len_b1, self.max_len_b2, self.max_len_b3,
         #                                   self.max_len_pep]), self.matrix_dim)
         # # 240507 : Adding minority class saving to get custom batching
-        low_number = self.df.groupby('peptide').agg(count=(b3_col, 'count')).query('count<=@minority_count').index
+        low_number = self.df.query('binder==1').groupby('peptide').agg(count=(b3_col, 'count')).query('count<=@minority_count').index
         self.df['minority_class'] = self.df[pep_col].apply(lambda x: x in low_number)
         self.minority_classes = [pepmap[x] for x in self.df.query('minority_class').peptide.unique()]
 
@@ -243,13 +243,14 @@ class TwoStageTCRpMHCDataset(TCRSpecificDataset):
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO',
                  pep_pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
-                 pep_col='peptide', label_col='binder', pep_weighted=False, pep_weight_scale=3.8):
+                 pep_col='peptide', label_col='binder', pep_weighted=False, pep_weight_scale=3.8, minority_count=50, conv=False):
         super(TwoStageTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                      max_len_b3, max_len_pep=max_len_pep,
                                                      add_positional_encoding=add_positional_encoding, encoding=encoding,
                                                      pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
                                                      b1_col=b1_col, b2_col=b2_col, b3_col=b3_col,
-                                                     pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale)
+                                                     pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale,
+                                                     minority_count=minority_count,  conv=conv)
         assert pep_encoding in ['categorical'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
@@ -274,6 +275,7 @@ class TwoStageTCRpMHCDataset(TCRSpecificDataset):
         # TODO: fix this
         #   Quick & Dirty fix for triplet loss : Use PepWeights as binary mask to remove some losses
         #   Set pepweights as where original_pep == pep, in TwoStageVAELoss, use weights only for triplet
+        #   this should've just been df['binder'].vaules ...
         self.pep_weights = torch.from_numpy(
             self.df.apply(lambda x: x['original_peptide'] == x['peptide'], axis=1).values).float().unsqueeze(1)
         # Summary for Bimodal:

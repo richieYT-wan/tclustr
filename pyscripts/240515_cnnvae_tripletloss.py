@@ -121,7 +121,6 @@ def args_parser():
                         help='Add Batchnorm to the layers')
 
 
-
     """
     Training hyperparameters & args
     """
@@ -227,24 +226,12 @@ def main():
     # File-saving stuff
     unique_filename, kf, rid, connector = make_filename(args)
     outdir = '../output/'
-    # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
     if args['outdir'] is not None:
         outdir = os.path.join(outdir, args['outdir'])
         if not outdir.endswith('/'):
             outdir = outdir + '/'
     outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
-
-    # Maybe this is better? Defining the various keys using the constructor's init arguments
-    # model_init_code = CNNVAE.__init__.__code__
-    # model_init_code = CNNVAE.__init__.__code__.co_varnames[1:model_init_code.co_argcount]
-    # model_keys = [x for x in args.keys() if x in model_init_code]
-    # dataset_init_code = TCRSpecificDataset.__init__.__code__
-    # dataset_init_code = TCRSpecificDataset.__init__.__code__.co_varnames[1:dataset_init_code.co_argcount]
-    # dataset_keys = [x for x in args.keys() if x in dataset_init_code]
-    # loss_init_code = CombinedVAELoss.__init__.__code__
-    # loss_init_code = CombinedVAELoss.__init__.__code__.co_varnames[1:loss_init_code.co_argcount]
-    # loss_keys = [x for x in args.keys() if x in loss_init_code]
 
     # Def params so it's tidy
     model_keys = get_class_initcode_keys(CNNVAE, args)
