@@ -1,29 +1,25 @@
-import numpy as np
-import pandas as pd
-import sklearn
-import torch
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import seaborn as sns
-from torch import nn as nn
+import math
 
-from src.data_processing import verify_df, get_dataset, encoding_matrix_dict
-from src.utils import get_palette
+import numpy as np
+import torch
+from overrides import override
+
+from src.torch_utils import mask_modality, filter_modality
 from torch import nn
 from torch.nn import functional as F
 
-mpl.rcParams['figure.dpi'] = 180
-sns.set_style('darkgrid')
-from sklearn.metrics import roc_curve, roc_auc_score, f1_score, accuracy_score, \
-    recall_score, precision_score, precision_recall_curve, auc, average_precision_score
+from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score, \
+    precision_score, precision_recall_curve, auc, average_precision_score, recall_score
 
 
 class LossParent(nn.Module):
 
     def __init__(self, debug=False):
         super(LossParent, self).__init__()
+        self.positional_weights = torch.empty(1)
         self.counter = 0
         self.debug = debug
+        self.device = 'cpu'
 
     def increment_counter(self):
         "one level of children modules ; If we get too many might need to have a recursive method somewhere"
@@ -32,8 +28,24 @@ class LossParent(nn.Module):
             if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
                 c.increment_counter()
 
+    def set_counter(self, counter):
+        self.counter = counter
+        for c in self.children():
+            if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
+                c.set_counter(counter)
 
-
+    def to(self, device):
+        super(LossParent, self).to(device)
+        self.device = device
+        if hasattr(self, 'positional_weights') and hasattr(self, 'positional_weighting'):
+            if self.positional_weighting:
+                self.positional_weights = self.positional_weights.to(device)
+        for c in self.children():
+            if hasattr(c, 'device') and hasattr(c, 'to'):
+                c.to(device)
+            if hasattr(c, 'positional_weighting') and hasattr(c, 'positional_weights'):
+                if c.positional_weighting:
+                    c.positional_weights = c.positional_weights.to(device)
 
 
 class VAELoss(LossParent):
@@ -50,27 +62,90 @@ class VAELoss(LossParent):
     --> All I need to ensure : FullTCRvae works, fulltcrvae_triplet works, bimodal works
     """
 
-    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='none'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 weight_seq=3, weight_kld=1e-2, debug=False, warm_up=0):
+                 positional_weighting=False, weight_seq=3, weight_kld=1e-2, warm_up=100, tanh_scale=0.1,
+                 kld_decrease=1e-3, flat_phase=100, debug=False):
         super(VAELoss, self).__init__()
         max_len = sum([max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep])
         pos_dim = sum([int(mlx) > 0 for mlx in
                        [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep]]) \
             if add_positional_encoding else 0
+        # Refactoring : Do sequence_criterion with reduction='none' and manually do the mean
+        self.positional_weighting = positional_weighting
+        if positional_weighting:
+            # take 2d weights (sum_lens, 1), and broadcast using torch.mul so it takes less memory
+            # Set weights for CDR3 to 3x while cdr1,2,pep weights are at 1
+            alpha_weights = torch.cat([torch.full([max_len_a1 + max_len_a2, 1], 1),
+                                       torch.full([max_len_a3, 1], 3)], dim=0)
+            beta_weights = torch.cat([torch.full([max_len_b1 + max_len_b2, 1], 1),
+                                      torch.full([max_len_b3, 1], 3)], dim=0)
+            pep_weights = torch.full([max_len_pep, 1], 1)
+            self.positional_weights = torch.cat([alpha_weights, beta_weights, pep_weights], dim=0).to(self.device)
+            assert self.positional_weights.shape == (max_len, 1), 'wrong shape for pos weights'
+            print('Here in Vae loss pos weights init', self.positional_weights.device, self.positional_weighting)
+
         self.max_len = max_len
         self.aa_dim = aa_dim
         self.pos_dim = pos_dim
         self.add_positional_encoding = add_positional_encoding
         self.norm_factor = weight_seq + weight_kld
         self.sequence_criterion = sequence_criterion
-        self.weight_seq = weight_seq / self.norm_factor
-        self.base_weight_kld = weight_kld / self.norm_factor
-        self.weight_kld = self.base_weight_kld
-        self.step = 0
+        self.weight_seq = weight_seq  # / self.norm_factor
+        # KLD weight things
+        self.base_weight_kld = weight_kld  # / self.norm_factor
+        self.weight_kld = 0
+        print('here', self.base_weight_kld, self.weight_kld)
+        self.kld_warm_up = warm_up
+        self.kld_tanh_scale = tanh_scale
+        self.flat_phase = warm_up // 3 if flat_phase is None else flat_phase
+        self.kld_decrease = kld_decrease
+
+        self.counter = 0
         self.debug = debug
         self.kld_warm_up = warm_up
         print(f'Weights: seq, kld_base: ', self.weight_seq, self.base_weight_kld)
+
+    def to(self, device):
+        super(VAELoss, self).to(device)
+        self.device = device
+        if self.positional_weighting:
+            self.positional_weights = self.positional_weights.to(device)
+
+    def reconstruction_loss(self, x_hat, x):
+        x_hat_seq, positional_hat = self.slice_x(x_hat)
+        x_true_seq, positional_true = self.slice_x(x)
+        reconstruction_loss = self.sequence_criterion(x_hat_seq, x_true_seq)
+        # if positional weighting, then multiply the loss to give larger/smaller gradients w.r.t. chains and positions
+        if self.positional_weighting:
+            reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
+
+        # Here, take the mean before checking for positional encoding because we have un-reduced loss
+        # and scale it by the "weight_seq" (versus weight_kld)
+        reconstruction_loss = self.weight_seq * reconstruction_loss.mean()
+
+        # check if we use positional encoding, if yes we add the loss
+        if self.add_positional_encoding:
+            # Here use 1e-3
+            positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true)
+            reconstruction_loss += (1e-3 * self.weight_seq * positional_loss)
+
+        return reconstruction_loss
+
+    def kullback_leibler_divergence(self, mu, logvar):
+        # 240426 Replaced with TanH regime
+        # KLD weight regime control
+        # if self.counter < self.kld_warm_up:
+        #     # While in the warm-up phase, weight_kld is 0
+        #     self.weight_kld = 0
+        # else:
+        #     # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
+        #     # until it reaches a minimum of the base weight / 5
+        #     self.weight_kld = max(
+        #         self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
+        #         self.base_weight_kld / 5)
+
+        return self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
 
     def slice_x(self, x):
         """
@@ -86,6 +161,7 @@ class VAELoss(LossParent):
         # In this case, we need to first slice the first part of the vector which is the sequence, then additionally
         # slice the rest of the vector which should be whatever feature we add in
         # Here, reshape to aa_dim+pos_dim no matter what, as pos_dim can be 0, and first set pos_enc to None
+        # TODO : Here, since it's reshaped, we can maybe put a positional_weight to give more weight on reconstruction of some chains
         sequence = x[:, 0:(self.max_len * (self.aa_dim + self.pos_dim))].view(-1, self.max_len,
                                                                               (self.aa_dim + self.pos_dim))
         positional_encoding = None
@@ -111,28 +187,9 @@ class VAELoss(LossParent):
         Returns:
 
         """
-        x_hat_seq, positional_hat = self.slice_x(x_hat)
-        x_true_seq, positional_true = self.slice_x(x)
-        reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
-
-        if self.add_positional_encoding:
-            # TODO Should maybe add a weight here to minimize this part because it's easy
-            #      For now, try to use weight = 1/100 weight_seq ?
-            # Here use 1e-4
-            positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true)
-            reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
-
-        # KLD weight regime control
-        if self.counter < self.kld_warm_up:
-            # While in the warm-up phase, weight_kld is 0
-            self.weight_kld = 0
-        else:
-            # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
-            # until it reaches a minimum of the base weight / 5
-            self.weight_kld = max(self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter-self.kld_warm_up)),
-                                  self.base_weight_kld/5)
-
-        kld = self.weight_kld * (-0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp()))
+        # Refactoring : Use the newly made self methods in forward
+        reconstruction_loss = self.reconstruction_loss(x_hat, x)
+        kld = self.kullback_leibler_divergence(mu, logvar)
 
         if self.debug:
             print('seq_loss', reconstruction_loss)
@@ -146,52 +203,154 @@ class VAELoss(LossParent):
         self.debug = debug
 
     def reset_parameters(self):
-        self.step = 0
+        self.counter = 0
+        self._kld_weight_regime()
+
+    def _kld_weight_regime(self):
+        """
+        if counter <= warm_up : tanh annealing warm_up procedure
+        else: Starts at 1 * base_weight then decrease 5/1000 of max weight until it reaches base_weight / 5
+        Should be called at each increment counter step!
+        Returns:
+            -
+        """
+        # TanH warm-up phase
+        if self.counter <= self.kld_warm_up:
+            self.weight_kld = self._tanh_annealing(self.counter, self.base_weight_kld,
+                                                   self.kld_tanh_scale, self.kld_warm_up, shift=None)
+        # "flat" phase : No need to update
+        if self.kld_warm_up < self.counter <= (self.kld_warm_up + self.flat_phase):
+            self.weight_kld = self.base_weight_kld
+        # Start to decrease weight once counter > warm_up+flat phase for KLD
+        elif self.counter > self.kld_warm_up + self.flat_phase:
+            self.weight_kld = max(
+                self.base_weight_kld - (self.kld_decrease * self.base_weight_kld * (
+                        self.counter - (self.kld_warm_up + self.flat_phase))),
+                self.base_weight_kld / 4)
+
+    @staticmethod
+    def _tanh_annealing(counter, base_weight, scale, warm_up, shift=None):
+        """
+        epoch_shift sets the epoch at which weight==weight/2, should be set at warm_up//2
+        Only updates self.weight_kld as current weight, doesn't return anything
+        Computes a 1-shifted (y-axis) tanh and 2/3 * self.warm_up shifted (x-axis) to compute the weight
+        using 1+tanh(speed * (epoch - shift))
+        Args:
+            base_weight: base total weight
+            scale: ramp-up speed ~ range [0.05, 0.5]
+            epoch_shift:
+
+        Returns:
+            weight: kld_weight_n at current epoch
+        """
+
+        shift = 2 * warm_up / 3 if shift is None else shift
+        return base_weight * (
+                1 + math.tanh(scale * (counter - shift))) / 2
+        #
+        # return self.base_weight_kld_n * (
+        #         1 + math.tanh(self.kld_tanh_scale * (self.counter - 2 * self.kld_warm_up / 3))) / 2
+
+    @override
+    def increment_counter(self):
+        super(VAELoss, self).increment_counter()
+        self._kld_weight_regime()
+
+    @override
+    def set_counter(self, counter):
+        super(VAELoss, self).set_counter(counter)
+        self._kld_weight_regime()
 
 
 class TripletLoss(LossParent):
-    def __init__(self, dist_type='cosine', margin=None):
+    def __init__(self, dist_type='cosine', margin=None, pos_dist_weight=1, neg_dist_weight=1, weight=1,
+                 warm_up=None, cool_down=None):
         super(TripletLoss, self).__init__()
         assert dist_type in ['cosine', 'l1',
                              'l2'], f'Distance type must be in ["l1", "l2", "cosine"]! Got {dist_type} instead.'
-        self.distance = {'cosine': compute_cosine_distance, 'l2': torch.cdist, 'l1': torch.cdist}[dist_type]
+        self.distance = {'cosine': compute_cosine_distance,
+                         'l2': torch.cdist,
+                         'l1': torch.cdist}[dist_type]
         self.p = 1 if dist_type == 'l1' else 2 if dist_type == 'l2' else None
         if margin is None:
-            margin = 0.25 if dist_type == 'cosine' else 1.0
+            margin = 0.1 if dist_type == 'cosine' else 1.0
         self.margin = margin
+        self.pos_dist_weight = pos_dist_weight
+        self.neg_dist_weight = neg_dist_weight
+        self.activated = weight>1
+        self.weight = weight
+        self.warm_up = warm_up
+        self.cool_down = cool_down
 
     def forward(self, z, labels, **kwargs):
-        weights = kwargs['pep_weights'] if (
-                'pep_weights' in kwargs and kwargs['pep_weights'] is not None) else torch.ones([len(z)])
-        weights = weights.to(z.device)
-        pairwise_distances = self.distance(z, z, p=self.p)
-        mask_positive = torch.eq(labels.unsqueeze(0), labels.unsqueeze(1)).float()
-        mask_negative = 1 - mask_positive
-        # Get the distances for each of the masks
-        positive_distances = mask_positive * pairwise_distances
-        negative_distances = mask_negative * pairwise_distances
-        # Take the relu to encourage error above margin (i.e. threshold)
-        loss = torch.nn.functional.relu(positive_distances - negative_distances + self.margin) * weights
-        loss = loss.mean()
+        if self.activated:
+            weights = kwargs['pep_weights'] if (
+                    'pep_weights' in kwargs and kwargs['pep_weights'] is not None) else torch.ones([len(z)])
+            weights = weights.to(z.device)
+            pairwise_distances = self.distance(z, z, p=self.p)
+            mask_positive = torch.eq(labels.unsqueeze(0), labels.unsqueeze(1)).float()
+            mask_negative = 1 - mask_positive
+            # Get the distances for each of the masks
+            positive_distances = mask_positive * pairwise_distances
+            negative_distances = mask_negative * pairwise_distances
+            # Take the relu to encourage error above margin (i.e. threshold)
+            # Here, weights should be 1 if activated, 0 if not.
+            loss = torch.nn.functional.relu(
+                self.pos_dist_weight * positive_distances - self.neg_dist_weight * negative_distances + self.margin) * weights
+            # 240424: Fixing an error where self-self distance would lead to a loss of self.margin ; The mask now zeroes out those elements
+            diag_mask = torch.ones_like(mask_positive).fill_diagonal_(0)
+            loss = torch.mul(loss, diag_mask)
+            loss = loss.mean()
+        else:
+            loss = torch.tensor(0)
         return loss
 
+    def _triplet_weight_regime(self):
+        # TODO : Maybe use the KLD regime with slightly different schedules
+        # warm-up means activating triplet after `triplet_warm_up` epochs. STARTING WITHOUT TRIPLET
+        wu_cdt = self.counter >= self.warm_up if self.warm_up is not None else True
+        cd_cdt = self.counter <= self.cool_down if self.cool_down is not None else True
+        self.activated = wu_cdt & cd_cdt & (self.weight > 0)
+
+    @override
+    def increment_counter(self):
+        super(TripletLoss, self).increment_counter()
+        self._triplet_weight_regime()
+
+    @override
+    def set_counter(self, counter):
+        super(TripletLoss, self).set_counter(counter)
+        self._triplet_weight_regime()
 
 class CombinedVAELoss(LossParent):
     """
     This is the VAE + Triplet Loss, that is used kind of everywhere now
     """
-    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
+
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='none'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 weight_seq=1, weight_kld=1e-2, debug=False, warm_up=10, weight_vae=1, weight_triplet=1,
-                 dist_type='cosine', triplet_loss_margin=None):
+                 positional_weighting=False, weight_seq=1, weight_kld=1e-2, warm_up=100, kld_tanh_scale=0.1,
+                 kld_decrease=5e-3, flat_phase=None, weight_vae=1, weight_triplet=1, dist_type='cosine', margin=None,
+                 debug=False, pos_dist_weight=1, neg_dist_weight=1, triplet_warm_up=None, triplet_cool_down=None):
         super(CombinedVAELoss, self).__init__()
         # TODO: PHASE OUT N BATCHES
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
-                                add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up)
-        self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
+                                add_positional_encoding=add_positional_encoding,
+                                positional_weighting=positional_weighting, weight_seq=weight_seq, weight_kld=weight_kld,
+                                warm_up=warm_up, tanh_scale=kld_tanh_scale, kld_decrease=kld_decrease,
+                                flat_phase=flat_phase,
+                                debug=debug)
+        self.positional_weighting = positional_weighting
+        # Very crude triplet weight regime rn ; quick fix
+        # TODO: Implement a proper regime (like KLD) with warm-up and down if needed
+        # self.triplet_warm_up = triplet_warm_up
+        # self.triplet_cool_down = triplet_cool_down
+        # self.triplet_activated = weight_triplet > 0
+        self.triplet_loss = TripletLoss(dist_type, margin=margin, pos_dist_weight=pos_dist_weight,
+                                        neg_dist_weight=neg_dist_weight, weight=weight_triplet,
+                                        warm_up = triplet_warm_up, cool_down=triplet_cool_down)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
         self.norm_factor = (self.weight_triplet + self.weight_vae)
@@ -206,23 +365,27 @@ class CombinedVAELoss(LossParent):
         triplet_loss = self.weight_triplet * self.triplet_loss(z, labels, **kwargs) / self.norm_factor
         return recon_loss, kld_loss, triplet_loss
 
+    # @override
+    # def increment_counter(self):
+    #     super(CombinedVAELoss, self).increment_counter()
 
-class BimodalVAELoss(LossParent):
-
-    # V & J weights are still here for compatibility issues but should not be used in theory
-    def __init__(self, sequence_criterion=nn.MSELoss(reduction='mean'), aa_dim=20, max_len_a1=0, max_len_a2=0,
+class TwoStageVAELoss(LossParent):
+    # Here
+    def __init__(self, sequence_criterion=nn.MSELoss(reduction='none'), aa_dim=20, max_len_a1=0, max_len_a2=0,
                  max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23, max_len_pep=0, add_positional_encoding=False,
-                 weight_seq=3, weight_kld=1, debug=False, warm_up=0, warm_up_clf=0, weight_vae=1, weight_triplet=1,
-                 weight_classification=1, dist_type='cosine', triplet_loss_margin=None):
-        super(BimodalVAELoss, self).__init__()
+                 positional_weighting=False, weight_seq=3, weight_kld=1, debug=False, warm_up=0, warm_up_clf=0,
+                 weight_vae=1, weight_triplet=1, weight_classification=1, dist_type='cosine', triplet_loss_margin=None):
+        super(TwoStageVAELoss, self).__init__()
         # TODO: Here, maybe change the additional term from triplet loss to something else (Center Loss or Contrastive loss?)
         self.vae_loss = VAELoss(sequence_criterion, aa_dim=aa_dim, max_len_a1=max_len_a1, max_len_a2=max_len_a2,
                                 max_len_a3=max_len_a3, max_len_b1=max_len_b1, max_len_b2=max_len_b2,
                                 max_len_b3=max_len_b3, max_len_pep=max_len_pep,
-                                add_positional_encoding=add_positional_encoding, weight_seq=weight_seq,
-                                weight_kld=weight_kld, debug=debug, warm_up=warm_up)
+                                add_positional_encoding=add_positional_encoding,
+                                positional_weighting=positional_weighting, weight_seq=weight_seq, weight_kld=weight_kld,
+                                warm_up=warm_up, debug=debug)
         self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
         self.classification_loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.positional_weighting = positional_weighting
         self.weight_triplet = float(weight_triplet)
         self.weight_vae = float(weight_vae)
         self.weight_classification = float(weight_classification)
@@ -248,38 +411,250 @@ class BimodalVAELoss(LossParent):
             # TODO : Here, removed "* weights" from the classification loss before the mean() because we are using weights to remove triplet from swapped datapoints
             #       i.e. : Triplet is only trained with positive points, whereas the rest are trained with all the losses
             classification_loss = (self.weight_classification * self.classification_loss(x_out,
-                                                                                         binder_labels) ).mean() / self.norm_factor
+                                                                                         binder_labels)).mean() / self.norm_factor
             if self.debug:
                 print('clf pep weights, loss', weights[:10], classification_loss)
         else:
-            classification_loss = torch.tensor([0])
+            classification_loss = torch.tensor([0], device=self.device)
+
         return recon_loss, kld_loss, triplet_loss, classification_loss
 
     def increment_counter(self):
         self.counter += 1
 
 
-def compute_cosine_distance(z_embedding, *args, **kwargs):
-    # Compute the dot product of the embedding matrix
+class TrimodalVAELoss(LossParent):
+    """
+        Disabling some elements' loss term should be done here by using the masks
+        Keep the VAE model itself simple to only always return all modalities, unmasked
+    """
+
+    def __init__(self, alpha_dim, beta_dim, pep_dim, sequence_criterion=nn.MSELoss(reduction='none'),
+                 aa_dim=20, add_positional_encoding=False,
+                 weight_seq=1, weight_kld=1e-2, weight_triplet=0, weight_vae=1,
+                 dist_type='cosine', triplet_loss_margin=0.075,
+                 debug=False, warm_up=15):
+        super(TrimodalVAELoss, self).__init__()
+        # Here check refactored VAE Loss for positional weights thingy
+        # TODO : to do the positional weights thing here we need to refactor XX_dim into mla1, etc
+        # since we want to change the trimodal from a-b-pep to apep, bpep, a+b_pep, wait a bit before refactoring
+        assert sequence_criterion.reduction == 'none', f'Reduction mode should be "none" for sequence criterion! Got {sequence_criterion.reduction} instead.'
+        self.sequence_criterion = sequence_criterion
+        self.alpha_dim = alpha_dim
+        self.beta_dim = beta_dim
+        self.pep_dim = pep_dim
+        self.aa_dim = aa_dim
+        self.pos_dim = 1 if add_positional_encoding else 0
+        self.add_positional_encoding = add_positional_encoding
+        self.norm_factor = weight_seq + weight_kld + weight_triplet
+        self.weight_seq = weight_seq
+        self.base_weight_kld = weight_kld
+        self.weight_triplet = weight_triplet
+        self.weight_kld = self.base_weight_kld
+        self.weight_vae = weight_vae
+
+        self.kld_warm_up = warm_up
+        self.triplet_loss = TripletLoss(dist_type, triplet_loss_margin)
+        self.norm_factor = (self.weight_triplet + self.weight_vae)
+        self.debug = debug
+        print(f'weights: vae, triplet: ', self.weight_vae, self.weight_triplet)
+
+    def forward(self, x_hat_alpha, x_true_alpha, x_hat_beta, x_true_beta, x_hat_pep, x_true_pep,
+                mu_joint, logvar_joint, mus: list, logvars: list, mask_alpha, mask_beta, mask_pep,
+                triplet_labels=None, **kwargs):
+        """
+        Uses the masks to remove missing modalities for each loss term.
+        This masking behaviour is taken care of in the various functions doing the losses instead
+        of being explicitely laid out in the forward here
+        Args:
+            x_hat_alpha:
+            x_true_alpha:
+            x_hat_beta:
+            x_true_beta:
+            x_hat_pep:
+            x_true_pep:
+            mu_joint:
+            logvar_joint:
+            mus:
+            logvars:
+            mask_alpha:
+            mask_beta:
+            mask_pep:
+            triplet_labels:
+            **kwargs:
+
+        Returns:
+
+        """
+        # Reconstruction losses ; Put more weight on alpha and beta because longer seq
+        recon_loss_alpha = 3 * self.reconstruction_loss(x_hat_alpha, x_true_alpha, 'alpha', mask=mask_alpha)
+        recon_loss_beta = 3 * self.reconstruction_loss(x_hat_beta, x_true_beta, 'beta', mask=mask_beta)
+        recon_loss_pep = self.reconstruction_loss(x_hat_pep, x_true_pep, 'pep', mask=mask_pep)
+        reconstruction_loss = (recon_loss_alpha + recon_loss_beta + recon_loss_pep) / 7
+
+        kld_joint = self.kullback_leibler_divergence(mu_joint, logvar_joint, mask=None)
+        kld_alpha = self.kullback_leibler_divergence(mus[0], logvars[0], mask=mask_alpha)
+        kld_beta = self.kullback_leibler_divergence(mus[1], logvars[1], mask=mask_beta)
+        kld_pep = self.kullback_leibler_divergence(mus[2], logvars[2], mask=mask_pep)
+        kld_marginal = kld_alpha + kld_beta + kld_pep
+        if self.debug:
+            print('counter', self.counter)
+            print('seq_loss', reconstruction_loss)
+            print('kld_weight', self.weight_kld)
+            print('kld_loss', kld_joint.round(decimals=4), kld_alpha.round(decimals=4), kld_beta.round(decimals=4),
+                  kld_pep.round(decimals=4), '\n')
+
+        # This here should probably be changed : Triplet labels wouldn't exist for all of mu_joint
+        # Because of the tri-modality, technically we could have datapoints with missing peptide input (?)
+        triplet_loss = self.weight_triplet * self.triplet_loss(mu_joint, triplet_labels, **kwargs)
+        # Return them separately and sum later so that I can debug each component
+        return reconstruction_loss / self.norm_factor, kld_joint / self.norm_factor, kld_marginal / self.norm_factor, triplet_loss / self.norm_factor
+
+    def kullback_leibler_divergence(self, mu, logvar, mask=None):
+        # KLD weight regime control ; Handles both the joint and marginal KLDs
+        if self.counter < self.kld_warm_up:
+            # While in the warm-up phase, weight_kld is 0
+            self.weight_kld = 0
+        else:
+            # Otherwise, it starts at the base_kld weight and decreases a 1% of max weight with the epoch counter
+            # until it reaches a minimum of the base weight / 5
+            self.weight_kld = max(
+                self.base_weight_kld - (0.01 * self.base_weight_kld * (self.counter - self.kld_warm_up)),
+                self.base_weight_kld / 5)
+        kld = 1 + logvar - mu.pow(2) - logvar.exp()
+        if mask is not None:
+            # kld = mask_modality(kld, mask)
+            kld = filter_modality(kld, mask, -99)
+        return self.weight_kld * (-0.5 * torch.mean(kld))
+
+    def reconstruction_loss(self, x_hat, x_true, which, mask):
+        x_hat_seq, positional_hat = self.slice_x(x_hat, which)
+        x_true_seq, positional_true = self.slice_x(x_true, which)
+        # TODO Maybe here something is wrong with the sequence criterion that creates nans ?
+        # Maybe should not do torch.nanmean but use filter_modality and a custom value here (ex: 1.2345678e-8)
+        # --> should also maybe try and see if anywhere there's a problem with exploding loss or params
+        reconstruction_loss = self.weight_seq * self.sequence_criterion(x_hat_seq, x_true_seq)
+        # reconstruction_loss = torch.nanmean(mask_modality(reconstruction_loss, mask, np.nan))
+        reconstruction_loss = torch.mean(filter_modality(reconstruction_loss, mask, -99))
+        if self.add_positional_encoding:
+            positional_loss = F.binary_cross_entropy_with_logits(positional_hat, positional_true, reduction='none')
+            # positional_loss = torch.nanmean(mask_modality(positional_loss, mask, np.nan))
+            positional_loss = torch.mean(filter_modality(positional_loss, mask, -99))
+            reconstruction_loss += (1e-4 * self.weight_seq * positional_loss)
+        return reconstruction_loss
+
+    def slice_x(self, x_flat, which: str):
+        """
+        Slices and extracts // reshapes the sequence vector from a flattened tensor
+        Also extracts the positional encoding vector if used (?)
+        Args:
+            x:
+
+        Returns:
+
+        """
+        # The slicing part exist here as legacy code in case we want to add other features to the end of the vector
+        # In this case, we need to first slice the first part of the vector which is the sequence, then additionally
+        # slice the rest of the vector which should be whatever feature we add in
+        # Here, reshape to aa_dim+pos_dim no matter what, as pos_dim can be 0, and first set pos_enc to None
+        max_len = {'alpha': self.alpha_dim,
+                   'beta': self.beta_dim,
+                   'pep': self.pep_dim}[which]
+
+        sequence_tensor = x_flat[:, 0:(max_len * (self.aa_dim + self.pos_dim))].view(-1, max_len,
+                                                                                     (self.aa_dim + self.pos_dim))
+        positional_encoding_tensor = None
+        # Then, if self.pos_dim is not 0, further slice the tensor to recover each part
+        if self.add_positional_encoding:
+            positional_encoding_tensor = sequence_tensor[:, :, self.aa_dim:]
+            sequence_tensor = sequence_tensor[:, :, :self.aa_dim]
+        return sequence_tensor, positional_encoding_tensor
+
+
+def compute_cosine_similarity(z_embedding: torch.Tensor, *args, **kwargs):
+    """
+    Computes a cosine similarity matrix (All vs All), given Z
+    Cos Sim : AxB = ||A|| ||B|| * cos(theta), value ranges in [-1, 1]
+    Args:
+        z_embedding:
+        *args:
+        **kwargs:
+
+    Returns:
+
+    """
     dot_product = torch.mm(z_embedding, z_embedding.t())
-
-    # Compute the L2 norms of the vectors
     norms = torch.norm(z_embedding, p=2, dim=1, keepdim=True)
+    return dot_product / (norms * norms.t())
 
-    # Compute the pairwise cosine distances
-    cosine_distance_matrix = 1 - (dot_product / (norms * norms.t()))
-    # Clamps the negative values to 0
+
+def compute_cosine_distance(z_embedding: torch.Tensor, *args, **kwargs):
+    """
+    Computes a square cosine distance matrix (All vs ALl) for a given sample of latent Z
+    Cos Sim : AxB = ||A|| ||B|| * cos(theta)
+              in range [-1 ; 1]
+    Args:
+        z_embedding (torch.Tensor): Latent embedding, dimension N x latent_dim
+        *args:
+        **kwargs:
+
+    Returns:
+        cosine_distance_matrix (torch.Tensor): Square tensor of dimension NxN containing pairwise cosine distances
+    """
+    cosine_similarity = compute_cosine_similarity(z_embedding)
+    cosine_distance_matrix = 1 - cosine_similarity
+    # Clamps the low values to 0 for numerical stability
     cosine_distance_matrix[cosine_distance_matrix <= 1e-6] = 0
 
     return cosine_distance_matrix
 
 
+def model_reconstruction_stats(model, x_reconstructed, x_true, return_per_element=False, modality_mask=None):
+    # Here concat the list in case we are given a list of tensors (as done in the train/valid batching system)
+    x_reconstructed = torch.cat(x_reconstructed) if type(x_reconstructed) == list else x_reconstructed
+    x_true = torch.cat(x_true) if type(x_true) == list else x_true
+    seq_hat, positional_hat = model.reconstruct_hat(x_reconstructed)
+    seq_true, positional_true = model.reconstruct_hat(x_true)
+    seq_accuracy, positional_accuracy = reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
+                                                                pad_index=20, return_per_element=return_per_element,
+                                                                modality_mask=modality_mask)
+    metrics = {'seq_accuracy': seq_accuracy, 'pos_accuracy': positional_accuracy}
+    if positional_accuracy is None:
+        del metrics['pos_accuracy']
+
+    return metrics
+
+
+def reconstruct_and_compute_accuracy(model, x_true, x_recon, recon_only=False):
+    if type(x_true) != torch.Tensor and type(x_true) == list:
+        x_true = torch.cat(x_true)
+        x_recon = torch.cat(x_recon)
+    # do recon_only for when we need to cat the TCR and pep
+
+    metrics = {'seq_accuracy': [0] * len(x_true)} if recon_only else model_reconstruction_stats(model, x_recon, x_true,
+                                                                                                return_per_element=True)
+    x_seq_recon, pos_recon = model.slice_x(x_recon)
+    x_seq_true, pos_true = model.slice_x(x_true)
+    seq_hat_recon = model.recover_sequences_blosum(x_seq_recon)
+    seq_hat_true = model.recover_sequences_blosum(x_seq_true)
+    return seq_hat_true, seq_hat_recon, metrics
+
+
+def get_acc_list_string(strings_1, strings_2):
+    return [get_acc_single_string(s1, s2) for s1, s2 in zip(strings_1, strings_2)]
+
+
+def get_acc_single_string(s1, s2):
+    return sum([int(x1 == x2) for x1, x2 in zip(s1, s2) if x1 != 'X' and x2 != 'X']) / len(s2.replace('X', ''))
+
+
 # NOTE : Fixed version with the true acc
 # TODO : add thing for positional encoding
 def reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
-                            pad_index=20, return_per_element=False):
+                            pad_index=20, return_per_element=False, modality_mask=None):
     """
     Args:
+        mask:
         seq_true: ordinal vector of true sequence (Here, the number is to map back to an amino acid with AA_KEYS, with 20 = X)
         seq_hat: Same but reconstructed
         positional_true: positional encoding (true), shape is either 2D or flattened vector
@@ -294,21 +669,29 @@ def reconstruction_accuracy(seq_true, seq_hat, positional_true, positional_hat,
                        Same as above, except it can be None if positional_hat is None (i.e. disabled)
 
     """
+    # Use modality_mask to do something
+
     # Compute the mask and true lengths
     mask = (seq_true != pad_index).float()
     true_lens = mask.sum(dim=1)
-    # difference here for per element is that we don't take the mean(dim=0) and have to detach() from graph to do tolist()
+    # difference here for per element is that we don't take the mean(dim=0) and
+    # have to detach() from graph to do tolist() ; Here is still per element
     seq_accuracy = ((seq_true == seq_hat).float() * mask).sum(1) / true_lens
     # Assuming pos_accuracy are logits : sigmoid->threshold(0.5)->compare to true
-    pos_accuracy = ((F.sigmoid(positional_hat)>0.5).float()==positional_true).float().mean(dim=(1,2)) if positional_hat is not None else None
+    pos_accuracy = ((F.sigmoid(positional_hat) > 0.5).float() == positional_true).float().mean(
+        dim=(1, 2)) if positional_hat is not None else None
+    # fill with nans to ignore those datapoints
+    if modality_mask is not None:
+        seq_accuracy = mask_modality(seq_accuracy, modality_mask, torch.nan)
+        pos_accuracy = mask_modality(pos_accuracy, modality_mask, torch.nan) if positional_hat is not None else None
     if return_per_element:
         # Here give a per element accuracy (so that we have individual metric for each datapoint in a df)
         seq_accuracy = seq_accuracy.detach().cpu().tolist()
         pos_accuracy = pos_accuracy.detach().cpu().tolist() if positional_hat is not None else None
     else:
         # Here gives the mean accuracy of the model for all the datapoints
-        seq_accuracy = seq_accuracy.mean(dim=0).item()
-        pos_accuracy = pos_accuracy.mean(dim=0).item() if positional_hat is not None else None
+        seq_accuracy = seq_accuracy.nanmean(dim=0).item()
+        pos_accuracy = pos_accuracy.nanmean(dim=0).item() if positional_hat is not None else None
 
     return seq_accuracy, pos_accuracy
 
@@ -331,7 +714,8 @@ def auc01_score(y_true: np.ndarray, y_pred: np.ndarray, max_fpr=0.1) -> float:
     return auc(fpr, tpr) * 10
 
 
-def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4) -> dict:
+def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduced=True, round_digit=4,
+                no_curves=False) -> dict:
     """
     Computes all classification metrics & returns a dictionary containing the various key/metrics
     incl. ROC curve, AUC, AUC_01, F1 score, Accuracy, Recall
@@ -362,6 +746,7 @@ def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduce
     metrics['auc_01'] = roc_auc_score(y_true, y_score, max_fpr=0.1)
     metrics['auc_01_real'] = auc01_score(y_true, y_score, max_fpr=0.1)
     metrics['precision'] = precision_score(y_true, y_pred)
+    metrics['recall'] = recall_score(y_true, y_pred)
     metrics['accuracy'] = accuracy_score(y_true, y_pred)
     metrics['AP'] = average_precision_score(y_true, y_score)
     if not reduced:
@@ -382,194 +767,19 @@ def get_metrics(y_true, y_score, y_pred=None, threshold=0.50, keep=False, reduce
             metrics['y_score'] = y_score
     if round_digit is not None:
         for k, v in metrics.items():
-            metrics[k] = round(v, round_digit)
+            try:
+                metrics[k] = round(v, round_digit)
+            except:
+                print(f'Couldn\'t round {k} of type ({type(v)})! continuing')
+                continue
+    if no_curves:
+        td = []
+        for k in metrics:
+            if 'curve' in k:
+                td.append(k)
+        for k in td:
+            del metrics[k]
     return metrics
-
-
-def plot_roc_auc_fold(results_dict, palette='hsv', n_colors=None, fig=None, ax=None,
-                      title='ROC AUC plot\nPerformance for average prediction from models of each fold',
-                      bbox_to_anchor=(0.9, -0.1)):
-    n_colors = len(results_dict.keys()) if n_colors is None else n_colors
-    sns.set_palette(palette, n_colors=n_colors)
-    if fig is None and ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-    print(results_dict.keys())
-    for k in results_dict:
-        if k == 'kwargs': continue
-        fpr = results_dict[k]['roc_curve'][0]
-        tpr = results_dict[k]['roc_curve'][1]
-        auc = results_dict[k]['auc']
-        auc_01 = results_dict[k]['auc_01']
-        # print(k, auc, auc_01)
-        style = '--' if type(k) == np.int32 else '-'
-        alpha = 0.75 if type(k) == np.int32 else .9
-        lw = .8 if type(k) == np.int32 else 1.5
-        sns.lineplot(x=fpr, y=tpr, ax=ax, label=f'{k}, AUC={auc.round(4)}, AUC_01={auc_01.round(4)}',
-                     n_boot=50, ls=style, lw=lw, alpha=alpha)
-
-    sns.lineplot([0, 1], [0, 1], ax=ax, ls='--', color='k', label='random', lw=0.5)
-    if bbox_to_anchor is not None:
-        ax.legend(bbox_to_anchor=bbox_to_anchor)
-
-    ax.set_title(f'{title}')
-    return fig, ax
-
-
-def get_mean_roc_curve(roc_curves, extra_key=None, auc01=False):
-    """
-    Assumes a single-level dict, i.e. roc_curves_dict has all the outer folds, and no inner folds
-    Or it is the sub-dict that contains all the inner folds for a given outer fold.
-    i.e. to access a given fold's curve, should use `roc_curves_dict[number]['roc_curve']`
-    Args:
-        roc_curves_dict:
-        extra_key (str) : Extra_key in case it's nested, like train_metrics[fold]['valid']['roc_curve']
-    Returns:
-        base_fpr
-        mean_curve
-        low_std_curve
-        high_std_curve
-        auc
-    """
-
-    # Base fpr to interpolate
-    tprs = []
-    aucs = []
-    aucs_01 = []
-    if type(roc_curves) == dict:
-        if extra_key is not None:
-            max_n = max([len(v[extra_key]['roc_curve'][0]) for k, v in roc_curves.items() \
-                         if k != 'kwargs' and k != 'concatenated'])
-            base_fpr = np.linspace(0, 1, max_n)
-            for k, v in roc_curves.items():
-                if k == 'kwargs' or k == 'concatenated': continue
-                fpr = v[extra_key]['roc_curve'][0]
-                tpr = v[extra_key]['roc_curve'][1]
-                # Interp TPR so it fits the right shape for base_fpr
-                tpr = np.interp(base_fpr, fpr, tpr)
-                tpr[0] = 0
-                # Saving to the list so we can stack and compute the mean and std
-                tprs.append(tpr)
-                aucs.append(v[extra_key]['auc'])
-        else:
-            max_n = max([len(v['roc_curve'][0]) for k, v in roc_curves.items() \
-                         if k != 'kwargs' and k != 'concatenated'])
-            base_fpr = np.linspace(0, 1, max_n)
-
-            for k, v in roc_curves.items():
-                if k == 'kwargs' or k == 'concatenated': continue
-                fpr = v['roc_curve'][0]
-                tpr = v['roc_curve'][1]
-                # Interp TPR so it fits the right shape for base_fpr
-                tpr = np.interp(base_fpr, fpr, tpr)
-                tpr[0] = 0
-                # Saving to the list so we can stack and compute the mean and std
-                tprs.append(tpr)
-                aucs.append(v['auc'])
-
-    elif type(roc_curves) == list:
-        # THIS HERE ASSUMES THE RESULTS ARE IN FORMAT [((fpr, tpr), auc) ...]
-        max_n = max([len(x[0][0]) for x in roc_curves])
-        base_fpr = np.linspace(0, 1, max_n)
-
-        for curves in roc_curves:
-            fpr = curves[0][0]
-            tpr = curves[0][1]
-            # Interp TPR so it fits the right shape for base_fpr
-            tpr = np.interp(base_fpr, fpr, tpr)
-            tpr[0] = 0
-            # Saving to the list so we can stack and compute the mean and std
-            tprs.append(tpr)
-            aucs.append(curves[1])
-            if auc01:
-                aucs_01.append(curves[-1])
-
-    mean_auc = np.mean(aucs)
-    if auc01:
-        mean_auc01 = np.mean(aucs_01)
-
-    tprs = np.stack(tprs)
-    mean_tprs = tprs.mean(axis=0)
-    std_tprs = tprs.std(axis=0)
-    upper = np.minimum(mean_tprs + std_tprs, 1)
-    lower = mean_tprs - std_tprs
-
-    if auc01:
-        return base_fpr, mean_tprs, lower, upper, mean_auc, mean_auc01
-    else:
-        return base_fpr, mean_tprs, lower, upper, mean_auc
-
-
-def get_mean_pr_curve(pr_curves, extra_key=None):
-    """
-    Assumes a single-level dict, i.e. roc_curves_dict has all the outer folds, and no inner folds
-    Or it is the sub-dict that contains all the inner folds for a given outer fold.
-    i.e. to access a given fold's curve, should use `roc_curves_dict[number]['roc_curve']`
-    Args:
-        roc_curves_dict:
-        extra_key (str) : Extra_key in case it's nested, like train_metrics[fold]['valid']['roc_curve']
-    Returns:
-        base_recall
-        mean_curve
-        std_curve
-    """
-
-    # Base recall to interpolate
-    precisions = []
-    aucs = []
-    if type(pr_curves) == dict:
-        if extra_key is not None:
-            max_n = max([len(v[extra_key]['pr_curve'][0]) for k, v in pr_curves.items() \
-                         if k != 'kwargs' and k != 'concatenated'])
-            base_recall = np.linspace(0, 1, max_n)
-            for k, v in pr_curves.items():
-                if k == 'kwargs' or k == 'concatenated': continue
-                recall = v[extra_key]['pr_curve'][0]
-                precision = v[extra_key]['pr_curve'][1]
-                # Interp precision so it fits the right shape for base_recall
-                precision = np.interp(base_recall, recall, precision)
-                precision[0] = 0
-                # Saving to the list so we can stack and compute the mean and std
-                precisions.append(precision)
-                aucs.append(v[extra_key]['auc'])
-        else:
-            max_n = max([len(v['pr_curve'][0]) for k, v in pr_curves.items() \
-                         if k != 'kwargs' and k != 'concatenated'])
-            base_recall = np.linspace(0, 1, max_n)
-
-            for k, v in pr_curves.items():
-                if k == 'kwargs' or k == 'concatenated': continue
-                recall = v['pr_curve'][0]
-                precision = v['pr_curve'][1]
-                # Interp precision so it fits the right shape for base_recall
-                precision = np.interp(base_recall, recall, precision)
-                precision[0] = 0
-                # Saving to the list so we can stack and compute the mean and std
-                precisions.append(precision)
-                aucs.append(v['auc'])
-
-    elif type(pr_curves) == list:
-        # TODO FIX
-        # THIS HERE ASSUMES THE RESULTS ARE IN FORMAT [((recall, precision), auc) ...]
-        max_n = max([len(x[0][0]) for x in pr_curves])
-        base_recall = np.linspace(0, 1, max_n)
-
-        for curves in pr_curves:
-            recall = curves[0][0]
-            precision = curves[0][1]
-            # Interp precision so it fits the right shape for base_recall
-            precision = np.interp(base_recall, recall, precision)
-            precision[0] = 0
-            # Saving to the list so we can stack and compute the mean and std
-            precisions.append(precision)
-            aucs.append(curves[1])
-
-    mean_auc = np.mean(aucs)
-    precisions = np.stack(precisions)
-    mean_precisions = precisions.mean(axis=0)
-    std_precisions = precisions.std(axis=0)
-    upper = np.minimum(mean_precisions + std_precisions, 1)
-    lower = mean_precisions - std_precisions
-    return base_recall, mean_precisions, lower, upper, mean_auc
 
 
 def get_roc(df, score='pred', target='agg_label', binder=None, anchor_mutation=None):

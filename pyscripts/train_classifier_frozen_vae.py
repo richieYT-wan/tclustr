@@ -16,7 +16,7 @@ from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
     get_dict_of_lists, get_class_initcode_keys
 from src.torch_utils import save_checkpoint, load_checkpoint, save_model_full, load_model_full
-from src.models import FullTCRVAE, PeptideClassifier
+from src.models import FullTCRVAE, PeptideClassifier, TwoStageVAECLF
 from src.train_eval import predict_classifier, classifier_train_eval_loops
 from src.datasets import LatentTCRpMHCDataset
 from src.metrics import CombinedVAELoss, get_metrics
@@ -30,7 +30,8 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
-
+    parser.add_argument('-device', dest='device', default=None, type=str,
+                        help='device to use for cuda')
     parser.add_argument('-f', '--file', dest='file', required=True, type=str,
                         default='../data/filtered/231205_nettcr_old_26pep_with_swaps.csv',
                         help='filename of the input train file')
@@ -134,6 +135,14 @@ def args_parser():
                         help='Adding a random ID taken from a batchscript that will start all crossvalidation folds. Default = ""')
     parser.add_argument('-seed', '--seed', dest='seed', type=int, default=None,
                         help='Torch manual seed. Default = 13')
+    parser.add_argument('-reset', dest='reset', type=str2bool, default=False,
+                        help='Whether to reset the encoder\'s weight for a blank run')
+    parser.add_argument('-random_latent', dest='random_latent', type=str2bool, default=False,
+                        help='Whether to set RANDOM latent vectors')
+    parser.add_argument('-newmodel', dest='newmodel', type=str2bool, default=False,
+                        help='re instanciate a new model from scratch')
+    parser.add_argument('-tcr_enc', dest='tcr_enc', type=str, default=None,
+                        help='Whether to do "alternative" TCR encoding')
     return parser.parse_args()
 
 
@@ -158,33 +167,35 @@ def main():
         outdir = os.path.join(outdir, args['outdir'])
         if not outdir.endswith('/'):
             outdir = outdir + '/'
-
-    if len(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*'))==1:
-        if os.path.exists(glob.glob(outdir+f'{args["out"]}{connector}KFold_{kf}*')[0]) and args['debug']:
-            print('Break')
-            return 0
-
     outdir = os.path.join(outdir, unique_filename) + '/'
+
+    if torch.cuda.is_available() and args['cuda']:
+        device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
+
+    if args['device'] is not None:
+        device = args['device']
+
+    print("Using : {}".format(device))
     if args['model_folder'] is not None:
         try:
             checkpoint_file = next(
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.pt'), os.listdir(args['model_folder'])))
             json_file = next(
                 filter(lambda x: x.startswith('checkpoint') and x.endswith('.json'), os.listdir(args['model_folder'])))
-            vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file, return_json=True)
+            vae, js = load_model_full(args['model_folder'] + checkpoint_file, args['model_folder'] + json_file,
+                                      return_json=True, map_location=device)
             print(js)
 
         except:
             print(args['model_folder'], os.listdir(args['model_folder']))
             raise ValueError(f'\n\n\nCouldn\'t load your files!! at {args["model_folder"]}\n\n\n')
     else:
-        vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True)
+        vae, js = load_model_full(args['pt_file'], args['json_file'],
+                                  map_location=device, return_json=True)
 
-    if torch.cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
-    else:
-        device = torch.device('cpu')
-    print("Using : {}".format(device))
+
     torch.manual_seed(seed)
     if 'vae_kwargs' in js:
         js = js['vae_kwargs']
@@ -203,7 +214,6 @@ def main():
 
     # Maybe this is better? Defining the various keys using the constructor's init arguments
 
-    # nique ta mère la pute
     for k in args:
         if 'max_len' in k or 'positional' in k:
             if k not in js:
@@ -211,11 +221,17 @@ def main():
             else:
                 args[k] = js[k]
 
+    if args['reset']:
+        vae.reset_parameters(seed=args['seed'])
+    if args['newmodel']:
+        vae = eval(vae.__class__.__name__)(**js)
+
     model_keys = get_class_initcode_keys(PeptideClassifier, args)
     model_params = {k: args[k] for k in model_keys}
     dataset_keys = get_class_initcode_keys(LatentTCRpMHCDataset, args)
     model_params['n_latent'] = js['latent_dim']
-    model_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
+    model_params['pep_dim'] = args['max_len_pep'] if args['pep_encoding'] == 'categorical' else 12 * 20
+    model_params['add_pep'] = args['pep_encoding'] != 'none'
 
     dataset_params = {k: args[k] for k in dataset_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}

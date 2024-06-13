@@ -6,9 +6,6 @@ import numpy as np
 from src.data_processing import get_positional_encoding, encoding_matrix_dict
 import math
 
-# TODO CUDA
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-
 
 class NetParent(nn.Module):
     """
@@ -54,6 +51,12 @@ class NetParent(nn.Module):
         for c in self.children():
             if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
                 c.increment_counter()
+
+    def set_counter(self, counter):
+        self.counter = counter
+        for c in self.children():
+            if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
+                c.set_counter(counter)
 
 class CDR3bVAE(NetParent):
     """
@@ -185,7 +188,8 @@ class FullTCRVAE(NetParent):
     # Define the input dimension as some combination of sequence length, AA dim,
     def __init__(self, max_len_a1=0, max_len_a2=0, max_len_a3=22, max_len_b1=0, max_len_b2=0, max_len_b3=23,
                  max_len_pep=0, encoding='BL50LO', pad_scale=-20, aa_dim=20, add_positional_encoding=False,
-                 activation=nn.SELU(), hidden_dim=128, latent_dim=64):
+                 activation=nn.SELU(), hidden_dim=128, latent_dim=64,
+                 add_layer_encoder=True, add_layer_decoder=True, old_behaviour=True, batchnorm=True):
         super(FullTCRVAE, self).__init__()
         # Init params that will be needed at some point for reconstruction
         # Here, define aa_dim and pos_dim ; pos_dim is the dimension of a positional encoding.
@@ -206,6 +210,9 @@ class FullTCRVAE(NetParent):
             self.pad_scale = -20 if encoding in ['BL50LO', 'BL62LO'] else 0
         else:
             self.pad_scale = pad_scale
+
+        # TODO : Maybe should use -1 instead of -20 for pad values since that's the value for X in BL50LO ?
+        # Create the encoding matrix to recover / rebuild sequences
         MATRIX_VALUES = deepcopy(encoding_matrix_dict[encoding])
         MATRIX_VALUES['X'] = np.array([self.pad_scale]).repeat(20)
         self.MATRIX_VALUES = torch.from_numpy(np.stack(list(MATRIX_VALUES.values()), axis=0))
@@ -215,16 +222,41 @@ class FullTCRVAE(NetParent):
         # TODO: For now, just use a fixed set of layers.
         #       Might need more layers because we are compressing more information
 
-        # TODO: Include dropout+batchnorm (Actually tried and didn't work too well)
         # Encoder : in -> in//2 -> hidden -> latent_mu, latent_logvar, where z = mu + logvar*epsilon
-        self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
-                                     nn.Linear(input_dim // 2, hidden_dim), activation)
-        self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
-        self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
-        self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
-                                     nn.Linear(hidden_dim, hidden_dim), activation)
-        self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
-                                              nn.Linear(input_dim // 2, input_dim))
+        bn = nn.BatchNorm1d if batchnorm else nn.Identity
+        #####
+        # HERE DO THINGS WITH ADD LAYER AND BATCHNORM ; add an "old_behaviour" parameter so we can still read old models
+
+        if old_behaviour:
+            self.encoder = nn.Sequential(nn.Linear(input_dim, input_dim // 2), activation,
+                                         nn.Linear(input_dim // 2, hidden_dim), activation)
+            self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+            self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+            self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden_dim), activation,
+                                         nn.Linear(hidden_dim, hidden_dim), activation)
+            self.decoder_sequence = nn.Sequential(nn.Linear(hidden_dim, input_dim // 2), activation,
+                                                  nn.Linear(input_dim // 2, input_dim))
+        else:
+            # Create encoder layers
+            encoder_layers = [nn.Linear(input_dim, input_dim // 2), activation, bn(input_dim//2),
+                              nn.Linear(input_dim // 2, hidden_dim), activation, bn(hidden_dim)]
+            if add_layer_encoder:
+                encoder_layers.extend([nn.Linear(hidden_dim, hidden_dim), activation, bn(hidden_dim)])
+            # Create decoder layers:
+            decoder_layers = [nn.Linear(latent_dim, hidden_dim), activation, bn(hidden_dim)]
+            if add_layer_decoder:
+                decoder_layers.extend([nn.Linear(hidden_dim, hidden_dim), activation, bn(hidden_dim)])
+            decoder_sequence_layers = [nn.Linear(hidden_dim, input_dim // 2), activation, bn(input_dim // 2),
+                                       nn.Linear(input_dim // 2, input_dim)]
+
+            self.encoder = nn.Sequential(*encoder_layers)
+            self.encoder_mu = nn.Linear(hidden_dim, latent_dim)
+            self.encoder_logvar = nn.Linear(hidden_dim, latent_dim)
+
+            self.decoder = nn.Sequential(*decoder_layers)
+            self.decoder_sequence = nn.Sequential(*decoder_sequence_layers)
+            
+
 
     def reparameterise(self, mu, logvar):
         # During training, the reparameterisation leads to z = mu + std * eps
@@ -267,7 +299,8 @@ class FullTCRVAE(NetParent):
         # In this case, we need to first slice the first part of the vector which is the sequence, then additionally
         # slice the rest of the vector which should be whatever feature we add in
         # Here, reshape to aa_dim+pos_dim no matter what, as pos_dim can be 0, and first set pos_enc to None
-        sequence = x[:, 0:(self.max_len * (self.aa_dim+self.pos_dim))].view(-1, self.max_len, (self.aa_dim+self.pos_dim))
+        sequence = x[:, 0:(self.max_len * (self.aa_dim + self.pos_dim))].view(-1, self.max_len,
+                                                                              (self.aa_dim + self.pos_dim))
         positional_encoding = None
         # Then, if self.pos_dim is not 0, further slice the tensor to recover each part
         if self.add_positional_encoding:
@@ -315,54 +348,16 @@ class FullTCRVAE(NetParent):
         return seq_idx, positional_encoding
 
 
-# # TODO: Uncomment this to recover old behaviour (Lin->relu->do->BN)
-# class PeptideClassifier(NetParent):
-#
-#     def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False, decrease_hidden=False):
-#         super(PeptideClassifier, self).__init__()
-#         # self.sigmoid = nn.Sigmoid()
-#
-#         # self.softmax = nn.Softmax()
-#
-#         in_dim = pep_dim + n_latent
-#         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU(), nn.Dropout(dropout)]
-#         if batchnorm:
-#             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
-#
-#         self.in_layer = nn.Sequential(*in_layer)
-#         # Hidden layers
-#         layers = []
-#         for _ in range(n_layers):
-#             if decrease_hidden:
-#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf//2))
-#                 n_hidden_clf = n_hidden_clf//2
-#             else:
-#                 layers.append(nn.Linear(n_hidden_clf, n_hidden_clf))
-#             layers.append(nn.ReLU())
-#             layers.append(nn.Dropout(dropout))
-#             if batchnorm:
-#                 layers.append(nn.BatchNorm1d(n_hidden_clf))
-#
-#         self.hidden_layers = nn.Sequential(*layers) if n_layers > 0 else nn.Identity()
-#         self.out_layer = nn.Linear(n_hidden_clf, 1)
-#
-#     def forward(self, x):
-#         x = self.in_layer(x)
-#         x = self.hidden_layers(x)
-#         x = self.out_layer(x)
-#         return x
-
-# TODO: This is the flipped behaviour to run locally for now
 class PeptideClassifier(NetParent):
 
-    def __init__(self, pep_dim=12, n_latent=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
-                 decrease_hidden=False):
+    def __init__(self, pep_dim=12, latent_dim=64, n_layers=0, n_hidden_clf=32, dropout=0, batchnorm=False,
+                 decrease_hidden=False, add_pep=True):
         super(PeptideClassifier, self).__init__()
         # self.sigmoid = nn.Sigmoid()
 
         # self.softmax = nn.Softmax()
 
-        in_dim = pep_dim + n_latent
+        in_dim = pep_dim + latent_dim if add_pep else latent_dim
         in_layer = [nn.Linear(in_dim, n_hidden_clf), nn.ReLU()]
         if batchnorm:
             in_layer.append(nn.BatchNorm1d(n_hidden_clf))
@@ -435,10 +430,13 @@ class AttentionPeptideClassifier(NetParent):
         return x_out
 
 
-class BimodalVAEClassifier(NetParent):
+class TwoStageVAECLF(NetParent):
+    # This name is technically wrong, it should be TwoStageVAEClassifier
+    # Refactoring now would be a bit annoying given the previously saved JSONs that have to be manually changed
+    # Should be refactored at some point.
     # TODO : Refactoring to include pep : This here should be fine but CAREFUL when adding positional encoding
     def __init__(self, vae_kwargs, clf_kwargs, warm_up_clf=0):
-        super(BimodalVAEClassifier, self).__init__()
+        super(TwoStageVAECLF, self).__init__()
         self.vae = FullTCRVAE(**vae_kwargs)
         self.clf = PeptideClassifier(**clf_kwargs)
         self.warm_up_clf = warm_up_clf
@@ -497,7 +495,8 @@ class BimodalVAEClassifier(NetParent):
         return self.vae.recover_sequences_blosum(seq_tensor, AA_KEYS)
 
 
-# STANDARDIZERS
+
+
 
 class StandardizerSequence(nn.Module):
     def __init__(self, n_feats=20):
@@ -560,6 +559,11 @@ class StandardizerSequence(nn.Module):
             else:
                 return x
 
+    def to(self, device):
+        super(StandardizerSequence, self).to(device)
+        self.mu = self.mu.to(device)
+        self.sigma = self.sigma.to(device)
+
 
 class StandardizerSequenceVector(nn.Module):
     def __init__(self, input_dim=20, max_len=12):
@@ -590,6 +594,11 @@ class StandardizerSequenceVector(nn.Module):
             self.mu.data.copy_(torch.zeros((self.max_len, self.input_dim)))
             self.sigma.data.copy_(torch.ones((self.max_len, self.input_dim)))
             self.fitted.data = torch.tensor(False)
+
+    def to(self, device):
+        super(StandardizerSequenceVector, self).to(device)
+        self.mu = self.mu.to(device)
+        self.sigma = self.sigma.to(device)
 
 
 class StandardizerFeatures(nn.Module):
@@ -626,6 +635,11 @@ class StandardizerFeatures(nn.Module):
             self.mu.data.copy(torch.zeros(self.n_feats))
             self.sigma.data.copy(torch.ones(self.n_feats))
             self.fitted.data = torch.tensor(False)
+
+    def to(self, device):
+        super(StandardizerFeatures, self).to(device)
+        self.mu = self.mu.to(device)
+        self.sigma = self.sigma.to(device)
 
 
 class StdBypass(nn.Module):

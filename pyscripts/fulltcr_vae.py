@@ -5,15 +5,16 @@ import os, sys
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
-import wandb
+# import wandb
 import math
 import torch
 from torch import optim
 from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
-from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, get_dict_of_lists
-from src.torch_utils import load_checkpoint
+from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
+    get_dict_of_lists, make_filename
+from src.torch_utils import load_checkpoint, save_json
 from src.models import FullTCRVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import FullTCRDataset
@@ -143,13 +144,10 @@ def main():
     valid_df = df.query('partition==@args["fold"]')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
-    if args['log_wandb']:
-        wandb.login()
+    # if args['log_wandb']:
+    #     wandb.login()
     # File-saving stuff
-    connector = '' if args["out"] == '' else '_'
-    kf = '-1' if args["fold"] is None else args['fold']
-    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args['random_id'] == '' else args['random_id']
-    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
+    unique_filename, kf, rid, connector = make_filename(args)
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
     outdir = os.path.join('../output/', unique_filename) + '/'
@@ -178,6 +176,9 @@ def main():
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
 
+    # Dump args to json for potential resume training.
+    save_json(args, f'run_parameters_{unique_filename}.json', outdir)
+
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
     train_dataset = FullTCRDataset(train_df, **dataset_params)
     valid_dataset = FullTCRDataset(valid_df, **dataset_params)
@@ -196,10 +197,10 @@ def main():
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
-    if args['log_wandb']:
-        # wandb stuff
-        wandb.init(project=unique_filename, name=f'fold_{args["fold"]:02}', config=args)
-        wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
+    # if args['log_wandb']:
+    #     # wandb stuff
+    #     wandb.init(project=unique_filename, name=f'fold_{args["fold"]:02}', config=args)
+    #     wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
     best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,

@@ -6,9 +6,36 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import roc_auc_score
 from src.metrics import compute_cosine_distance
 
+def make_self_db_distmatrix(preds, peptide, label_col='peptide', cols=('peptide','original_peptide')):
+    # Set self as db using the positives and query as the whole set
+    db = preds.query('peptide==@peptide and binder==1').assign(set='db')
+    query = preds.copy().assign(set='query')
+    # Use the set columns to remove dupes and rearrange matrix
+    dist_matrix = make_dist_matrix(pd.concat([db, query]), label_col, seq_cols=('A1','A2','A3','B1','B2','B3','set'), cols=cols)
+    no_query = [x for x in dist_matrix.columns if 'query' not in x]
+    only_query = [x for x in dist_matrix.index if 'query' in x]
+    dist_matrix = dist_matrix.loc[only_query][no_query]
+    dist_matrix.drop_duplicates(inplace=True)
+    dist_matrix.columns = dist_matrix.columns.str.replace('db','')
+    dist_matrix.index = dist_matrix.index.str.replace('query','')
+    # Puts nan to ignore during sorting
+    dist_matrix.replace(0., np.nan, inplace=True)
+    dist_matrix['label'] = (dist_matrix[label_col]==peptide).astype(int)
+    return dist_matrix, db, query
 
 def make_dist_matrix(df, label_col='peptide',
-                     seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'), cols=('peptide','original_peptide')):
+                     seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'), cols=('peptide', 'original_peptide')):
+    """
+    From a latent vector dataframe, compute a square distance matrix with cosine distance
+    Args:
+        df:
+        label_col:
+        seq_cols:
+        cols:
+
+    Returns:
+
+    """
     df['seq'] = df.apply(lambda x: ''.join([x[c] for c in seq_cols]), axis=1)
     seqs = df.seq.values
     # Getting dist matrix
@@ -16,9 +43,13 @@ def make_dist_matrix(df, label_col='peptide',
     zs = torch.from_numpy(df[zcols].values)
     dist_matrix = pd.DataFrame(compute_cosine_distance(zs),
                                columns=seqs, index=seqs)
-    dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[list(cols)],
-                           left_index=True, right_index=True)#.rename(columns={label_col: 'label'})
+    # dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[list(cols)],
+    #                        left_index=True, right_index=True).drop_duplicates()  # .rename(columns={label_col: 'label'})
+    dist_matrix = pd.concat([dist_matrix, df.set_index('seq')[list(cols)]], axis=1)
+    # dm.drop_duplicates()
+    dist_matrix = dist_matrix[dist_matrix.index.to_list() + list(cols)]
     return dist_matrix
+
 
 
 def get_tcrbase_method(tcr, ref):
@@ -54,8 +85,8 @@ def do_tcrbase(query_distmatrix, db_distmatrix, label='GILGFVFTL'):
     return output.sort_values(['y_true', 'score'], ascending=False)
 
 
-def do_histplot_distribution(dist_matrix, peptide, f=None,ax=None, label_col='label',
-                unique_filename=None, outdir=None, bins=100):
+def do_histplot_distribution(dist_matrix, peptide, f=None, ax=None, xlim=None, label_col='label',
+                             unique_filename=None, outdir=None, bins=100, title=None):
     """
     Plots the distribution of distances in a score all against all kind of method,
     Grouping the datapoints to be plotted by same label or not
@@ -81,10 +112,10 @@ def do_histplot_distribution(dist_matrix, peptide, f=None,ax=None, label_col='la
     same_matrix = same[same_tcrs].values
     diff_matrix = same[diff_tcrs].values
     # Getting the flattened distributions (upper triangle and making df for plot)
-    trimask = np.triu(np.ones(same_matrix.shape), k=1)
-    masked_same = np.multiply(same_matrix, trimask)
-    flattened_same = masked_same[masked_same != 0].flatten()
-    flattened_diff = diff_matrix.flatten()
+    trimask_same = np.triu(np.ones(same_matrix.shape), k=1)
+    flattened_same = same_matrix[trimask_same == 1]
+    trimask_diff = np.triu(np.ones(diff_matrix.shape), k=1)
+    flattened_diff = diff_matrix[trimask_diff == 1]
     cat = np.concatenate([flattened_same, flattened_diff])
     labels = np.concatenate([np.array(['same'] * len(flattened_same) + ['diff'] * len(flattened_diff))])
     ntr = pd.DataFrame(data=np.stack([cat, labels]).T, columns=['distance', label_col])
@@ -97,15 +128,17 @@ def do_histplot_distribution(dist_matrix, peptide, f=None,ax=None, label_col='la
         f, ax = plt.subplots(1, 1, figsize=(9, 5))
     sns.histplot(data=ntr, x='distance', hue=label_col, ax=ax, kde=False,
                  stat='percent', common_norm=False, bins=bins, alpha=0.75)
-    ax.set_xlim([0,1.1])
-    ax.set_title(peptide, fontsize=14, fontweight='semibold')
+    xlim = [0, 1.1] if xlim is None else xlim
+    ax.set_xlim(xlim)
+    title = peptide if title is None else title
+    ax.set_title(title, fontsize=14, fontweight='semibold')
     if unique_filename is not None:
         outdir = './' if outdir is None else outdir
         f.savefig(f'{outdir}{peptide}_AllvAll_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
 
 
-def do_histplot_best(dist_matrix, peptide, f=None,ax=None, label_col='original_peptide',
-                unique_filename=None, outdir=None, bins=100):
+def do_histplot_best(dist_matrix, peptide, f=None, ax=None, label_col='original_peptide',
+                     unique_filename=None, outdir=None, bins=100):
     """
     Takes the distance matrix, and takes the "best" (which is the minimum distance)
     and plots that instead of the full distribution for each data point
@@ -156,7 +189,7 @@ def do_histplot_best(dist_matrix, peptide, f=None,ax=None, label_col='original_p
         f.savefig(f'{outdir}{peptide}_BEST_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
 
 
-def do_tcrbase_and_histplots(preds, peptide, partition, f=None,ax=None,
+def do_tcrbase_and_histplots(preds, peptide, partition, f=None, ax=None,
                              unique_filename=None, outdir=None, bins=100):
     query = preds.query('partition==@partition and peptide==@peptide').assign(set='query')
     database = preds.query('partition!=@partition and peptide==@peptide and original_peptide==@peptide').assign(
@@ -192,7 +225,8 @@ def do_tcrbase_and_histplots(preds, peptide, partition, f=None,ax=None,
     ax.set_title(f'TCRBase: All vs All {peptide}', fontsize=14, fontweight='semibold')
     if unique_filename is not None:
         outdir = './' if outdir is None else outdir
-        f.savefig(f'{outdir}TCRBase_AllvAll_{peptide}_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
+        f.savefig(f'{outdir}TCRBase_AllvAll_{peptide}_distances_histplot_{unique_filename}', dpi=150,
+                  bbox_inches='tight')
 
     #   Plotting "Best" score
     pos_best = pos.min(axis=1).flatten()
@@ -211,7 +245,6 @@ def do_tcrbase_and_histplots(preds, peptide, partition, f=None,ax=None,
         f2.savefig(f'{outdir}TCRBase_BEST_{peptide}_distances_histplot_{unique_filename}', dpi=150, bbox_inches='tight')
 
     return tcrbase_output
-
 
 # def wrapper(dist_matrix, peptide, unique_filename, outdir):
 #     query = dist_matrix.query('set=="query"').copy()

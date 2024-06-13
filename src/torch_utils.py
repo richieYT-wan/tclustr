@@ -1,14 +1,117 @@
+import glob
 import os
+from typing import Dict
+
 from .utils import mkdirs
 from torch.nn import LeakyReLU, ELU, SELU, ReLU
 import json
 from src.models import *
+from src.multimodal_models import *
+from src.conv_models import *
 
 ACT_DICT = {'SELU': nn.SELU(), 'ReLU': nn.ReLU(),
             'LeakyReLU': nn.LeakyReLU(), 'ELU': nn.ELU()}
 
 
-def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_json=False, verbose=True):
+def paired_batch_generator(x_tensor_a, x_tensor_b, batch_size):
+    """
+    Generator that yields sequential batches from x_tensor, correctly handling the last batch.
+
+    Args:
+    - x_tensor (Tensor): The input tensor.
+    - batch_size (int): The size of each batch.
+
+    Yields:
+    - Tensor: A batch of data.
+    """
+    assert x_tensor_a.size(0) == x_tensor_b.size(0), f'Size mismatch! {x_tensor_a.size(0)}, {x_tensor_b.size(0)}'
+    num_samples = x_tensor_a.size(0)
+    for start_idx in range(0, num_samples, batch_size):
+        # This automatically adjusts to return all remaining data for the last batch
+        yield x_tensor_a[start_idx:start_idx + batch_size], x_tensor_b[start_idx:start_idx + batch_size]
+
+
+def batch_generator(x_tensor, batch_size):
+    """
+    Generator that yields sequential batches from x_tensor, correctly handling the last batch.
+
+    Args:
+    - x_tensor (Tensor): The input tensor.
+    - batch_size (int): The size of each batch.
+
+    Yields:
+    - Tensor: A batch of data.
+    """
+    num_samples = x_tensor.size(0)
+    for start_idx in range(0, num_samples, batch_size):
+        # This automatically adjusts to return all remaining data for the last batch
+        yield x_tensor[start_idx:start_idx + batch_size]
+
+
+def get_available_device():
+    # Check the number of available GPUs
+    num_gpus = torch.cuda.device_count()
+    if num_gpus == 0:
+        print("No GPUs available. Using CPU.")
+        return 'cpu'
+
+    print(f"Number of available GPUs: {num_gpus}")
+
+    # Check if GPUs are currently in use
+    in_use = [torch.cuda.memory_allocated(i) > 100 for i in range(num_gpus)]
+
+    # Select the first available GPU that is not in use
+    for i in range(num_gpus):
+        if not in_use[i]:
+            print(f"Using GPU {i}")
+            return f'cuda:{i}'
+
+    # If all GPUs are in use, fall back to CPU
+    print("All GPUs are in use. Using CPU.")
+    return 'cpu'
+
+
+def mask_modality(tensor, mask, fill_value: float = 0.):
+    """
+    Check that the shapes match, and broadcast if needed in a very crude manner
+    Used for example to mask inputs or loss for datapoints with missing modalities
+    Assumes (and asserts) that mask has a dimensions <= tensor's dim
+    Args:
+        tensor: tensor to mask
+        mask: Binary mask, should be binary and at least have the same number of elements as tensor (shape[0])
+        fill_value (float): value with which to fill the masked version of the tensor. Use 0 when disabling gradients
+                            Could be another value to make it easier to mask a reconstructed sequence tensor.
+                            For example (ex set to -99) then use tensor[tensor!=-99] to index
+    Returns:
+        masked_tensor: same tensor but with some elements set to zero
+    """
+    assert len(mask.shape) <= len(tensor.shape) and mask.shape[0] == tensor.shape[
+        0], f'Check mask/tensor dimensions! Mask: {mask.shape} ; Tensor : {tensor.shape}'
+    if mask.shape != tensor.shape:
+        while len(mask.shape) < len(tensor.shape):
+            mask = mask.unsqueeze(1)
+
+    return torch.where(mask.bool(), tensor, torch.full_like(tensor, fill_value))
+
+
+def filter_modality(tensor, mask, fill_value=-99):
+    masked_tensor = mask_modality(tensor, mask, fill_value)
+    new_mask = (masked_tensor != fill_value).bool()
+    while len(new_mask.shape) > 1:
+        new_mask = new_mask[:, 0]
+    return masked_tensor[new_mask]
+
+
+def get_model(folder, **kwargs):
+    pt = glob.glob(folder + '/*checkpoint_best*.pt')
+    pt = [x for x in pt if 'interval' not in x][0]
+    js = glob.glob(folder + '/*checkpoint*.json')[0]
+    model = load_model_full(pt, js, **kwargs)
+    return model
+
+
+def load_model_full(checkpoint_filename, json_filename, dir_path=None,
+                    return_json=False, verbose=True, return_best_dict=False, **kwargs):
     """
     Instantiate and loads a model directly from a checkpoint and json filename
     Args:
@@ -18,9 +121,11 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
     Returns:
 
     """
-    dict_kwargs = load_json(json_filename, dir_path)
+    dict_kwargs = load_json(json_filename, dir_path, **kwargs)
     assert 'constructor' in dict_kwargs.keys(), f'No constructor class name provided in the dict_kwargs keys! {dict_kwargs.keys()}'
     constructor = dict_kwargs.pop('constructor')
+    if constructor == 'BimodalVAEClassifier':
+        constructor = 'TwoStageVAECLF'
     if 'activation' in dict_kwargs:
         dict_kwargs['activation'] = eval(dict_kwargs['activation'])()
     for k in dict_kwargs:
@@ -29,7 +134,10 @@ def load_model_full(checkpoint_filename, json_filename, dir_path=None, return_js
                 if l == 'activation':
                     dict_kwargs[k]['activation'] = eval(dict_kwargs[k]['activation'])()
     model = eval(constructor)(**dict_kwargs)
-    model = load_checkpoint(model, checkpoint_filename, dir_path, verbose)
+    model = load_checkpoint(model, checkpoint_filename, dir_path, verbose, return_best_dict, **kwargs)
+    if return_best_dict:
+        model, best = model
+        dict_kwargs['best'] = best
     if return_json:
         return model, dict_kwargs
     else:
@@ -66,7 +174,7 @@ def save_model_full(model, checkpoint_filename='checkpoint.pt', dir_path='./', v
         f'and JSON at {os.path.abspath(os.path.join(dir_path, json_filename))}')
 
 
-def load_json(filename, dir_path=None):
+def load_json(filename, dir_path=None, **kwargs):
     """
     Loads a dictionary from a .json file and returns it
     Args:
@@ -128,17 +236,23 @@ def save_checkpoint(model, filename: str = 'checkpoint.pt', dir_path: str = './'
         mkdirs(dir_path)
         if verbose:
             print(f'Creating {dir_path}; The provided dir path {dir_path} did not exist!')
-
+    if dir_path.startswith('../output/../output/'):
+        dir_path = dir_path[:10]+dir_path[20:]
     savepath = os.path.join(dir_path, filename)
     checkpoint = model.state_dict()
     if best_dict is not None and type(best_dict) == dict:
         checkpoint['best'] = best_dict
+
     torch.save(checkpoint, savepath)
+
+
     if verbose:
         print(f'Model saved at {os.path.abspath(savepath)}')
 
 
-def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True):
+def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True,
+                    return_dict=False,
+                    **kwargs):
     """
     Loads a model
     Args:
@@ -152,7 +266,10 @@ def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True):
     if dir_path is not None:
         filename = os.path.join(dir_path, filename)
     try:
-        checkpoint = torch.load(filename)
+        if 'map_location' not in kwargs:
+            DEVICE = get_available_device()
+            kwargs['map_location'] = DEVICE
+        checkpoint = torch.load(filename, **kwargs)
         if 'best' in checkpoint.keys():
             best = checkpoint.pop('best')
             if verbose:
@@ -165,58 +282,6 @@ def load_checkpoint(model, filename: str, dir_path: str = None, verbose=True):
         print(st.keys())
         raise ValueError()
     model.eval()
+    if return_dict:
+        return model, best
     return model
-
-
-def create_load_model(constructor, filename: str, dir_path: str = None):
-    """If provided with a constructor, loads the state_dict and creates the model object from the state_dict
-
-    Assumes that state_dict has a key "init_params" that is used to initialize the model with the constructor.
-    Args:
-        constructor:
-        filename:
-        dir_path:
-
-    Returns:
-        model: Loaded model, in eval mode, created from the constructor + the state_dict['init_params']
-    """
-    if dir_path is not None:
-        filename = os.path.join(dir_path, filename)
-    state_dict = torch.load(filename)
-    assert 'init_params' in state_dict.keys(), f'state_dict does not contain init_params key! It has {state_dict.keys()} instead.'
-    model = constructor(**state_dict['init_params'])
-    model.load_state_dict(state_dict)
-    model.eval()
-    return model
-
-
-def set_mode(models_dict, mode='eval'):
-    """
-    QOL function to set all models to train or eval
-    Args:
-        models_dict (dict): dictionary of list of models
-        mode (str): mode.lower() should be either 'eval' or 'train'
-    Returns:
-        the same models_dict
-    """
-    assert mode.lower() in ['eval', 'train'], 'Please provide a proper mode' \
-                                              f'(either "train" or "eval"). You provided "{mode}"'
-    mode_bool = mode.lower() == 'train'
-    for key, model_list in models_dict.items():
-        for model in model_list:
-            model.train(mode_bool)
-
-
-def set_device(models_list, device):
-    """
-    QOL fct to set all models in a LIST to the same device.
-    Only for list and not Dict because copying takes time and space
-    Args:
-        models_list:
-        device:
-
-    Returns:
-
-    """
-    for model in models_list:
-        model.to(device)

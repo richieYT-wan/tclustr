@@ -2,21 +2,125 @@ import argparse
 import os
 import pickle
 import pandas as pd
-from itertools import chain, cycle
 from matplotlib import pyplot as plt
 import matplotlib.patheffects as path_effects
 import seaborn as sns
 from sklearn.model_selection import KFold
 import secrets
 import string
+import torch
 from datetime import datetime as dt
 
 
-def epoch_counter(model, criterion):
-    if hasattr(model, 'counter') and hasattr(model, 'increment_counter'):
-        model.increment_counter()
-    if hasattr(criterion, 'counter') and hasattr(criterion, 'increment_counter'):
+def batchify(data, batch_size):
+    """
+    Split the data into batches.
+    
+    Parameters:
+        data (list): The input data to be batchified.
+        batch_size (int): The size of each batch.
+    
+    Returns:
+        list: A list of batches, where each batch is a sublist of the data.
+    """
+    batches = [data[i:i + batch_size] for i in range(0, len(data), batch_size)]
+    return batches
+
+
+def make_filename(args):
+    connector = '' if args["out"] == '' else '_'
+    kf = '-1' if args["fold"] is None else args['fold']
+    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') \
+        else get_random_id() if (args['random_id'] == '' or args['random_id'] is None) else args['random_id']
+
+    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
+    return unique_filename, kf, rid, connector
+
+
+def plot_criterion_annealing(n_epochs, criterion, xlim=0.9):
+    assert hasattr(criterion, 'weight_kld_n') or hasattr(criterion, 'weight_kld') or hasattr(criterion,
+                                                                                             'vae_loss'), f'No weight kld in criterion of class {type(criterion)}!'
+    x = torch.arange(n_epochs)
+    y = []
+    for i in range(n_epochs):
+        if hasattr(criterion, 'weight_kld_n'):
+            y.append(criterion.weight_kld_n)
+        elif hasattr(criterion, 'weight_kld'):
+            y.append(criterion.weight_kld)
+        elif hasattr(criterion, 'vae_loss'):
+            y.append(criterion.vae_loss.weight_kld)
         criterion.increment_counter()
+    y = torch.tensor(y)
+    # print(y)
+    # return y
+    if hasattr(criterion, 'base_weight_kld_n'):
+        base_weight = criterion.base_weight_kld_n
+    elif hasattr(criterion, 'base_weight_kld'):
+        base_weight = criterion.base_weight_kld
+    elif hasattr(criterion, 'vae_loss'):
+        base_weight = criterion.vae_loss.base_weight_kld
+
+    f, ax = plt.subplots(1, 1, figsize=(7, 3))
+
+    ax.plot(x.numpy()[:int(xlim * n_epochs)], y.numpy()[:int(xlim * n_epochs)])
+    # bunch of lines and prints
+    max_ish = torch.where(y >= 0.99 * base_weight)[0][0].item()
+    ax.axvline(max_ish, c='k', ls='--', lw=0.5,
+               label=f'99% at {max_ish}')
+
+    last_1m6 = torch.where(y >= 1e-6)[0][0].item()
+    ax.axvline(last_1m6, c='g', ls=':', lw=0.25,
+               label=f'>1e-6 at {last_1m6}')
+    last_1m4 = torch.where(y >= 1e-4)[0][0].item()
+    ax.axvline(last_1m4, c='g', ls=':', lw=0.25,
+               label=f'>1e-4 at {last_1m4}')
+
+    p50 = torch.where(y >= .5 * base_weight)[0][0].item()
+    print('wtf', p50, 0.5*base_weight, base_weight)
+    ax.axvline(p50, c='m', ls=':', lw=0.5,
+               label=f'50% at {p50}')
+    p25 = torch.where(y >= .25 * base_weight)[0][0].item()
+    ax.axvline(p25, c='c', ls=':', lw=0.5, label=f'25% at {p25}')
+
+    plt.legend()
+    plt.title("Scaled Tanh Weight Factor")
+    plt.xlabel("Epoch")
+    plt.ylabel("Weight Factor")
+    plt.grid(True)
+    plt.show()
+    return y
+
+
+def plot_tanh_annealing(n_epochs, base_weight, scale, warm_up, shift=None):
+    x = torch.arange(0, n_epochs, 1)
+    shift = 2 * warm_up // 3 if shift is None else shift
+    y = (base_weight) * (1 + torch.tanh(scale * (x - shift))) / 2
+    p50 = torch.where(y == 0.5 * base_weight)[0].item()
+    last_zero = torch.where(y >= 1e-6)[0][0].item()
+    max_ish = torch.where(y >= 0.99 * base_weight)[0][0].item()
+    p25 = torch.where(y >= .25 * base_weight)[0][0].item()
+    plt.plot(x.numpy()[:int(0.15 * n_epochs)], y.numpy()[:int(0.15 * n_epochs)])
+    plt.axvline(max_ish, c='k', ls='--', lw=0.5,
+                label=f'99% at {max_ish}')
+    plt.axvline(last_zero, c='g', ls=':', lw=0.25,
+                label=f'>1e-6 at {last_zero}')
+    plt.axvline(p50, c='m', ls=':', lw=0.5,
+                label=f'50% at {p50}')
+    plt.axvline(p25, c='c', ls=':', lw=0.5,
+                label=f'25% at {p25}')
+
+    plt.legend()
+    plt.title("Scaled Tanh Weight Factor")
+    plt.xlabel("Epoch")
+    plt.ylabel("Weight Factor")
+    plt.grid(True)
+    plt.show()
+
+
+def epoch_counter(*inputs):
+    for x in inputs:
+        if hasattr(x, 'counter') and hasattr(x, 'increment_counter'):
+            x.increment_counter()
 
 
 def get_loss_metric_text(epoch, train_loss, valid_loss, train_metric, valid_metric):
@@ -73,7 +177,7 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
 
 def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
                        palette='gnuplot2_r', warm_up=10,
-                       figsize=(14, 10), ylim0=[0, 1], ylim1=[0.5, 1.1], title=None):
+                       figsize=(14, 10), ylim0=[0, 1], ylim1=[0.2, 1.05], title=None):
     """
 
     Args:
@@ -90,7 +194,10 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
 
     """
     n = max(len(losses_dict.keys()), len(accs_dict.keys()))
+    if n >= 8:
+        palette = 'Set1'
     sns.set_palette(get_palette(palette, n_colors=n))
+    sns.set_style('darkgrid')
     f, a = plt.subplots(2, 1, figsize=figsize)
     a = a.ravel()
     # Corresponds to the warmup
@@ -105,16 +212,22 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
         a[0].plot(v[warm_up:], label=k)
         if k == 'valid_total' or k == 'valid_loss':
             best_val_loss_epoch = v.index(min(v))
+
+    max_acc = 0
     for k, v in accs_dict.items():
         if len(v) == 0 or all([val == 0 for val in v]): continue
+        max_acc = max(max_acc, max(v))
         a[1].plot(v[warm_up:], label=k)
-        if k == 'valid_seq_accuracy' or k == 'valid_b_accuracy' or k == 'valid_auc':
+        if (("valid" in k and "acc" in k) and (
+                "mean" in k or "seq" in k or "tcr" in k)) or k == 'valid_seq_accuracy' or k == 'valid_auc':
             best_val_accs_epoch = v.index(max(v))
     a[0].set_ylim(ylim0)
     a[0].axvline(x=best_val_loss_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
                  c='k', label=f'Best loss epoch {best_val_loss_epoch}')
     a[1].axvline(x=best_val_accs_epoch, ymin=0, ymax=1, ls='--', lw=0.5,
                  c='k', label=f'Best accs epoch {best_val_accs_epoch}')
+    if max_acc <= 0.6:
+        ylim1 = [0, 1.]
     a[1].set_ylim(ylim1)
     a[0].set_title('Losses')
     a[1].set_title('Accuracies')
@@ -134,12 +247,15 @@ def get_datetime_string():
 
 
 def get_random_id(length=6):
+    # LETTERx1_DIGITx1_RANDOMx(len-2)
     first_character = ''.join(
-        secrets.choice(string.digits) for _ in range(2))  # Generate a random digit for the first character
+        secrets.choice(string.ascii_letters) for _ in range(1))
+    second_character = ''.join(secrets.choice(string.ascii_letters) for _ in range(1))
+    # Generate a random digit for the first character
     remaining_characters = ''.join(
         secrets.choice(string.ascii_letters + string.digits) for _ in
         range(length - 2))  # Generate L-2 random characters
-    random_string = first_character + remaining_characters
+    random_string = first_character + second_character + remaining_characters
     return random_string
 
 

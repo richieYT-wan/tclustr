@@ -1,11 +1,26 @@
-import pandas as pd
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Sampler, SequentialSampler, RandomSampler
 from src.data_processing import encode_batch, batch_encode_cat, batch_positional_encode, V_MAP, J_MAP, PEP_MAP, \
     encoding_matrix_dict
 from overrides import override
+
+from src.samplers import MinorityClassSampler
+
+
+class MinoritySampler(Sampler):
+    """
+    Custom Sampler class to batch minority classes together
+    Assumes labels and minority classes are iterators of ints
+    """
+
+    def __init__(self, labels, batch_size, minority_classes):
+        super(MinoritySampler, self).__init__()
+        pass
+
+    def __iter__(self):
+        pass
 
 
 class VAEDataset(Dataset):
@@ -13,12 +28,16 @@ class VAEDataset(Dataset):
     Parent class so I don't have to re-declare the same bound methods
     """
 
-    def __init__(self, x=torch.empty([10, 1])):
+    def __init__(self, df, x=torch.empty([10, 1])):
         super(VAEDataset, self).__init__()
+        self.df = df
+        self.labels = torch.empty_like(x)
+        self.minority_classes = [0]
         self.x = x
+        self.counter = 0
 
     def __len__(self):
-        return len(self.x)
+        return len(self.df)
 
     def __getitem__(self, idx):
         return self.x[idx]
@@ -27,8 +46,25 @@ class VAEDataset(Dataset):
         return self
 
     def get_dataloader(self, batch_size, sampler, **kwargs):
-        dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
+        if issubclass(sampler, MinorityClassSampler):
+            dataloader = DataLoader(self, batch_sampler=sampler(self.labels, batch_size, self.minority_classes))
+        elif sampler == RandomSampler or sampler == SequentialSampler:
+            dataloader = DataLoader(self, batch_size=batch_size, sampler=sampler(self), **kwargs)
+        else:
+            raise ValueError('wtf sampler')
         return dataloader
+
+    def increment_counter(self):
+        self.counter += 1
+        # for c in self.children():
+        #     if hasattr(c, 'counter') and hasattr(c, 'increment_counter'):
+        #         c.increment_counter()
+
+    def set_counter(self, counter):
+        self.counter = counter
+        # for c in self.children():
+        #     if hasattr(c, 'counter') and hasattr(c, 'set_counter'):
+        #         c.set_counter(counter)
 
 
 class CDR3BetaDataset(VAEDataset):
@@ -40,7 +76,7 @@ class CDR3BetaDataset(VAEDataset):
     def __init__(self, df, max_len=23, encoding='BL50LO', pad_scale=None, cdr3b_col='B3', use_v=True, use_j=True,
                  v_col='TRBV_gene', j_col='TRBJ_gene', v_dim=51, j_dim=13, v_map=V_MAP, j_map=J_MAP, add_pep=False,
                  max_len_pep=12):
-        super(CDR3BetaDataset, self).__init__()
+        super(CDR3BetaDataset, self).__init__(df)
         self.max_len = max_len
         self.encoding = encoding
 
@@ -82,13 +118,12 @@ class FullTCRDataset(VAEDataset):
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
-                 pep_weight_scale=3.8):
-        super(FullTCRDataset, self).__init__()
-
+                 pep_weight_scale=3.8, leave_pep_out: str = None, conv=False):
+        super(FullTCRDataset, self).__init__(df)
         assert not all([x == 0 for x in [max_len_a1, max_len_a2, max_len_a3,
                                          max_len_b1, max_len_b2, max_len_b3, max_len_pep]]), \
             'All loops max_len are 0! No chains will be added'
-
+        self.pad_scale = pad_scale if pad_scale is not None else -20
         self.max_len_a1 = max_len_a1
         self.max_len_a2 = max_len_a2
         self.max_len_a3 = max_len_a3
@@ -106,6 +141,7 @@ class FullTCRDataset(VAEDataset):
         for seq_col, max_len, in mldict.items():
             if max_len > 0:
                 df['len_q'] = df[seq_col].apply(len)
+                # print(f'Before filtering for {seq_col}, {len(df)}')
                 df = df.query('len_q <= @max_len')
         self.df = df.drop(columns=['len_q']).reset_index(drop=True)
         x_seq = []
@@ -139,8 +175,9 @@ class FullTCRDataset(VAEDataset):
             x_pos = torch.stack(x_pos, dim=2)
             # Add the pos encode to the seq tensor (N, sum(ML), 20) -> (N, sum(ML), 20+n_chains)
             x_seq = torch.cat([x_seq, x_pos], dim=2)
-
-        self.x = x_seq.flatten(start_dim=1)
+        if not conv:
+            x_seq = x_seq.flatten(start_dim=1)
+        self.x = x_seq
         self.pep_weighted = pep_weighted
         # Here save a weight that is peptide specific to give more/less importance to peptides that are less/more frequent
         if pep_weighted:
@@ -151,6 +188,16 @@ class FullTCRDataset(VAEDataset):
         else:
             self.pep_weights = torch.ones([len(self.x)])
 
+        # leave_pep_out variable should be a string of the peptide
+        if leave_pep_out is not None:
+            if leave_pep_out not in self.df[pep_col].unique():
+                print(
+                    f'Leave Peptide out activated, but {leave_pep_out} was passed as an option and is not among df unique for {pep_col} column.')
+                raise ValueError()
+            else:
+                self.pep_weighted = True
+                self.pep_weights = torch.from_numpy((df[pep_col] != leave_pep_out).values).float().flatten()
+
 
 class TCRSpecificDataset(FullTCRDataset):
     """
@@ -159,16 +206,29 @@ class TCRSpecificDataset(FullTCRDataset):
 
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
-                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_weighted=False, pep_weight_scale=3.8):
+                 a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', pep_weighted=False,
+                 pep_weight_scale=3.8, leave_pep_out=None, minority_count=50, conv=False):
         super(TCRSpecificDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                  max_len_b3, max_len_pep=max_len_pep,
                                                  add_positional_encoding=add_positional_encoding, encoding=encoding,
                                                  pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
-                                                 b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_weighted=pep_weighted,
-                                                 pep_weight_scale=pep_weight_scale)
+                                                 b1_col=b1_col, b2_col=b2_col, b3_col=b3_col, pep_col=pep_col,
+                                                 pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale,
+                                                 leave_pep_out=leave_pep_out, conv=conv)
         # Here "labels" are for each peptide, used for the triplet loss
         # MIGHT be overridden wrongly in BimodalTCR dataset!!
-        self.labels = torch.from_numpy(df['peptide'].map(PEP_MAP).values)
+        pepmap = {k: v for v, k in enumerate(df[pep_col].unique())}  # FIX
+        self.pepmap = pepmap
+        self.inverse_pepmap = {v: k for k, v in pepmap.items()}
+        self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
+        # if conv:
+        #     self.x = self.x.view(-1, sum([self.max_len_a1, self.max_len_a2, self.max_len_a3,
+        #                                   self.max_len_b1, self.max_len_b2, self.max_len_b3,
+        #                                   self.max_len_pep]), self.matrix_dim)
+        # # 240507 : Adding minority class saving to get custom batching
+        low_number = self.df.query('binder==1').groupby('peptide').agg(count=(b3_col, 'count')).query('count<=@minority_count').index
+        self.df['minority_class'] = self.df[pep_col].apply(lambda x: x in low_number)
+        self.minority_classes = [pepmap[x] for x in self.df.query('minority_class').peptide.unique()]
 
     @override
     def __getitem__(self, idx):
@@ -178,18 +238,19 @@ class TCRSpecificDataset(FullTCRDataset):
             return self.x[idx], self.labels[idx]
 
 
-class BimodalTCRpMHCDataset(TCRSpecificDataset):
+class TwoStageTCRpMHCDataset(TCRSpecificDataset):
 
     def __init__(self, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, pep_encoding='BL50LO',
                  pep_pad_scale=None, a1_col='A1', a2_col='A2', a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3',
-                 pep_col='peptide', label_col='binder', pep_weighted=False, pep_weight_scale=3.8):
-        super(BimodalTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
-                                                    max_len_b3, max_len_pep=max_len_pep,
-                                                    add_positional_encoding=add_positional_encoding, encoding=encoding,
-                                                    pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
-                                                    b1_col=b1_col, b2_col=b2_col, b3_col=b3_col,
-                                                    pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale)
+                 pep_col='peptide', label_col='binder', pep_weighted=False, pep_weight_scale=3.8, minority_count=50, conv=False):
+        super(TwoStageTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
+                                                     max_len_b3, max_len_pep=max_len_pep,
+                                                     add_positional_encoding=add_positional_encoding, encoding=encoding,
+                                                     pad_scale=pad_scale, a1_col=a1_col, a2_col=a2_col, a3_col=a3_col,
+                                                     b1_col=b1_col, b2_col=b2_col, b3_col=b3_col,
+                                                     pep_weighted=pep_weighted, pep_weight_scale=pep_weight_scale,
+                                                     minority_count=minority_count,  conv=conv)
         assert pep_encoding in ['categorical'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
@@ -204,16 +265,19 @@ class BimodalTCRpMHCDataset(TCRSpecificDataset):
         #   Should maybe unify this in order to handle data with swapped negatives ? (because Bimodal inherits from this)
         # self.labels = torch.from_numpy(df['original_peptide'].map(PEP_MAP).values)
         # Here, should now try to use the swapped peptide as labels for the triplet loss. This should mess everything up
-        self.labels = torch.from_numpy(self.df[pep_col].map(PEP_MAP).values)
+        # why is this shit hard-coded"???
+        pepmap = {k: v for v, k in enumerate(df['peptide'].unique())}  # FIXED
+        self.labels = torch.from_numpy(self.df[pep_col].map(pepmap).values)
 
         self.x_pep = encoded_peps
         self.binder = torch.from_numpy(self.df[label_col].values).unsqueeze(1).float()
 
         # TODO: fix this
         #   Quick & Dirty fix for triplet loss : Use PepWeights as binary mask to remove some losses
-        #   Set pepweights as where original_pep == pep, in BimodalVAELoss, use weights only for triplet
-        self.pep_weights = torch.from_numpy(self.df.apply(lambda x: x['original_peptide']==x['peptide'], axis=1).values).float().unsqueeze(1)
-        print('xd')
+        #   Set pepweights as where original_pep == pep, in TwoStageVAELoss, use weights only for triplet
+        #   this should've just been df['binder'].vaules ...
+        self.pep_weights = torch.from_numpy(
+            self.df.apply(lambda x: x['original_peptide'] == x['peptide'], axis=1).values).float().unsqueeze(1)
         # Summary for Bimodal:
         # self.labels is overriden and uses original_peptide, for triplet loss
         # self.encoded_peps (used for the CLF) uses the pep_col, which is `peptide` by default (i.e. includes swapped neg)
@@ -247,7 +311,7 @@ class LatentTCRpMHCDataset(FullTCRDataset):
     def __init__(self, model, df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep=0,
                  add_positional_encoding=False, encoding='BL50LO', pad_scale=None, a1_col='A1', a2_col='A2',
                  a3_col='A3', b1_col='B1', b2_col='B2', b3_col='B3', pep_col='peptide', label_col='binder',
-                 pep_encoding='BL50LO', pep_weighted=False, pep_weight_scale=3.8):
+                 pep_encoding='BL50LO', pep_weighted=False, pep_weight_scale=3.8, random_latent=False, tcr_enc=None):
         super(LatentTCRpMHCDataset, self).__init__(df, max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2,
                                                    max_len_b3, max_len_pep=max_len_pep,
                                                    add_positional_encoding=add_positional_encoding, encoding=encoding,
@@ -262,19 +326,31 @@ class LatentTCRpMHCDataset(FullTCRDataset):
             # for f in [max_len_a1, max_len_a2, max_len_a3, max_len_b1, max_len_b2, max_len_b3, max_len_pep]:
             #     print(f'{f}')
             # print('PE', add_positional_encoding)
-            z_latent = model.embed(self.x)
 
-        assert pep_encoding in ['categorical'] + list(
+            z_latent = model.embed(self.x)
+            if random_latent:
+                z_latent = torch.rand_like(z_latent).float()
+
+        assert pep_encoding in ['categorical', 'none'] + list(
             encoding_matrix_dict.keys()), f'Encoding for peptide {pep_encoding} not recognized.' \
                                           f"Must be one of {['categorical'] + list(encoding_matrix_dict.keys())}"
-        if pep_encoding == 'categorical':
+        if pep_encoding == 'none':
+            encoded_peps = torch.empty([len(z_latent), 0])
+        elif pep_encoding == 'categorical':
             # dim (N, 12)
             encoded_peps = batch_encode_cat(df[pep_col], 12, -1)
         else:
             # dim (N, 12, 20) -> (N, 240) after flatten
             encoded_peps = encode_batch(df[pep_col], 12, pep_encoding, -20).flatten(start_dim=1)
 
+        if tcr_enc is not None:
+            if tcr_enc == 'random':
+                z_latent = torch.rand([len(encoded_peps), model.latent_dim])
+            else:
+                z_latent = self.x
+
         self.x = torch.cat([z_latent, encoded_peps], dim=1)
+
         # Here labels are binary "binders" label, instead of pep_label for triplet loss
         self.labels = torch.from_numpy(df[label_col].values).unsqueeze(1).float()
 

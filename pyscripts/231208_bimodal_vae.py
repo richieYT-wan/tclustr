@@ -1,11 +1,9 @@
 import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
-
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
-import wandb
 import math
 import torch
 from torch import optim
@@ -14,12 +12,13 @@ from torch import nn
 from torch.utils.data import RandomSampler, SequentialSampler
 from datetime import datetime as dt
 from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_string, plot_vae_loss_accs, \
-    get_dict_of_lists, get_class_initcode_keys
-from src.torch_utils import load_checkpoint, save_model_full, load_model_full
-from src.models import BimodalVAEClassifier, FullTCRVAE, PeptideClassifier
-from src.train_eval import bimodal_train_eval_loops, predict_bimodal, train_bimodal_step, eval_bimodal_step
-from src.datasets import BimodalTCRpMHCDataset
-from src.metrics import BimodalVAELoss
+    get_dict_of_lists, get_class_initcode_keys, make_filename
+from src.torch_utils import load_checkpoint, save_model_full, load_model_full, get_available_device, \
+    save_json
+from src.models import TwoStageVAECLF, FullTCRVAE, PeptideClassifier
+from src.train_eval import twostage_train_eval_loops, predict_twostage, train_twostage_step, eval_twostage_step
+from src.datasets import TwoStageTCRpMHCDataset
+from src.metrics import TwoStageVAELoss
 from sklearn.metrics import roc_auc_score, precision_score
 import argparse
 
@@ -31,6 +30,9 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
+    parser.add_argument('-device', dest='device', default=None, type=str,
+                        help='Specify a device (cpu, cuda:0, cuda:1)')
+
     parser.add_argument('-logwb', '--log_wandb', dest='log_wandb', required=False, default=False,
                         type=str2bool, help='Whether to log a run using WandB. False by default')
     parser.add_argument('-f', '--file', dest='file', required=False, type=str,
@@ -83,6 +85,9 @@ def args_parser():
 
     parser.add_argument('-addpe', '--add_positional_encoding', dest='add_positional_encoding', type=str2bool, default=False,
                         help='Adding positional encoding to the sequence vector. False by default')
+    parser.add_argument('-posweight', '--positional_weighting', dest='positional_weighting', type=str2bool,
+                        default=False,
+                        help='Whether to use positional weighting in reconstruction loss to prioritize CDR3 chains.')
     """
     Models args 
     """
@@ -95,6 +100,12 @@ def args_parser():
                              '[selu, relu, leakyrelu, elu]')
     parser.add_argument('-nhclf', '--n_hidden_clf', dest='n_hidden_clf', type=int, default=50,
                         help='Number of hidden units in the Classifier. Default = 32')
+    parser.add_argument('-ale', dest='add_layer_encoder', default=False, type=str2bool,
+                        help='Add an extra encoder layer')
+    parser.add_argument('-ald', dest='add_layer_decoder', default=False, type=str2bool,
+                        help='Add an extra decoder layer')
+    parser.add_argument('-ob', dest='old_behaviour', default=True, type=str2bool,
+                        help='switchcase to have old behaviour to ahve models we can load/save')
     parser.add_argument('-do', dest='dropout', type=float, default=0.25,
                         help='Dropout percentage in the hidden layers (0. to disable)')
     parser.add_argument('-bn', dest='batchnorm', type=str2bool, default=True,
@@ -165,10 +176,14 @@ def main():
 
     # Redundant usage because clf and vae use a diff variable name (was useful before should probly be phased out now)
     args['n_latent'] = args['latent_dim']
-    if cuda.is_available() and args['cuda']:
-        device = torch.device('cuda:0')
+    if torch.cuda.is_available() and args['cuda']:
+        device = get_available_device()
     else:
         device = torch.device('cpu')
+
+    if args['device'] is not None:
+        device = args['device']
+
     print("Using : {}".format(device))
     torch.manual_seed(seed)
     # Convert the activation string codes to their nn counterparts
@@ -177,20 +192,18 @@ def main():
     # Loading data and getting train/valid
     # TODO: Restore valid kcv behaviour // or not
     df = pd.read_csv(args['file'])
+    if args['debug']:
+        df = df.sample(frac=0.25)
     dfname = args['file'].split('/')[-1].split('.')[0]
-    train_df = df.query('partition!=@args["fold"]')
-    valid_df = df.query('partition==@args["fold"]')
+    train_df = df.query(f'partition!={args["fold"]}')
+    valid_df = df.query(f'partition=={args["fold"]}')
     # TODO: get rid of this bad hardcoded behaviour for AA_dim ; Let's see if we end up using Xs
     args['aa_dim'] = 20
-    if args['log_wandb']:
-        wandb.login()
+    # if args['log_wandb']:
+    #     wandb.login()
+
     # File-saving stuff
-    connector = '' if args["out"] == '' else '_'
-    kf = '-1' if args["fold"] is None else args['fold']
-    rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') else get_random_id() if args[
-                                                                                                                       'random_id'] == '' else \
-        args['random_id']
-    unique_filename = f'{args["out"]}{connector}KFold_{kf}_{get_datetime_string()}_{rid}'
+    unique_filename, kf, rid, connector = make_filename(args)
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
     outdir = os.path.join('../output/', unique_filename) + '/'
@@ -201,12 +214,12 @@ def main():
     # Maybe this is better? Defining the various keys using the constructor's init arguments
     vae_keys = get_class_initcode_keys(FullTCRVAE, args)
     clf_keys = get_class_initcode_keys(PeptideClassifier, args)
-    dataset_keys = get_class_initcode_keys(BimodalTCRpMHCDataset, args)
-    loss_keys = get_class_initcode_keys(BimodalVAELoss, args)
+    dataset_keys = get_class_initcode_keys(TwoStageTCRpMHCDataset, args)
+    loss_keys = get_class_initcode_keys(TwoStageVAELoss, args)
     vae_params = {k: args[k] for k in vae_keys}
     clf_params = {k: args[k] for k in clf_keys}
     clf_params['n_latent'] = vae_params['latent_dim']
-    clf_params['pep_dim'] = df.peptide.apply(len).max().item() if args['pep_encoding'] == 'categorical' else 12 * 20
+    clf_params['pep_dim'] = int(df.peptide.apply(len).max()) if args['pep_encoding'] == 'categorical' else int(df.peptide.apply(len).max()) * 20
 
     model_params = {k: args[k] for k in vae_keys + clf_keys}
     dataset_params = {k: args[k] for k in dataset_keys}
@@ -217,34 +230,37 @@ def main():
     with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
         for key, value in args.items():
             file.write(f"{key}: {value}\n")
+    # Dump args to json for potential resume training.
+    save_json(args, f'run_parameters_{unique_filename}.json', outdir)
     # Here, don't specify V and J map to use the default V/J maps loaded from src.data_processing
-    train_dataset = BimodalTCRpMHCDataset(train_df, **dataset_params)
-    valid_dataset = BimodalTCRpMHCDataset(valid_df, **dataset_params)
+    train_dataset = TwoStageTCRpMHCDataset(train_df, **dataset_params)
+    valid_dataset = TwoStageTCRpMHCDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
     valid_loader = valid_dataset.get_dataloader(batch_size=args["batch_size"] * 2, sampler=SequentialSampler)
 
-    fold_filename = f'kcv_{dfname}_f{args["fold"]:02}_{unique_filename}'
-    checkpoint_filename = f'checkpoint_best_fold{args["fold"]:02}_{fold_filename}.pt'
+    fold_filename = f'kcv_fold_{args["fold"]:02}_{unique_filename}'
+    checkpoint_filename = f'checkpoint_best_{fold_filename}.pt'
 
     # instantiate objects
     torch.manual_seed(args["fold"])
-    model = BimodalVAEClassifier(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
-    criterion = BimodalVAELoss(**loss_params)
+    model = TwoStageVAECLF(vae_params, clf_params, warm_up_clf=args['warm_up_clf'])  # **model_params)
+    model.to(device)
+    criterion = TwoStageVAELoss(**loss_params)
+    criterion.to(device)
     optimizer = optim.Adam(model.parameters(), **optim_params)
 
     # Adding the wandb watch statement ; Only add them in the script so that it never interferes anywhere in train_eval
-    if args['log_wandb']:
-        # wandb stuff
-        wandb.init(project=unique_filename, name=f'fold_{args["fold"]:02}', config=args)
-        wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
-
+    # if args['log_wandb']:
+    #     # wandb stuff
+    #     wandb.init(project=unique_filename, name=f'fold_{args["fold"]:02}', config=args)
+    #     wandb.watch(model, criterion=criterion, log_freq=len(train_loader))
+    print(model.device)
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_metrics = bimodal_train_eval_loops(args['n_epochs'], args['tolerance'], model,
-                                                                           criterion, optimizer, train_loader,
-                                                                           valid_loader,
-                                                                           checkpoint_filename, outdir)
+    best_epoch, best_val_loss, best_val_metrics = twostage_train_eval_loops(args['n_epochs'], args['tolerance'], model,
+                                                                            criterion, optimizer, train_loader,
+                                                                            valid_loader, checkpoint_filename, outdir)
 
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
@@ -284,7 +300,7 @@ def main():
     print('Reloading best model and returning validation predictions')
     model = load_checkpoint(model, filename=checkpoint_filename,
                             dir_path=outdir)
-    valid_preds = predict_bimodal(model, valid_dataset, valid_loader)
+    valid_preds = predict_twostage(model, valid_dataset, valid_loader)
     valid_preds['fold'] = args["fold"]
     print('Saving valid predictions from best model')
     valid_preds.to_csv(f'{outdir}valid_predictions_{fold_filename}.csv', index=False)
@@ -295,11 +311,11 @@ def main():
     if args['test_file'] is not None:
         test_df = pd.read_csv(args['test_file'])
         test_basename = os.path.basename(args['test_file']).split(".")[0]
-        test_dataset = BimodalTCRpMHCDataset(test_df, **dataset_params)
+        test_dataset = TwoStageTCRpMHCDataset(test_df, **dataset_params)
         test_loader = test_dataset.get_dataloader(batch_size=3 * args['batch_size'],
                                                   sampler=SequentialSampler)
 
-        test_preds = predict_bimodal(model, test_dataset, test_loader)
+        test_preds = predict_twostage(model, test_dataset, test_loader)
         test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()

@@ -1,0 +1,244 @@
+Starting script
+Reloading best model:
+epoch: 2500
+total: 0.2388915866613388
+reconstruction: 0.21792016923427582
+kld: 0.004042796790599823
+triplet: 0.016928622499108315
+seq_accuracy: 0.9520065188407898
+pos_accuracy: 0.9980720281600952
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 5000
+total: 0.17094343900680542
+reconstruction: 0.1505567878484726
+kld: 0.003693908918648958
+triplet: 0.016692746430635452
+seq_accuracy: 0.9798639416694641
+pos_accuracy: 0.9976691603660583
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 7500
+total: 0.14746348559856415
+reconstruction: 0.12716682255268097
+kld: 0.003615642199292779
+triplet: 0.016681011766195297
+seq_accuracy: 0.9848312735557556
+pos_accuracy: 0.9977390170097351
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 10000
+total: 0.12179256230592728
+reconstruction: 0.10166969150304794
+kld: 0.0035102241672575474
+triplet: 0.016612650826573372
+seq_accuracy: 0.9884697198867798
+pos_accuracy: 0.9978531002998352
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 12500
+total: 0.10408219695091248
+reconstruction: 0.08402441442012787
+kld: 0.0034568416886031628
+triplet: 0.016600945964455605
+seq_accuracy: 0.9907138347625732
+pos_accuracy: 0.9978251457214355
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 15000
+total: 0.09905951470136642
+reconstruction: 0.07898011058568954
+kld: 0.0034173273015767336
+triplet: 0.016662076115608215
+seq_accuracy: 0.990796685218811
+pos_accuracy: 0.9977797865867615
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 17500
+total: 0.10952899605035782
+reconstruction: 0.08951739966869354
+kld: 0.0033890982158482075
+triplet: 0.016622500494122505
+seq_accuracy: 0.9888051152229309
+pos_accuracy: 0.9978298544883728
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 20000
+total: 0.10689374804496765
+reconstruction: 0.08691595494747162
+kld: 0.0034296337980777025
+triplet: 0.01654815301299095
+seq_accuracy: 0.9919723272323608
+pos_accuracy: 0.9977972507476807
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 22500
+total: 0.08947213739156723
+reconstruction: 0.06948017328977585
+kld: 0.003434471320360899
+triplet: 0.016557492315769196
+seq_accuracy: 0.9926534295082092
+pos_accuracy: 0.9977168440818787
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 25000
+total: 0.085446298122406
+reconstruction: 0.06549336016178131
+kld: 0.003378446213901043
+triplet: 0.016574490815401077
+seq_accuracy: 0.9929937124252319
+pos_accuracy: 0.9977367520332336
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+Best epoch: 24973
+total: 0.08075690269470215
+reconstruction: 0.06080009043216705
+kld: 0.003408503718674183
+triplet: 0.01654830388724804
+seq_accuracy: 0.9939780831336975
+pos_accuracy: 0.9977355003356934
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+5868
+HERE
+Reloading best model:
+epoch: 2500
+total: 0.2388915866613388
+reconstruction: 0.21792016923427582
+kld: 0.004042796790599823
+triplet: 0.016928622499108315
+seq_accuracy: 0.9520065188407898
+pos_accuracy: 0.9980720281600952
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 5000
+total: 0.17094343900680542
+reconstruction: 0.1505567878484726
+kld: 0.003693908918648958
+triplet: 0.016692746430635452
+seq_accuracy: 0.9798639416694641
+pos_accuracy: 0.9976691603660583
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 7500
+total: 0.14746348559856415
+reconstruction: 0.12716682255268097
+kld: 0.003615642199292779
+triplet: 0.016681011766195297
+seq_accuracy: 0.9848312735557556
+pos_accuracy: 0.9977390170097351
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 10000
+total: 0.12179256230592728
+reconstruction: 0.10166969150304794
+kld: 0.0035102241672575474
+triplet: 0.016612650826573372
+seq_accuracy: 0.9884697198867798
+pos_accuracy: 0.9978531002998352
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 12500
+total: 0.10408219695091248
+reconstruction: 0.08402441442012787
+kld: 0.0034568416886031628
+triplet: 0.016600945964455605
+seq_accuracy: 0.9907138347625732
+pos_accuracy: 0.9978251457214355
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 15000
+total: 0.09905951470136642
+reconstruction: 0.07898011058568954
+kld: 0.0034173273015767336
+triplet: 0.016662076115608215
+seq_accuracy: 0.990796685218811
+pos_accuracy: 0.9977797865867615
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 17500
+total: 0.10952899605035782
+reconstruction: 0.08951739966869354
+kld: 0.0033890982158482075
+triplet: 0.016622500494122505
+seq_accuracy: 0.9888051152229309
+pos_accuracy: 0.9978298544883728
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 20000
+total: 0.10689374804496765
+reconstruction: 0.08691595494747162
+kld: 0.0034296337980777025
+triplet: 0.01654815301299095
+seq_accuracy: 0.9919723272323608
+pos_accuracy: 0.9977972507476807
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 22500
+total: 0.08947213739156723
+reconstruction: 0.06948017328977585
+kld: 0.003434471320360899
+triplet: 0.016557492315769196
+seq_accuracy: 0.9926534295082092
+pos_accuracy: 0.9977168440818787
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+epoch: 25000
+total: 0.085446298122406
+reconstruction: 0.06549336016178131
+kld: 0.003378446213901043
+triplet: 0.016574490815401077
+seq_accuracy: 0.9929937124252319
+pos_accuracy: 0.9977367520332336
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Reloading best model:
+Best epoch: 24973
+total: 0.08075690269470215
+reconstruction: 0.06080009043216705
+kld: 0.003408503718674183
+triplet: 0.01654830388724804
+seq_accuracy: 0.9939780831336975
+pos_accuracy: 0.9977355003356934
+{'max_len_a1': 7, 'max_len_a2': 8, 'max_len_a3': 22, 'max_len_b1': 6, 'max_len_b2': 7, 'max_len_b3': 23, 'max_len_pep': 0, 'encoding': 'BL50LO', 'pad_scale': -20, 'a1_col': 'A1', 'a2_col': 'A2', 'a3_col': 'A3', 'b1_col': 'B1', 'b2_col': 'B2', 'b3_col': 'B3', 'pep_col': 'peptide', 'add_positional_encoding': True}
+1471
+HERE
+Program finished in 42 minutes, 26 seconds.
