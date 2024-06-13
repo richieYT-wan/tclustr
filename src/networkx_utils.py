@@ -1,10 +1,160 @@
 ### IMPORTS AND STATIC STUFF ###
 
 import networkx as nx
-from pathlib import Path
-import sys
+from pprint import pprint
+from matplotlib import pyplot as plt
+from matplotlib.patches import Patch
+import seaborn as sns
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
 
 
+def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_col='raw_index', algorithm='kruskal'):
+    """
+    Given a labelled distance matrix, create the Graph and minimum spanning tree associated
+    Args:
+        distance_matrix:
+        label_col:
+        index_col:
+        algorithm:
+
+    Returns:
+
+    """
+    values = distance_matrix[distance_matrix.index].values
+    labels = distance_matrix[label_col].values
+    raw_indices = distance_matrix[index_col].values
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
+    G = nx.Graph(values)
+    for i, node in enumerate(G.nodes()):
+        G.nodes[node]['peptide'] = labels[i]
+        G.nodes[node]['raw_index'] = raw_indices[i]
+    tree = nx.minimum_spanning_tree(G, algorithm=algorithm)
+    # For now, return all values as they may be useful later for analysis
+    return tree, G, labels, encoded_labels, label_encoder, raw_indices
+
+
+def prune_by_distance(tree, distance_threshold, prune_node=True, labels=None, verbose=False):
+    """
+    Given a minimum spanning tree, prune it based on a distance threshold
+    Args:
+        tree:
+        distance_threshold:
+        prune_node: Bool, remove nodes that have become isolated after edge-pruning
+        labels:
+        verbose:
+
+    Returns:
+
+    """
+    tree_pruned = tree.copy()
+    removed_edges = []
+    removed_nodes = []
+    for u, v in tree_pruned.edges():
+        weight = tree_pruned.get_edge_data(u, v)['weight']
+        if weight >= distance_threshold:  # assuming weight is a distance and not a similarity
+            if labels is not None:
+                l1 = labels[u]
+                l2 = labels[v]
+                same_label = l1 == l2 if labels is not None else np.nan
+            removed_edges.append((u, v, round(weight, 4), same_label))
+            tree_pruned.remove_edge(u, v)
+    if prune_node:
+        nodes_to_remove = list(nx.isolates(tree_pruned))
+        tree_pruned.remove_nodes_from(nodes_to_remove)
+    if verbose:
+        print(f'***\nbefore pruning : {len(tree.edges())} edges, {len(tree.nodes())} nodes\n***')
+        print(f'***\nafter pruning : {len(tree_pruned.edges())} edges, {len(tree_pruned.nodes())} nodes\n***')
+        print(len(removed_edges), 'removed edges',
+              f'\n{np.array([x[3] for x in removed_edges]).mean():.2%} of the removed edges were actually same-class')
+    return tree_pruned, removed_edges, removed_nodes
+
+
+def draw_mst_spring(tree, color_map, title=None, iterations=300, threshold=1e-5, scale=0.9, k=0.05, dim=2, seed=13):
+    sns.set_style('darkgrid')
+    # Visualize the graph and the minimum spanning tree
+    f, a = plt.subplots(1, 1, figsize=(8, 8))
+    pos = nx.spring_layout(tree, iterations=iterations, threshold=threshold, seed=seed, scale=scale, k=k, dim=dim)
+    node_colors = [color_map[tree.nodes[node]['peptide']] for node in tree.nodes()]
+    nx.draw_networkx_nodes(tree, pos, node_color=node_colors, node_size=52.5,
+                           ax=a)  # nx.draw_networkx_edges(G, pos, edge_color="grey")
+    nx.draw_networkx_labels(tree, pos, font_size=4, font_color='w', font_weight='semibold', font_family="monospace")
+    nx.draw_networkx_edges(tree, pos, edge_color="k", width=0.75)
+    # Create a legend
+    legend_labels = {k: color_map[k] for k in sorted(color_map.keys())}  # Sorted keys for consistent order
+    patches = [Patch(color=color, label=f'{label}') for label, color in legend_labels.items()]
+    plt.legend(handles=patches, title='Node Classes', loc='best', borderaxespad=0.)
+    # Find bottleneck score ; with centrality AND connectivity
+    if title is not None:
+        a.set_title(title)
+    plt.axis("off")
+    plt.show()
+
+
+def betweenness_cut(tree, cut_threshold, which='node', verbose=False):
+    """
+    cuts a minimum spanning tree based on a betweenness centrality threshold on either node or edge centrality
+    Args:
+        tree:
+        cut_threshold:
+        which:
+        verbose:
+
+    Returns:
+
+    """
+    tree_cut = tree.copy()
+    # For now, compute both betweenness centrality and see how slow it is.
+    edge_betweenness = nx.edge_betweenness_centrality(tree_cut)
+    node_betweenness = nx.betweenness_centrality(tree_cut)
+    # Sort it just for the printing // return ; These are list of tuples [(edge or node, centrality)]
+    sorted_edges = sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True)
+    sorted_nodes = sorted(node_betweenness.items(), key=lambda item: item[1], reverse=True)
+
+    if which == 'edge':
+        # remove edges that exceed the centrality threshold
+        edges_to_remove = [x for x in sorted_edges if x[1] > cut_threshold]
+        # Take first element (edge) to cut
+        tree_cut.remove_edges_from([x[0] for x in edges_to_remove])
+        # identify and remove nodes that now have no edges (became singletons)
+        nodes_to_remove = [x for x in sorted_nodes if x[0] in list(nx.isolates(tree_cut))]
+        tree_cut.remove_nodes_from([x[0] for x in nodes_to_remove])
+
+    elif which == 'node':
+        # remove nodes that exceed the centrality threshold
+        nodes_to_remove = [x for x in sorted_nodes if x[1] > cut_threshold]
+        # TODO: OLD definition to remove
+        # edges_to_remove = [x for x in tree_cut.edges() if any([x[0] in nodes_to_remove or x[1] in nodes_to_remove])
+        tree_cut.remove_nodes_from([x[0] for x in nodes_to_remove])
+        # Further identify nodes that have become singletons and must be removed
+        isolated_nodes = list(nx.isolates(tree_cut))
+        tree_cut.remove_nodes_from(isolated_nodes)
+        nodes_to_remove.extend([x for x in sorted_nodes if x[0] in isolated_nodes])
+
+        # Identify the edges that have been cut and their centrality
+        list_nodes = [x[0] for x in nodes_to_remove]
+        edges_to_remove = [x for x in sorted_edges if any([x[0][0] in list_nodes or x[0][1] in list_nodes])]
+
+
+    else:
+        raise ValueError(f'`which` must be either "node" or "edge". Got {which} instead')
+
+    if verbose:
+        print(f'N edges, M nodes')
+        print(f'\tbefore cutting:\t{len(list(tree.edges()))},\t{len(list(tree.nodes()))}')
+        print(f'\tafter cutting:\t{len(list(tree_cut.edges()))},\t{len(list(tree_cut.nodes()))}')
+        print('N components before cutting:\t', len(list(nx.connected_components(tree))))
+        print('N components after cutting:\t', len(list(nx.connected_components(tree_cut))))
+        print('\nEdges removed:')
+        pprint(edges_to_remove)
+        print('\nNodes removed:')
+        pprint(nodes_to_remove)
+
+    return tree_cut, edges_to_remove, nodes_to_remove
+
+
+# JOAKIM FCTS
 def create_graph_from_subgraphsets(G, subgraph_sets):
     """
     Creates a new undirected graph by combining specified subgraphs from an existing graph.
