@@ -1,13 +1,8 @@
 import torch
-from torch.utils.data import Sampler, SequentialSampler, RandomSampler
-import numpy as np
-from itertools import cycle, islice
-
-import torch
-from torch.utils.data import Sampler, SequentialSampler, RandomSampler
+from torch.utils.data import Sampler
 import numpy as np
 import math
-from itertools import cycle, islice
+from itertools import cycle
 
 
 class MinorityClassSampler(Sampler):
@@ -69,10 +64,6 @@ class GroupClassBatchSampler(MinorityClassSampler):
             batch_indices = []
             for cls in chosen_classes:
                 class_indices = (self.labels == cls).nonzero(as_tuple=True)[0]
-
-                # TODO: THIS IS OK FOR NOW BECAUSE I DON'T PLAN ON USING BATCH-SIZES SMALLER THAN 256
-                #       And am pre-setting a threshold at 50 as minimum_size
-                #       Ensure balanced class representation
                 count = min(len(class_indices), self.batch_size // 5)
                 selected_minority = class_indices[:count]
                 # This in theory shouldn't matter because we're gonna fit all of them "sequentially"
@@ -104,7 +95,7 @@ class GroupClassBatchSampler(MinorityClassSampler):
         return self.num_batches
 
 
-# THIS IS not tested
+# THIS IS not tested and doesn't work
 class ClassSpecificBatchSampler(MinorityClassSampler):
     def __init__(self, pepmap, labels, batch_size, minority_classes, non_minority_classes):
         super(ClassSpecificBatchSampler, self).__init__(pepmap, labels, batch_size, minority_classes,

@@ -8,6 +8,7 @@ import numpy as np
 import glob
 from joblib import Parallel, delayed
 
+# Just remakes the plots and cleans up the input type thing
 def redo_plot(file, identifier, dataset, folder):
 	xx = pd.read_csv(file)
 	xx['input_type']=xx['input_type'].apply(lambda x: x.replace(identifier, '').lstrip('_').rstrip('__'))

@@ -9,18 +9,7 @@ from overrides import override
 from src.samplers import MinorityClassSampler
 
 
-class MinoritySampler(Sampler):
-    """
-    Custom Sampler class to batch minority classes together
-    Assumes labels and minority classes are iterators of ints
-    """
 
-    def __init__(self, labels, batch_size, minority_classes):
-        super(MinoritySampler, self).__init__()
-        pass
-
-    def __iter__(self):
-        pass
 
 
 class VAEDataset(Dataset):
