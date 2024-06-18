@@ -350,7 +350,7 @@ def main():
                                                   sampler=SequentialSampler)
 
         test_preds = predict_twostage(model, test_dataset, test_loader)
-        test_preds['fold'] = args["fold"]
+        # test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()
 

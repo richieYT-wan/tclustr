@@ -255,7 +255,7 @@ def main():
         train_df = train_df.sample(n=1024)
         valid_df = valid_df.sample(n=256)
         args['batch_size'] = 128
-        args['n_epochs'] = 500
+        args['n_epochs'] = 150
     train_dataset = TCRSpecificDataset(train_df, **dataset_params)
     valid_dataset = TCRSpecificDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
@@ -334,7 +334,7 @@ def main():
                                                   sampler=SequentialSampler)
 
         test_preds = predict_model(model, test_dataset, test_loader)
-        test_preds['fold'] = args["fold"]
+        # test_preds['fold'] = args["fold"]
         test_preds.to_csv(f'{outdir}test_predictions_{test_basename}_{fold_filename}.csv', index=False)
         test_seq_acc = test_preds['seq_acc'].mean()
 
