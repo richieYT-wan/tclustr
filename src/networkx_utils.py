@@ -21,21 +21,26 @@ def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_
     Returns:
 
     """
+    distance_matrix = distance_matrix.copy(deep=True)
     values = distance_matrix[distance_matrix.index].values
     labels = distance_matrix[label_col].values
-    raw_indices = distance_matrix[index_col].values
+    if index_col is not None:
+        raw_indices = distance_matrix[index_col].values
+    else:
+        distance_matrix['raw_index'] = [f'seq_id_{i}' for i in range(len(distance_matrix))]
+        raw_indices = distance_matrix['raw_index'].values
     label_encoder = LabelEncoder()
     encoded_labels = label_encoder.fit_transform(labels)
     G = nx.Graph(values)
     for i, node in enumerate(G.nodes()):
-        G.nodes[node]['peptide'] = labels[i]
-        G.nodes[node]['raw_index'] = raw_indices[i]
+        G.nodes[node][label_col] = labels[i]
+        G.nodes[node][index_col] = raw_indices[i]
     tree = nx.minimum_spanning_tree(G, algorithm=algorithm)
     # For now, return all values as they may be useful later for analysis
-    return tree, G, labels, encoded_labels, label_encoder, raw_indices
+    return G, tree, distance_matrix, values, labels, encoded_labels, label_encoder, raw_indices
 
 
-def prune_by_distance(tree, distance_threshold, prune_node=True, labels=None, verbose=False):
+def prune_by_distance(tree, distance_threshold, prune_node=True, labels=None, label_key='peptide', verbose=False):
     """
     Given a minimum spanning tree, prune it based on a distance threshold
     Args:
@@ -54,27 +59,42 @@ def prune_by_distance(tree, distance_threshold, prune_node=True, labels=None, ve
     for u, v in tree_pruned.edges():
         weight = tree_pruned.get_edge_data(u, v)['weight']
         if weight >= distance_threshold:  # assuming weight is a distance and not a similarity
+            # If providing label, use it to get l1, l2 for the class check
             if labels is not None:
                 l1 = labels[u]
                 l2 = labels[v]
-                same_label = l1 == l2 if labels is not None else np.nan
-            removed_edges.append((u, v, round(weight, 4), same_label))
+            # else, if label-key exists and the key is in the tree nodes attributes, use those
+            elif label_key is not None and label_key in tree.nodes[0]:
+                l1 = tree_pruned.nodes[u][label_key]
+                l2 = tree_pruned.nodes[v][label_key]
+            else:
+                l1, l2 = np.nan, np.nan
+            removed_edges.append((u, v, round(weight, 4), int(l1 == l2)))
             tree_pruned.remove_edge(u, v)
     if prune_node:
-        nodes_to_remove = list(nx.isolates(tree_pruned))
-        tree_pruned.remove_nodes_from(nodes_to_remove)
+        removed_nodes = list(nx.isolates(tree_pruned))
+        tree_pruned.remove_nodes_from(removed_nodes)
+
     if verbose:
         print(f'***\nbefore pruning : {len(tree.edges())} edges, {len(tree.nodes())} nodes\n***')
         print(f'***\nafter pruning : {len(tree_pruned.edges())} edges, {len(tree_pruned.nodes())} nodes\n***')
         print(len(removed_edges), 'removed edges',
               f'\n{np.array([x[3] for x in removed_edges]).mean():.2%} of the removed edges were actually same-class')
+
     return tree_pruned, removed_edges, removed_nodes
 
 
-def draw_mst_spring(tree, color_map, title=None, iterations=300, threshold=1e-5, scale=0.9, k=0.05, dim=2, seed=13):
+def get_color_map(distance_matrix, label_col, palette='tab10'):
+    labels = distance_matrix[label_col].unique()
+    color_map = {k: v for k, v in zip(sorted(np.unique(labels)), sns.color_palette(palette, len(np.unique(labels))))}
+    return color_map
+
+
+def plot_mst_spring(tree, color_map, title=None, figsize=(8, 8),
+                    iterations=300, threshold=1e-5, scale=0.9, k=0.05, dim=2, seed=131):
     sns.set_style('darkgrid')
     # Visualize the graph and the minimum spanning tree
-    f, a = plt.subplots(1, 1, figsize=(8, 8))
+    f, a = plt.subplots(1, 1, figsize=figsize)
     pos = nx.spring_layout(tree, iterations=iterations, threshold=threshold, seed=seed, scale=scale, k=k, dim=dim)
     node_colors = [color_map[tree.nodes[node]['peptide']] for node in tree.nodes()]
     nx.draw_networkx_nodes(tree, pos, node_color=node_colors, node_size=52.5,
@@ -92,58 +112,142 @@ def draw_mst_spring(tree, color_map, title=None, iterations=300, threshold=1e-5,
     plt.show()
 
 
-def betweenness_cut(tree, cut_threshold, which='node', verbose=False):
+def get_cluster_stats_from_graph(graph, nodes_list):
+    cluster = [graph.nodes(data=True)[x] for x in nodes_list]
+    labels = [x['peptide'] for x in cluster]
+    counts = {k: labels.count(k) for k in np.unique(labels)}
+    majority_label = sorted(counts.items(), key=lambda item: item[1], reverse=True)[0][0]
+    purity = counts[majority_label] / sum(counts.values())
+    return {'cluster_size': len(nodes_list),
+            'majority_label': majority_label,
+            'purity': purity,
+            'counts': counts,
+            'members': nodes_list}
+
+
+def get_nodes_stats(G, node):
+    neighbours = list(nx.neighbors(G, node))
+    edges = [tuple(sorted((node, target_node))) for target_node in nx.neighbors(G, node)]
+    edge_weights = {edge: G.edges[edge]['weight'] for edge in edges}
+    centralities = nx.edge_betweenness_centrality(G)
+    filtered_centralities = {k: v for k, v in centralities.items() if k in edges}
+    return {'n_neighbours': len(neighbours), 'neighbours': neighbours,
+            'max_dist': max(edge_weights.values()), 'sum_dist': sum(edge_weights.values()),
+            'mean_dist': np.mean(list(edge_weights.values())),
+            'max_edge_centrality': max(filtered_centralities.values()),
+            'sum_edge_centrality': sum(filtered_centralities.values()),
+            'mean_edge_centrality': np.mean(list(filtered_centralities.values()))}
+
+
+def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=False):
+    assert cut_method in ['threshold',
+                          'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
+    assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
+                cut_method == 'top' and type(cut_threshold) == int), \
+        '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
+    # deep copy the tree to preserve it in case we need the original tree for other things
+    tree_cut = tree.copy()
+    edge_betweenness = nx.edge_betweenness_centrality(tree_cut)
+
+    # Weight of an edge here is the distance between two nodes
+    if weighted:
+        edge_betweenness = {k: tree_cut.edges[k]['weight'] * v for k, v in edge_betweenness.items()}
+    # sorted for printing purposes
+    sorted_edges = sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True)
+
+    if cut_method == "threshold":
+        edges_to_remove = [x for x in sorted_edges if x[1] > cut_threshold]
+    elif cut_method == "top":
+        edges_to_remove = sorted_edges[:cut_threshold]
+    # Remove edges (x[1] is the centrality), computes the disconnected nodes and remove them (discard singletons)
+    # OR should the singletons be kept in the graph and put in new "clusters" ?
+    tree_cut.remove_edges_from([x[0] for x in edges_to_remove])
+    nodes_to_remove = list(nx.isolates(tree_cut))
+    tree_cut.remove_nodes_from(nodes_to_remove)
+    clusters = sorted([get_cluster_stats_from_graph(tree_cut, x) for x in nx.connected_components(tree_cut)],
+                      key=lambda x: x['cluster_size'], reverse=True)
+
+    return tree_cut, clusters, edges_to_remove, nodes_to_remove
+
+
+def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=False):
+    assert cut_method in ['threshold',
+                          'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
+    assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
+                cut_method == 'top' and type(cut_threshold) == int), \
+        '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
+    # deep copy the tree to preserve it in case we need the original tree for other things
+    tree_cut = tree.copy()
+    node_betweenness = nx.betweenness_centrality(tree_cut)
+
+    # Weight of an edge here is the distance between two nodes
+    if weighted:
+        pass  # For now, don't do this part because it can get extremely slow
+        # node_betweenness = {k:get_nodes_stats(tree_cut, k)['mean_dist']*v for k,v in node_betweenness.items()}
+    sorted_nodes = sorted(node_betweenness.items(), key=lambda item: item[1], reverse=True)
+    if cut_method == "threshold":
+        nodes_to_remove = [x for x in sorted_nodes if x[1] > cut_threshold]
+    elif cut_method == "top":
+        nodes_to_remove = sorted_nodes[:cut_threshold]
+
+    tree_cut.remove_nodes_from([x[0] for x in nodes_to_remove])
+    # Further identify nodes that have become singletons and must be removed
+    isolated_nodes = list(nx.isolates(tree_cut))
+    tree_cut.remove_nodes_from(isolated_nodes)
+    nodes_to_remove.extend([x for x in sorted_nodes if x[0] in isolated_nodes])
+    # Identify the edges that have been cut
+    list_nodes = [x[0] for x in nodes_to_remove]
+    # Those edges don't exist anymore in tree_cut but we take them for return and logging purposes here
+    edges_to_remove = [x for x in tree.edges() if any([x[0] in list_nodes or x[1] in list_nodes])]
+    clusters = sorted([get_cluster_stats_from_graph(tree_cut, x) for x in nx.connected_components(tree_cut)],
+                      key=lambda x: x['cluster_size'], reverse=True)
+    return tree_cut, clusters, edges_to_remove, nodes_to_remove
+
+
+def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge',  weighted=False, verbose=1):
     """
-    cuts a minimum spanning tree based on a betweenness centrality threshold on either node or edge centrality
+    Wrap-around method to do either edge or node cut.
+    Can select either threshold (centrality>cut_threshold) or top (first `cut_threshold` elements) cutting.
+    Weighted works only for edge cutting for now, using the distance as weight.
+    Verbosity levels of 2 will reduce the speed in order to log every centrality
     Args:
-        tree:
-        cut_threshold:
-        which:
-        verbose:
+        tree: A minimum spanning tree
+        cut_threshold (int or float) : A float if cut_method is "threshold", or int if cut_method is "top"
+        cut_method (str): "threshold" or "top" cut mode ;
+        which (str) : "edge" or "node", which way to cut the tree
+        verbose (int): verbosity levels, from 0 to 2
+        weighted (bool) : whether to use distance to weight the centrality.
 
     Returns:
 
     """
-    tree_cut = tree.copy()
-    # For now, compute both betweenness centrality and see how slow it is.
-    edge_betweenness = nx.edge_betweenness_centrality(tree_cut)
-    node_betweenness = nx.betweenness_centrality(tree_cut)
-    # Sort it just for the printing // return ; These are list of tuples [(edge or node, centrality)]
-    sorted_edges = sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True)
-    sorted_nodes = sorted(node_betweenness.items(), key=lambda item: item[1], reverse=True)
+    assert which in ['edge', 'node'], f'`which` must be either "node" or "edge". Got {which} instead'
+    assert cut_method in ['threshold',
+                          'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
+    assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
+                cut_method == 'top' and type(cut_threshold) == int), \
+        '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
 
+    # Take from the original tree to get the original centrality 
     if which == 'edge':
-        # remove edges that exceed the centrality threshold
-        edges_to_remove = [x for x in sorted_edges if x[1] > cut_threshold]
-        # Take first element (edge) to cut
-        tree_cut.remove_edges_from([x[0] for x in edges_to_remove])
-        # identify and remove nodes that now have no edges (became singletons)
-        nodes_to_remove = [x for x in sorted_nodes if x[0] in list(nx.isolates(tree_cut))]
-        tree_cut.remove_nodes_from([x[0] for x in nodes_to_remove])
-
+        tree_cut, clusters, edges_to_remove, nodes_to_remove = edge_betweenness_cut(tree, cut_threshold, cut_method,
+                                                                                    weighted)
+        if verbose > 1:
+            node_betweenness = nx.betweenness_centrality(tree)
+            nodes_to_remove = [x for x in sorted(node_betweenness.items(), key=lambda item: item[1], reverse=True) if
+                               x[0] in nodes_to_remove]
     elif which == 'node':
-        # remove nodes that exceed the centrality threshold
-        nodes_to_remove = [x for x in sorted_nodes if x[1] > cut_threshold]
-        # TODO: OLD definition to remove
-        # edges_to_remove = [x for x in tree_cut.edges() if any([x[0] in nodes_to_remove or x[1] in nodes_to_remove])
-        tree_cut.remove_nodes_from([x[0] for x in nodes_to_remove])
-        # Further identify nodes that have become singletons and must be removed
-        isolated_nodes = list(nx.isolates(tree_cut))
-        tree_cut.remove_nodes_from(isolated_nodes)
-        nodes_to_remove.extend([x for x in sorted_nodes if x[0] in isolated_nodes])
+        tree_cut, clusters, edges_to_remove, nodes_to_remove = node_betweenness_cut(tree, cut_threshold, cut_method,
+                                                                                    weighted)
+        if verbose > 1:
+            edge_betweenness = nx.edge_betweenness_centrality(tree)
+            edges_to_remove = [x for x in sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True) if
+                               x[0] in edges_to_remove]
 
-        # Identify the edges that have been cut and their centrality
-        list_nodes = [x[0] for x in nodes_to_remove]
-        edges_to_remove = [x for x in sorted_edges if any([x[0][0] in list_nodes or x[0][1] in list_nodes])]
-
-
-    else:
-        raise ValueError(f'`which` must be either "node" or "edge". Got {which} instead')
-
-    if verbose:
-        print(f'N edges, M nodes')
-        print(f'\tbefore cutting:\t{len(list(tree.edges()))},\t{len(list(tree.nodes()))}')
-        print(f'\tafter cutting:\t{len(list(tree_cut.edges()))},\t{len(list(tree_cut.nodes()))}')
+    if verbose > 0:
+        print(f'\t\tedges, nodes')
+        print(f'before cutting:\t{len(list(tree.edges()))},\t{len(list(tree.nodes()))}')
+        print(f'after cutting:\t{len(list(tree_cut.edges()))},\t{len(list(tree_cut.nodes()))}')
         print('N components before cutting:\t', len(list(nx.connected_components(tree))))
         print('N components after cutting:\t', len(list(nx.connected_components(tree_cut))))
         print('\nEdges removed:')
@@ -151,168 +255,17 @@ def betweenness_cut(tree, cut_threshold, which='node', verbose=False):
         print('\nNodes removed:')
         pprint(nodes_to_remove)
 
-    return tree_cut, edges_to_remove, nodes_to_remove
+    return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
-# JOAKIM FCTS
-def create_graph_from_subgraphsets(G, subgraph_sets):
-    """
-    Creates a new undirected graph by combining specified subgraphs from an existing graph.
 
-    Parameters:
-    - G (networkx.Graph): The original graph from which subgraphs will be extracted.
-    - subgraph_sets (list of lists): A list of subgraph sets, where each set contains nodes representing a subgraph.
-
-    Returns:
-    - res_graph (networkx.Graph): A new undirected graph formed by combining the specified subgraphs from the original graph.
-    The resulting graph includes all nodes and edges present in the selected subgraphs.
-    """
-
-    res_graph = nx.Graph()
-    for g in subgraph_sets:
-        subgraph = G.subgraph(g)
-        res_graph.add_nodes_from(subgraph.nodes)
-        res_graph.add_edges_from(subgraph.edges)
-
-    return res_graph
+def iterative_top_cut(tree, which, weighted=False, verbose=1, stop_condition=1):
+    # From a tree take the top N ?? and continue cutting until the subgraphs all reach a certain size or ?
+    # Or if the weighted mean edge distance is some threshold ??
+    
+    pass
 
 
-def collect_init_subgraphs(G, size_cutoff):
-    """
-    Collects initial subgraphs from graph based on a specified size cutoff.
-
-    Parameters:
-    - G (networkx.Graph): The connected graph from which subgraphs will be collected.
-    - size_cutoff (int): The minimum size (number of nodes) for a subgraph to be considered.
-
-    Returns:
-    - okay_subgraphs (list of sets): A list of subgraphs that meet the size criterion.
-    - subgraphs_to_trim (list of networkx.Graph): A list of subgraphs that need to be further trimmed
-    to meet the size criterion. Each subgraph is represented as a networkx.Graph object.
-    """
-
-    subgraphs = list(nx.connected_components(G))
-    okay_subgraphs, subgraphs_to_trim = [], []
-
-    for i, subgraph in enumerate(subgraphs):
-
-        subgraph_size = len(subgraph)
-
-        print(f"Subgraph {i + 1}: {len(subgraph)} nodes")
-
-        if subgraph_size >= size_cutoff:
-            subgraphs_to_trim.append(create_graph_from_subgraphsets(G, [subgraph]))
-        else:
-            okay_subgraphs.append(subgraph)
-
-    return okay_subgraphs, subgraphs_to_trim
 
 
-def trim_graph_into_subgraphs(G, size_cutoff, priority_nodes=set(),
-                              remove_multnodes=1, priority_limit=10):
-    """
-    Trims a graph into subgraphs based on a size cutoff. 
 
-    Parameters:
-    - G: networkx graph object
-    - size_cutoff: The maximum size allowed for a subgraph.
-    - remove_multnodes: Number of bottleneck nodes to remove at each iteration. If None, removes only one.
-                        Only removing one at the time is slower but more precise. 
-
-    Returns:
-    A list of subgraphs obtained after trimming the input graph.
-    """
-
-    origin_gsize = len(G)
-    new_gsize = 0
-    # compute subgraphs.
-    trimmed_subgraphs = []
-    subgraphs = list(nx.connected_components(G))
-    subgraph_sizes = [len(subgraph) for subgraph in subgraphs]
-    check = [s <= size_cutoff for s in subgraph_sizes]
-    flag = all(check)
-
-    while flag == False:
-        # identifiy and remove bottleneck node
-        betweenness_centrality = nx.betweenness_centrality(G)
-        central_sort_nodes = sorted(betweenness_centrality, key=betweenness_centrality.get, reverse=True)
-
-        # algorithm:
-        # If
-        # we want to add stuff, if it is not in priority nodes
-        # or if we have gone beyond top 5
-
-        if priority_nodes:
-
-            bottleneck_nodes = []
-            nr_nodes = len(central_sort_nodes)
-            i = 0
-
-            # if collected all nodes and not gone beyond priority limit
-            while len(bottleneck_nodes) < remove_multnodes and priority_limit > i:
-                bottleneck_node = central_sort_nodes[i]
-                # not in priority nodes
-                if bottleneck_node not in priority_nodes:
-                    bottleneck_nodes.append(bottleneck_node)
-                    print(f"Found non-priorty bottleneck node at {i}/{nr_nodes}")
-
-                i += 1
-
-            # add priority nodes anyway, if we went beyond limt
-            diff = remove_multnodes - len(bottleneck_nodes)
-            print(bottleneck_nodes)
-            print(diff)
-            if diff:
-                nodes_to_add = [central_sort_nodes[n] for n in range(i) if
-                                central_sort_nodes[n] not in bottleneck_nodes]
-                bottleneck_nodes += nodes_to_add[:diff]
-            print(bottleneck_nodes)
-            G.remove_nodes_from(bottleneck_nodes)
-
-        else:
-            bottleneck_nodes = central_sort_nodes[:remove_multnodes]
-            G.remove_nodes_from(bottleneck_nodes)
-
-        # check new subgraphs
-        subgraphs = list(nx.connected_components(G))
-        subgraph_sizes = [len(subgraph) for subgraph in subgraphs]
-        print(f"Current subgraph sizes {subgraph_sizes}")
-
-        # check subgraph condiditons
-        N = len(subgraphs)
-        check = [s <= size_cutoff for s in subgraph_sizes]
-        flag = all(check)
-        anyflag = any(check)
-
-        # we are done
-        if flag:
-            print("We done!")
-
-        # we can simplify the graph, before continueing
-        elif anyflag:
-            keep_subgraphs = []
-            for i in range(N):
-                if check[i]:
-                    trimmed_subgraphs.append(subgraphs[i])
-                else:
-                    keep_subgraphs.append(subgraphs[i])
-            # recreate graph from remaining subgraphs
-            G = create_graph_from_subgraphsets(G, keep_subgraphs)
-            print(f"New total graph size {len(G)}")
-
-        # we will continue
-        else:
-            print("Continuing")
-
-    # adding the remaining subgraphs
-    for subgraph in subgraphs: trimmed_subgraphs.append(subgraph)
-
-    print("Sizes of subgraphs after trimming{}")
-    for i, subgraph in enumerate(trimmed_subgraphs):
-        size = len(subgraph)
-        print(f"Subgraph {i} size {size}")
-        new_gsize += size
-
-    print(f"Nodes trimmed {origin_gsize} -> {new_gsize}")
-
-    return trimmed_subgraphs

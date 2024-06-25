@@ -87,7 +87,10 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
         results['input_type'] = f'{identifier}_{name}'
         retentions = results['retention'].values[1:-1]
         purities = results['mean_purity'].values[1:-1]
-        p70_r35_auc = get_retpur_auc(retentions, purities, min_retention=0.35, min_purity=0.70)
+        # Small fix to set a max threshold for retention at 0.98 to avoid cases where 
+        # we have 100% retention with one large garbage cluster very unpure and 2-3 small clusters 100% purity
+        # that would give an overall mean_purity of 70% or somethings
+        p70_r35_auc = get_retpur_auc(retentions, purities, min_retention=0.35, min_purity=0.70, max_retention=0.975)
 
         # Saving just the best in case nothing beats the best AUC and no best_dm has been found
         if 'checkpoint_best' in checkpoint and best_dm is None and 'interval' not in checkpoint:
@@ -404,9 +407,9 @@ def get_all_rpauc(retentions, purities, input_type=None, name=None):
     p60_auc = get_retpur_auc(retentions, purities, min_purity=0.6)
     p70_auc = get_retpur_auc(retentions, purities, min_purity=0.7)
 
-    p60_r40_auc = get_retpur_auc(retentions, purities, min_retention=0.4, min_purity=0.6)
-    p70_r35_auc = get_retpur_auc(retentions, purities, min_retention=0.35, min_purity=0.70)
-    p70_r50_auc = get_retpur_auc(retentions, purities, min_retention=0.5, min_purity=0.70)
+    p60_r40_auc = get_retpur_auc(retentions, purities, min_retention=0.4, min_purity=0.6, max_retention=0.975)
+    p70_r35_auc = get_retpur_auc(retentions, purities, min_retention=0.35, min_purity=0.70, max_retention=0.975)
+    p70_r50_auc = get_retpur_auc(retentions, purities, min_retention=0.5, min_purity=0.70, max_retention=0.975)
     out = {'input_type': input_type,
            'name': name,
            'total_auc': total_auc,
@@ -417,6 +420,14 @@ def get_all_rpauc(retentions, purities, input_type=None, name=None):
            'p70_r50_auc': p70_r50_auc}
 
     return out
+
+def get_all_inputs_rpauc(df, input_col ='input_type'):
+    # Utility function to return the rpauc df for all groups and sort by best
+    return pd.json_normalize(df.groupby('input_type').apply(lambda group: get_all_rpauc(group['retention'].values[1:-1], 
+                                                              group['mean_purity'].values[1:-1],
+                                                              group[input_col].iloc[0]))).drop(columns=['name']).set_index(input_col).sort_values('p70_r35_auc',ascending=False)
+
+
 
 
 def get_model(folder, map_location='cpu'):
