@@ -25,7 +25,7 @@ from src.multimodal_train_eval import predict_multimodal
 from src.sim_utils import make_dist_matrix
 from src.torch_utils import load_model_full
 from src.train_eval import predict_model
-from src.utils import get_palette, get_class_initcode_keys
+from src.utils import get_palette, get_class_initcode_keys, mkdirs
 
 
 ##################################
@@ -107,14 +107,15 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
     return cat_results, best_dm, best_name
 
 
-def plot_pipeline_all(runs, title=None, fn=None, palette='gnuplot2'):
+def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clustersize=False,
+                       figsize=(9, 9), legend=True, outdir=None):
     # plotting options
-    sns.set_palette(palette, n_colors=len(runs.input_type.unique()) - 2)
-    f, a = plt.subplots(1, 1, figsize=(9, 9))
+    sns.set_palette(palette, n_colors=len(runs.input_type.unique()))
+    f, a = plt.subplots(1, 1, figsize=figsize)
     a.set_xlim([0, 1])
     a.set_ylim([0, 1])
     a.set_xlabel('Retention', fontweight='semibold', fontsize=14)
-    a.set_ylabel('Avg Purity', fontweight='semibold', fontsize=14)
+    a.set_ylabel('Mean Purity', fontweight='semibold', fontsize=14)
     # Setting major ticks
     major_ticks = np.arange(0, 1.1, 0.1)
     a.set_xticks(major_ticks)
@@ -124,29 +125,46 @@ def plot_pipeline_all(runs, title=None, fn=None, palette='gnuplot2'):
     a.set_xticks(minor_ticks, minor=True)
     a.set_yticks(minor_ticks, minor=True)
     plt.grid(which='both', linestyle='--', linewidth=0.5)
-    order = ['TBCRalign', 'tcrdist3']
-    order = order + sorted(runs.query('input_type not in @order').input_type.unique())
-    for input_type in order:
+    if add_clustersize:
+        ax2 = a.twinx()  # instantiate a second axes that shares the same x-axis
+        ax2.set_yscale('log', base=2)
+        ax2.set_ylabel('Mean Cluster Size (Log2)', fontweight='semibold', fontsize=14)
+    for input_type in runs.input_type.unique():
         query = runs.query('input_type==@input_type')
         retentions = query['retention'][1:-1].values
         purities = query['mean_purity'][1:-1].values
+        if add_clustersize:
+            cluster_sizes = query['mean_cluster_size'].values[1:-1]
+
         if input_type == "TBCRalign":
             a.plot(retentions, purities, label=input_type.lstrip('_'), ls=':', c='g', lw=1)
+            if add_clustersize:
+                ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='x', lw=0.25, s=6, c='g')
+
         elif input_type == "tcrdist3":
             a.plot(retentions, purities, label=input_type.lstrip('_'), ls=':', c='m', lw=1)
+            if add_clustersize:
+                ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='.', lw=0.25, s=6, c='m')
+
         else:
             a.plot(retentions, purities, label=input_type.lstrip('_'), ls='--', lw=1.1)
+            if add_clustersize:
+                ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='*', lw=0.25, s=6)
 
     a.axhline(0.6, label='60% purity cut-off', ls=':', lw=.75, c='m')
     a.axhline(0.7, label='70% purity cut-off', ls=':', lw=.75, c='c')
     a.axhline(0.8, label='80% purity cut-off', ls=':', lw=.75, c='y')
-
-    a.legend(title='distance matrix', title_fontproperties={'size': 14, 'weight': 'semibold'},
-             prop={'weight': 'semibold', 'size': 12})
+    if legend:
+        a.legend(title='distance matrix', title_fontproperties={'size': 14, 'weight': 'semibold'},
+                 prop={'weight': 'semibold', 'size': 12}, loc='lower left')
     f.suptitle(f'{title}', fontweight='semibold', fontsize=15)
     f.tight_layout()
     if fn is not None:
+        if outdir is not None:
+            mkdirs(outdir)
+            fn = f'{outdir}{fn}'
         f.savefig(f'{fn}.png', dpi=200)
+    return f,a
 
 def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbcr_dm, identifier='', n_points=250,
                                baselines=None, plot_title='None', fig_fn=None, n_jobs=1):

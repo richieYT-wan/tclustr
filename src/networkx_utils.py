@@ -143,7 +143,7 @@ def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=F
     assert cut_method in ['threshold',
                           'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
     assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
-                cut_method == 'top' and type(cut_threshold) == int), \
+            cut_method == 'top' and type(cut_threshold) == int), \
         '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
     # deep copy the tree to preserve it in case we need the original tree for other things
     tree_cut = tree.copy()
@@ -174,7 +174,7 @@ def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=F
     assert cut_method in ['threshold',
                           'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
     assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
-                cut_method == 'top' and type(cut_threshold) == int), \
+            cut_method == 'top' and type(cut_threshold) == int), \
         '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
     # deep copy the tree to preserve it in case we need the original tree for other things
     tree_cut = tree.copy()
@@ -204,7 +204,7 @@ def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=F
     return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
-def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge',  weighted=False, verbose=1):
+def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge', weighted=False, verbose=1):
     """
     Wrap-around method to do either edge or node cut.
     Can select either threshold (centrality>cut_threshold) or top (first `cut_threshold` elements) cutting.
@@ -225,7 +225,7 @@ def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge',  
     assert cut_method in ['threshold',
                           'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
     assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
-                cut_method == 'top' and type(cut_threshold) == int), \
+            cut_method == 'top' and type(cut_threshold) == int), \
         '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
 
     # Take from the original tree to get the original centrality 
@@ -258,14 +258,32 @@ def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge',  
     return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
-
-def iterative_top_cut(tree, which, weighted=False, verbose=1, stop_condition=1):
+def iterative_top_cut(tree, initial_cut_threshold, initial_cut_method,
+                      top_n=1, which='edge', weighted=False, verbose=1, max_size=6):
     # From a tree take the top N ?? and continue cutting until the subgraphs all reach a certain size or ?
     # Or if the weighted mean edge distance is some threshold ??
-    
-    pass
+    # Initial cut, takes the input parameters
+    tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
+                                                                           which, weighted, verbose)
+    subgraphs = []
+    # What exit condition ??
+    # Silhouette score --> Report per iteration across entire graph
+    # maybe do top_n across all subgraphs and not iteratively 
+    # Adjusted rand index
+    while any([x['cluster_size']>=max_size for x in clusters]):
+        for i, c in enumerate(clusters):
+            if c['cluster_size'] >= max_size:
+                # Remove the current cluster from the list ; Whatever they get cut into will be extended to the back of the clusters list
+                current_cluster = clusters.pop(i)
+                # Subsequent cuts : Take the cluster subgraph, cut top_n with 'top' cut method.
+                subgraph = nx.subgraph(tree_cut, current_cluster['members'])
+                subgraph_cut, subgraph_clusters, subgraph_edges_removed, subgraph_nodes_removed = betweenness_cut(
+                    subgraph, cut_threshold=top_n, cut_method='top', which=which, weighted=weighted, verbose=verbose)
+                clusters.extend(subgraph_clusters)
+                edges_removed.extend(subgraph_edges_removed)
+                nodes_removed.extend(subgraph_nodes_removed)
+                subgraphs.append(subgraph_cut)
+        else:
+            continue
 
-
-
-
-
+    return tree_cut, subgraphs, clusters, edges_removed, nodes_removed

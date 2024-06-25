@@ -398,3 +398,4 @@ def get_plot_corr(df, cols, which='spearman', title='', figsize=(13, 12.5), pale
                 cmap=palette, vmax=1, vmin=-1, annot=True, square=True, annot_kws={'weight': 'semibold'})
     a.set_xticklabels(a.get_xticklabels(), rotation=30, fontweight='semibold')
     a.set_yticklabels(a.get_yticklabels(), fontweight='semibold')
+    a.set_title(title)
