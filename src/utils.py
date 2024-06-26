@@ -380,7 +380,9 @@ def pkl_load(filename, dirname=None):
         raise ValueError(f'Unable to load or find {os.path.abspath(os.path.join(dirname, filename))}!')
 
 
-def flatten_level_columns(df: pd.DataFrame, levels=[0, 1]):
+def flatten_level_columns(df: pd.DataFrame, levels=None):
+    if levels is None:
+        levels = [0, 1]
     df.columns = [f'{x.lower()}_{y.lower()}'
                   for x, y in zip(df.columns.get_level_values(levels[0]),
                                   df.columns.get_level_values(levels[1]))]
