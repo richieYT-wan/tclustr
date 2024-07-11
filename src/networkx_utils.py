@@ -279,8 +279,8 @@ def get_pred_labels(G, clusters):
     return pred_labels
 
 
-def iterative_top_cut(dist_array, tree, initial_cut_threshold, initial_cut_method,
-                      top_n=1, which='edge', weighted=False, verbose=1, max_size=6):
+def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_method,
+                       top_n=1, which='edge', weighted=False, verbose=1, max_size=6):
     # From a tree take the top N ?? and continue cutting until the subgraphs all reach a certain size or ?
     # Or if the weighted mean edge distance is some threshold ??
     # Initial cut, takes the input parameters
@@ -337,8 +337,8 @@ def get_silhouette_score_at_cut(dist_array, clusters, precision=4):
     return round(silhouette_score(dist_array, pred_labels, metric='precomputed'), precision)
 
 
-def silhouette_score_cut(dist_array, tree, initial_cut_threshold, initial_cut_method,
-                         top_n=1, which='edge', weighted=False, verbose=1, score_threshold=.25):
+def iterative_topn_cut(dist_array, tree, initial_cut_threshold, initial_cut_method,
+                       top_n=1, which='edge', weighted=False, verbose=1, score_threshold=.25):
     # Set initial_cut_method to 'top' and initial_cut_threshold to top_n=1 to have fully iterative behaviour
     tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
                                                                        which, weighted, verbose)
@@ -348,13 +348,14 @@ def silhouette_score_cut(dist_array, tree, initial_cut_threshold, initial_cut_me
     iter=-1
     # Something is wrong about this. I probably shouldn't loop over every cluster but do a fullgraph cut at each iteration by taking the Top N edges
     # TODO : --> Global edge cut
-    tree_trimmed = tree_cut.copy()
     # Can do something about max_silhouette_score to save the "best" trees and clusters
     scores = [current_silhouette_score]
     purities = [np.mean([x['purity'] for x in clusters])]
     retentions = [round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4)]
     best_silhouette_score = -1
     best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, edges_removed, nodes_removed
+    # Make a copy before starting the iteration to re-use the variable
+    tree_trimmed = tree_cut.copy()
     while current_silhouette_score<=score_threshold:
         tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed, cut_threshold=top_n, cut_method='top',
                                                                                which=which, weighted=weighted, verbose=verbose)
