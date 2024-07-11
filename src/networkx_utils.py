@@ -292,10 +292,10 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
     # Silhouette score --> Report per iteration across entire graph
     # maybe do top_n across all subgraphs and not iteratively 
     # Adjusted rand index
-    iter=0
+    iter = 0
     scores = [current_silhouette_score]
     purities = [np.mean([x['purity'] for x in clusters])]
-    retentions = [round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4)]
+    retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
 
     while any([x['cluster_size'] >= max_size for x in clusters]):
         for i, c in enumerate(clusters):
@@ -311,7 +311,7 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
                 nodes_removed.extend(subgraph_nodes_removed)
                 subgraphs.append(subgraph_cut)
                 current_silhouette_score = get_silhouette_score_at_cut(dist_array, clusters)
-                retentions.append(round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
+                retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
                 scores.append(current_silhouette_score)
                 purities.append(np.mean([x['purity'] for x in clusters]))
                 # print(iter, np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
@@ -337,28 +337,31 @@ def get_silhouette_score_at_cut(dist_array, clusters, precision=4):
     return round(silhouette_score(dist_array, pred_labels, metric='precomputed'), precision)
 
 
-def iterative_topn_cut(dist_array, tree, initial_cut_threshold, initial_cut_method,
+def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top',
                        top_n=1, which='edge', weighted=False, verbose=1, score_threshold=.25):
     # Set initial_cut_method to 'top' and initial_cut_threshold to top_n=1 to have fully iterative behaviour
     tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
                                                                        which, weighted, verbose)
     current_silhouette_score = get_silhouette_score_at_cut(dist_array, clusters)
     print('Initial mean purity, silhouette score, retention')
-    print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
-    iter=-1
+    print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score,
+          round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+    # iter = -1
     # Something is wrong about this. I probably shouldn't loop over every cluster but do a fullgraph cut at each iteration by taking the Top N edges
     # TODO : --> Global edge cut
     # Can do something about max_silhouette_score to save the "best" trees and clusters
     scores = [current_silhouette_score]
     purities = [np.mean([x['purity'] for x in clusters])]
-    retentions = [round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4)]
+    retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
     best_silhouette_score = -1
     best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, edges_removed, nodes_removed
     # Make a copy before starting the iteration to re-use the variable
     tree_trimmed = tree_cut.copy()
-    while current_silhouette_score<=score_threshold:
-        tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed, cut_threshold=top_n, cut_method='top',
-                                                                               which=which, weighted=weighted, verbose=verbose)
+    while current_silhouette_score <= score_threshold or retentions[-1] > 0:
+        tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed, cut_threshold=top_n,
+                                                                               cut_method='top',
+                                                                               which=which, weighted=weighted,
+                                                                               verbose=verbose)
         edges_removed.extend(edges_trimmed)
         nodes_removed.extend(nodes_trimmed)
         try:
@@ -366,14 +369,16 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
             scores.append(current_silhouette_score)
             purities.append(np.mean([x['purity'] for x in clusters]))
             retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
-            if current_silhouette_score>best_silhouette_score:
-                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, edges_trimmed, nodes_trimmed
+            # print(iter, current_silhouette_score, best_silhouette_score)
+            if current_silhouette_score > best_silhouette_score:
+                best_silhouette_score = current_silhouette_score
+                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, edges_removed, nodes_removed
         except ValueError:
             # Fake an exit condition when we reach the error where we only have singletons
             current_silhouette_score = score_threshold + 1
             break
 
         # print(iter, np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
-        # iter+=1
-    subgraphs = [nx.subgraph(best_tree, c['members']) for c in clusters]
+        # iter += 1
+    subgraphs = [nx.subgraph(best_tree, c['members']) for c in best_clusters]
     return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions

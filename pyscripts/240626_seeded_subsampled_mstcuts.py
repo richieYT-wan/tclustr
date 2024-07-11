@@ -191,7 +191,7 @@ def args_parser():
     parser.add_argument('-label_col', type=str, required=False, default='peptide',
                         help='column containing the labels (eg peptide)')
 
-    """
+"""
     Training hyperparameters & args
     """
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
