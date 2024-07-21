@@ -281,6 +281,10 @@ def get_pred_labels(G, clusters):
 
 def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_method,
                        top_n=1, which='edge', weighted=False, verbose=1, max_size=6):
+
+    # TODO : This function seems to be wrong somehow, in the returns
+    #        But if we don't use it in the end maybe no need to fix ??
+
     # From a tree take the top N ?? and continue cutting until the subgraphs all reach a certain size or ?
     # Or if the weighted mean edge distance is some threshold ??
     # Initial cut, takes the input parameters
@@ -319,7 +323,13 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
         else:
             continue
 
-    return tree_cut, subgraphs, clusters, edges_removed, nodes_removed, scores, purities, retentions
+    # Create an empty graph to combine subgraphs into
+    tree_return = nx.Graph()
+    # Combine all subgraphs
+    for subgraph in subgraphs:
+        tree_return = nx.compose(tree_return, subgraph)
+
+    return tree_return, subgraphs, clusters, edges_removed, nodes_removed, scores, purities, retentions
 
 
 def get_silhouette_score_at_cut(dist_array, clusters, precision=4):
