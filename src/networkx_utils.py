@@ -1,4 +1,5 @@
 ### IMPORTS AND STATIC STUFF ###
+from copy import deepcopy
 
 import networkx as nx
 from pprint import pprint
@@ -88,7 +89,7 @@ def prune_by_distance(tree, distance_threshold, prune_node=True, labels=None, la
     return tree_pruned, removed_edges, removed_nodes
 
 
-def get_color_map(distance_matrix, label_col, palette='tab10'):
+def get_color_map(distance_matrix, label_col='peptide', palette='tab10'):
     labels = distance_matrix[label_col].unique()
     color_map = {k: v for k, v in zip(sorted(np.unique(labels)), sns.color_palette(palette, len(np.unique(labels))))}
     return color_map
@@ -356,15 +357,13 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
     print('Initial mean purity, silhouette score, retention')
     print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score,
           round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
-    # iter = -1
-    # Something is wrong about this. I probably shouldn't loop over every cluster but do a fullgraph cut at each iteration by taking the Top N edges
-    # TODO : --> Global edge cut
-    # Can do something about max_silhouette_score to save the "best" trees and clusters
+
     scores = [current_silhouette_score]
     purities = [np.mean([x['purity'] for x in clusters])]
     retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
     best_silhouette_score = -1
-    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, edges_removed, nodes_removed
+    # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
+    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
     # Make a copy before starting the iteration to re-use the variable
     tree_trimmed = tree_cut.copy()
     while current_silhouette_score <= score_threshold or retentions[-1] > 0:
@@ -372,17 +371,17 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
                                                                                cut_method='top',
                                                                                which=which, weighted=weighted,
                                                                                verbose=verbose)
-        edges_removed.extend(edges_trimmed)
-        nodes_removed.extend(nodes_trimmed)
         try:
             current_silhouette_score = get_silhouette_score_at_cut(dist_array, clusters)
             scores.append(current_silhouette_score)
             purities.append(np.mean([x['purity'] for x in clusters]))
             retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+            edges_removed.extend(edges_trimmed)
+            nodes_removed.extend(nodes_trimmed)
             # print(iter, current_silhouette_score, best_silhouette_score)
             if current_silhouette_score > best_silhouette_score:
                 best_silhouette_score = current_silhouette_score
-                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, edges_removed, nodes_removed
+                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
         except ValueError:
             # Fake an exit condition when we reach the error where we only have singletons
             current_silhouette_score = score_threshold + 1

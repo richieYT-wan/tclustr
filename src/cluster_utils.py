@@ -512,7 +512,7 @@ def get_distances_labels_from_latent(latent_df, label_col='peptide', seq_cols=('
                                      index_col='original_index'):
     # Columns for making distmatrix
     rest_cols = list(
-        x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'origin', 'binder', index_col])
+        x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'partition', 'origin', 'binder', index_col])
     # Getting distmatrix and arrays
     dist_matrix = make_dist_matrix(latent_df, label_col, seq_cols, cols=rest_cols)
     dist_array = dist_matrix.iloc[:len(dist_matrix), :len(dist_matrix)].values
