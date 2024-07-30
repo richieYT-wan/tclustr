@@ -20,7 +20,7 @@ random_id="${first_char}${rest_chars}"
 outname=Nested_CNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData
 
 # Run VAE
-python3 ./240515_cnnvae_tripletloss.py -f ${HOMEDIR}data/filtered/240618_nettcr_exp_nested_posonly_train_p0234.csv -od ${outdir} -pad -20 -enc BL50LO -ne 20000 -cuda True -lwseq 1 -lwkld 1e-2 -lwtrp 3 -dist_type cosine -margin 0.2 -mla1 7 -mla2 8 -mla3 22 -mlb1 6 -mlb2 7 -mlb3 23 -mlpep 0 -nl 128 -nh 128 -bs 512 -lr 1e-4 -wd 1e-4 -wu 150 -fp 50 -kld_dec 1e-2 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -ale True -ald True -ob False -pepweight False -posweight True -rid ${random_id} -tf ${HOMEDIR}data/filtered/240618_nettcr_exp_nested_posonly_test_p1.csv
+python3 ./240515_cnnvae_tripletloss.py -f ${HOMEDIR}data/filtered/240618_nettcr_exp_nested_posonly_train_p0234.csv -od ${outdir} -pad -20 -enc BL50LO -ne 20000 -cuda True -lwseq 1 -lwkld 1e-2 -lwtrp 0 -dist_type cosine -margin 0.2 -mla1 7 -mla2 8 -mla3 22 -mlb1 6 -mlb2 7 -mlb3 23 -mlpep 0 -nl 128 -nh 128 -bs 512 -lr 1e-4 -wd 1e-4 -wu 150 -fp 50 -kld_dec 1e-2 -kldts 0.075 -o ${outname} -kf 0 -seed 0 -addpe True -bn True -ale True -ald True -ob False -pepweight False -posweight True -rid ${random_id} -tf ${HOMEDIR}data/filtered/240618_nettcr_exp_nested_posonly_test_p1.csv
 
 outmatch=$(ls -t ${RESDIR} | grep ${random_id} | head -n 1)
 iid=ExpData17peps
