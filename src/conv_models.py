@@ -39,7 +39,7 @@ class CNNDecoder(NetParent):
                  activation=nn.SELU(), hidden_dim=128, latent_dim=128, batchnorm=True):
         super(CNNDecoder, self).__init__()
         self.features_dim = features_dim
-        self.len_in = len_in  # Should be the len_out of CNNEncoder
+        self.len_in = len_in  # Should be the len_in of CNNEncoder ; See CNNVAE wrapper class
         self.len_out_trans = stride * (stride * (len_in - 1) + kernel_size - 2 * pad + output_padding_1 - 1) + kernel_size - 2 * pad + output_padding_2
         # Neural network params
         self.hidden_dim = hidden_dim
