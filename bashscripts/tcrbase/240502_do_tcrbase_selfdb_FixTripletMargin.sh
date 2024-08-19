@@ -1,7 +1,5 @@
 #! /usr/bin/bash
 
-# args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
-
 mainfolder=/Users/riwa/Documents/code/tclustr/output/240428_FixTriplet/
 outdir=/Users/riwa/Documents/code/tclustr/output/240428_FixTriplet/TCRBASE_SelfDB/
 grepst=$1

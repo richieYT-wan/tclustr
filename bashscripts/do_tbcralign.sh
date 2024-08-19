@@ -1,0 +1,132 @@
+#! /usr/bin/bash
+# Here either /home/projects/vaccine/ or /home/ depending on computerome or HTC
+ABSPATH="/home/projects/vaccine/"
+TBCRALIGN="${ABSPATH}people/morni/bin/tbcralign"
+CHAINS=("A1" "A2" "A3" "B1" "B2" "B3")  # Default chains
+
+# args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
+while getopts ":f:c:" opt; do
+  case ${opt} in
+    f )
+      INPUTFILE=$OPTARG
+      ;;
+    c )
+      # If -c is used, override the default chains
+      CHAINS=("$OPTARG")  # Add the first option after -c
+      while [[ ${!OPTIND} =~ ^[^-] ]]; do
+        CHAINS+=("${!OPTIND}")
+        OPTIND=$((OPTIND + 1))
+      done
+      ;;
+#    u )
+#      USER_EXPR=$OPTARG
+#      ;;
+    \? )
+      echo "Usage: $0 -f <INPUTFILE> -c <CHAINS> (full/CDR3) "
+      exit 1
+      ;;
+    : )
+      echo "Invalid option: -$OPTARG requires an argument"
+      exit 1
+      ;;
+  esac
+done
+
+# Shift the processed options so that $1, $2, etc. now refer to non-option arguments
+shift $((OPTIND - 1))
+
+OUTDIR="$(pwd)/../output/tbcralign/"
+mkdir -pv $OUTDIR
+# Extract the basename without the extension using parameter expansion
+# Here assume we use the full TCRs
+filename=$(basename "$INPUTFILE")
+basename_without_extension="${filename%.*}"
+tmppath="${INPUTFILE}_TMP.txt"
+tbcrtmp="${INPUTFILE}_TBCR_tmp.txt"
+output_name="${OUTDIR}${basename_without_extension}_TBCR_distmatrix.txt"
+string_chains=$(printf '%s' "$(IFS=','; echo "\"${CHAINS[*]}\"")")
+
+# FILES MUST BE IN SAVED IN THE RIGHT FORMAT ; see
+if [ "$CHAINS" == "full" ]; then
+  # Embedded python code to save the df in the required format
+python3 <<EOF
+import pandas as pd
+filepath = "${INPUTFILE}"
+tmppath = "${tmppath}"
+df = pd.read_csv(filepath)
+chains = eval('${string_chains}').split(',')
+c='binder' if 'binder' in df.columns else 'target' if 'target' in df.columns else None
+if c is None:
+  c='binder'
+  df[c] = 0.5 # Create a fake column
+df[chains+[c]].to_csv(tmppath, sep='\t')
+EOF
+  # Run TBCRalign
+  $TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
+  # Embedded Python code to recover the distance matrix
+python3 <<EOF
+import pandas as pd
+import numpy as np
+# Accessing the Bash variable in Python
+tbcr_filename = "${OUTDIR}${basename_without_extension}"
+output_filename = "${output_name}"
+tbcr = pd.read_csv("${tbcrtmp}")
+qcols = [f'q_{x}' for x in ['A1','A2','A3','B1','B2','B3','binder']]
+dbcols = [f'db_{x}' for x in ['A1','A2','A3','B1','B2','B3']]
+# Replace col names
+tbcr.columns = ['kind', 'source', 'q_index'] + qcols + ['target', 'db_index'] + dbcols + ['score'] + ['db_binder']
+print('Reset columns\n', tbcr.head())
+# Create a copy and switch around col names (To create lower triangle of the square matrix)
+print('Creating copy and swapping cols')
+fake_tbcr = tbcr.copy()
+fake_tbcr.columns = ['kind', 'name', 'db_index']+ dbcols + ['db_binder', 'target','q_index'] + [x for x in qcols if not x.endswith('binder')] + ['score','q_binder']
+
+print(fake_tbcr.head())
+
+print('Concat')
+# concatenate and create a new df with only the indices to make it lighter
+tbcr_cat = pd.concat([tbcr, fake_tbcr])
+print('Getting idx_scores')
+# Keeping only index and score as columns
+tbcr_idx_scores = tbcr_cat.drop(columns=[x for x in tbcr_cat.columns if 'index' not in x and 'score' not in x])
+
+print('Creating idx df')
+# Create a new index to TCR df to re-index later
+index_tcrs = tbcr_cat.drop_duplicates(subset=['q_index'])
+index_tcrs['tcr'] = index_tcrs[[x for x in qcols if x != 'q_binder']].sum(axis=1)
+index_tcrs = index_tcrs[['q_index', 'tcr']]
+
+print('Adding self scores and pivoting')
+# Add the self scores (12) to the final df before pivoting
+tbcr_idx_scores = pd.concat([tbcr_idx_scores, pd.DataFrame([[x, x, 12.] for x in tbcr_idx_scores.q_index. unique()], columns=['q_index', 'db_index', 'score'])])
+
+# Pivot and do 1 - x / 12 to get a square distance matrix instead of a similarity matrix with max value 12
+dist_matrix = 1-(tbcr_idx_scores.pivot_table(index='q_index', columns='db_index', values='score')/12)
+
+print('dist_mat_shape', dist_matrix.shape)
+
+# TODO: Get filename and get chains variable in here
+original_filename = "${INPUTFILE}"
+original_df = pd.read_csv('original_filename')
+chains = eval('${string_chains}').split(',')
+original_df['tcr'] = original_df[chains].sum(axis=1)
+len_before = len(original_df)
+original_df = original_df.merge(index_tcrs[['q_index','tcr']], left_on='tcr', right_on='tcr').drop_duplicates(['q_index','tcr'])
+len_after = len(original_df)
+
+if len_before!=len_after:
+	print(f'things went wrong, before = {len_before}, after = {len_after} ; Saving results')
+dm = dm.merge(original_df.set_index('q_index')[extra_cols], left_index=True, right_index=True)
+dm.to_csv(output_filename)
+EOF
+
+# TODO : Do CDR3 also
+elif [ "$CHAINS" == "CDR3" ]; then
+  echo "CDR3 not handled atm"
+else
+  echo "-c must be full or CDR3"
+  exit 1
+fi
+#  $TBCRALIGN -a -w 0,0,
+
+
