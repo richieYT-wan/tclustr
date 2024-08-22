@@ -69,6 +69,7 @@ echo "${CHAINS[*]} ${LABELCOL} ${EXTRACOLS[*]} ${TBCRALIGN}"
 
   # Embedded python code to save the df in the required format
 python3 <<EOF
+print('Saving tmp file')
 import pandas as pd
 filepath = "${INPUTFILE}"
 tmppath = "${tmppath}"
@@ -85,7 +86,7 @@ EOF
 $TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
 # Embedded Python code to recover the distance matrix
 python3 <<EOF
-
+print('Reading TBCRalign output and converting to dist_matrix')
 import pandas as pd
 import numpy as np
 # Accessing the Bash variable in Python
