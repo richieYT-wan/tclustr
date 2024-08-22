@@ -118,7 +118,7 @@ def args_parser():
     parser.add_argument('-f', '--file', dest='file', required=True, type=str,
                         default=None, help='filepath of the input reference file')
     parser.add_argument('-fmt', '--format', dest='format', required=False, default=',',
-                        help='Separator to use for the input df ; by default, ",". (ex use "\t" if tsv)')
+                        help='Separator to use for the input df ; by default, ",". (ex use "\\t" if tsv)')
     parser.add_argument('-ch', '--chains', dest='chains', default='full',
                         help='Whether to use all chains ("full") or CDR3s ("CDR3")')
     parser.add_argument('-o', '--out', dest='out', required=False,
@@ -140,7 +140,7 @@ def args_parser():
     parser.add_argument('-pep', '--pep_col', dest='pep_col', default='peptide', type=str, required=False,
                         help='Name of the column containing peptide sequences (inputs)')
     parser.add_argument('-idx', '--index_col', dest='index_col', default=None, type=str,
-                        help='Name of an index column to store and combine the df and the array')
+                        help='Name of an index column to store and combine the df and the array (None by default, leave blank if no specific index column used)')
     parser.add_argument('-others', '--other_cols', dest='others', type=str, nargs='*', help='Other columns to add')
     return parser.parse_args()
 
@@ -151,6 +151,7 @@ def main():
     df = pd.read_csv(args['file'], sep= args['format'])
     file_extension = Path(args['file']).suffix
     assert args['chains'] in ['full', 'CDR3'], f"chains must be either 'full' or 'CDR3'; got {args['chains']} instead!"
+    print('Running TCRdist3')
     f = do_tcrdist3_pipeline if args['chains']=='full' else do_tcrdist3_CDR3_pipeline
     output_array = f(df, args)
     # Creating output and adding the extra columns
@@ -179,6 +180,6 @@ def main():
             outdir = outdir + '/'
 
     output_df.to_csv(f'{outdir}{out_fn}.txt')
-
+    print(f'Output saved at {outdir}{out_fn}.txt')
 if __name__ == '__main__':
     main()
