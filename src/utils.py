@@ -5,7 +5,6 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib.patheffects as path_effects
 import seaborn as sns
-from sklearn.model_selection import KFold
 import secrets
 import string
 import torch
@@ -270,23 +269,6 @@ def make_chunks(iterable, chunk_size):
     return (iterable[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(chunk_size))
 
 
-def get_kfolds(df, k, xcol, ycol, shuffle=False, random_state=None):
-    """ Splits & assigns the fold numbers
-    Args:
-        df:
-        k:
-        shuffle:
-        random_state:
-
-    Returns:
-        df: df with column fold according to the Kfolds
-    """
-    kf = KFold(n_splits=k, shuffle=shuffle, random_state=random_state)
-    df['fold'] = -1
-    for i, (train_idx, test_idx) in enumerate(kf.split(df[xcol].values, df[ycol])):
-        df.iloc[test_idx, df.columns.get_loc('fold')] = i
-    df.fold = df.fold.astype(int)
-    return df
 
 
 def get_palette(palette, n_colors):
