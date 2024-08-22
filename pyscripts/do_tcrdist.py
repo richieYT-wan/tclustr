@@ -176,7 +176,7 @@ def main():
     if not (args['out'] is None or len(args['out']) == 0):
         out_fn = f'{out_fn}_{args["out"]}'
 
-    outdir = '../output/tcrdist3'
+    outdir = '../output/tcrdist3/'
     os.makedirs(outdir, exist_ok=True)
     if args['outdir'] is not None:
         outdir = os.path.join(outdir, args['outdir'])
