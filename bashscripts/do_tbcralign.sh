@@ -1,6 +1,6 @@
 #! /usr/bin/bash
 # Here either /home/projects/vaccine/ or /home/ depending on computerome or HTC
-C2PATH="/home/projects/vaccine/morni/bin/tbcralign"
+C2PATH="/home/projects/vaccine/people/morni/bin/tbcr_align"
 HTCPATH="/home/people/morni/bin/tbcr_align"
 CHAINS=("A1" "A2" "A3" "B1" "B2" "B3")  # Default chains
 LABELCOL="peptide"
@@ -15,8 +15,7 @@ while getopts ":f:c:s:l:e" opt; do
       ;;
     c )
       # If -c is used, override the default chains
-      chainarg=("$OPTARG")  # Add the first option after -c
-      CHAINS=()
+      chains=("$OPTARG")  # Add the first option after -c
       while [[ ${!OPTIND} =~ ^[^-] ]]; do
         CHAINS+=("${!OPTIND}")
         OPTIND=$((OPTIND + 1))
