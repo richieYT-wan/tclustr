@@ -171,7 +171,7 @@ def main():
     # Saving and filepath stuff
     out_fn = os.path.basename(args['file'].split('/')[-1].replace(file_extension, ''))
     out_fn = f'{out_fn}_tcrdist3_distmatrix'
-    if args['out'] is None or len(args['out']) == 0:
+    if not (args['out'] is None or len(args['out']) == 0):
         out_fn = f'{out_fn}_{args["out"]}'
 
     outdir = '../output/'
