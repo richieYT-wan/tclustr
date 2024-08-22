@@ -11,7 +11,7 @@ def do_tcrdist3_pipeline(df, args,
                          vdist=pw.metrics.nb_vector_tcrdist,
                          dmatrix=pw.matrices.tcr_nb_distance_matrix,
                          ctrim=0,
-                         ntrim=0,):
+                         ntrim=0, ):
     df = df.copy()
     df.rename(columns={args['a1_col']: 'cdr1_a_aa', args['a2_col']: 'cdr2_a_aa', args['a3_col']: 'cdr3_a_aa',
                        args['b1_col']: 'cdr1_b_aa', args['b2_col']: 'cdr2_b_aa', args['b3_col']: 'cdr3_b_aa',
@@ -53,7 +53,7 @@ def do_tcrdist3_pipeline(df, args,
                    store=True)
     alpha_tcrdist = dmats_a['tcrdist']
     beta_tcrdist = dmats_b['tcrdist']
-    ab_tcrdist : np.array = alpha_tcrdist + beta_tcrdist
+    ab_tcrdist: np.array = alpha_tcrdist + beta_tcrdist
     return ab_tcrdist
 
 
@@ -61,7 +61,7 @@ def do_tcrdist3_CDR3_pipeline(df, args,
                               vdist=pw.metrics.nb_vector_tcrdist,
                               dmatrix=pw.matrices.tcr_nb_distance_matrix,
                               ctrim=0,
-                              ntrim=0,):
+                              ntrim=0, ):
     df = df.copy()
     df.rename(columns={args['a1_col']: 'cdr1_a_aa', args['a2_col']: 'cdr2_a_aa', args['a3_col']: 'cdr3_a_aa',
                        args['b1_col']: 'cdr1_b_aa', args['b2_col']: 'cdr2_b_aa', args['b3_col']: 'cdr3_b_aa',
@@ -103,10 +103,9 @@ def do_tcrdist3_CDR3_pipeline(df, args,
                    store=True)
     alpha_tcrdist = dmats_a['tcrdist']
     beta_tcrdist = dmats_b['tcrdist']
-    ab_tcrdist : np.array = alpha_tcrdist + beta_tcrdist
+    ab_tcrdist: np.array = alpha_tcrdist + beta_tcrdist
 
     return ab_tcrdist
-
 
 
 def args_parser():
@@ -144,15 +143,16 @@ def args_parser():
     parser.add_argument('-others', '--other_cols', dest='others', type=str, nargs='*', help='Other columns to add')
     return parser.parse_args()
 
+
 def main():
     args = vars(args_parser())
     print(args)
     # Read and run tcrdist3
-    df = pd.read_csv(args['file'], sep= args['format'])
+    df = pd.read_csv(args['file'], sep=args['format'])
     file_extension = Path(args['file']).suffix
     assert args['chains'] in ['full', 'CDR3'], f"chains must be either 'full' or 'CDR3'; got {args['chains']} instead!"
     print('Running TCRdist3')
-    f = do_tcrdist3_pipeline if args['chains']=='full' else do_tcrdist3_CDR3_pipeline
+    f = do_tcrdist3_pipeline if args['chains'] == 'full' else do_tcrdist3_CDR3_pipeline
     output_array = f(df, args)
     # Creating output and adding the extra columns
     output_df = pd.DataFrame(output_array)
@@ -170,7 +170,8 @@ def main():
         output_df[args['others']] = df[args['others']]
     # Saving and filepath stuff
     out_fn = os.path.basename(args['file'].split('/')[-1].replace(file_extension, ''))
-    if args['out'] is None or len(args['out'])==0:
+    out_fn = f'{out_fn}_tcrdist3_distmatrix'
+    if args['out'] is None or len(args['out']) == 0:
         out_fn = f'{out_fn}_{args["out"]}'
 
     outdir = '../output/'
@@ -181,5 +182,7 @@ def main():
 
     output_df.to_csv(f'{outdir}{out_fn}.txt')
     print(f'Output saved at {outdir}{out_fn}.txt')
+
+
 if __name__ == '__main__':
     main()
