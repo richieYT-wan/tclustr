@@ -130,7 +130,7 @@ print('dist_mat_shape', dist_matrix.shape)
 
 # TODO: Get filename and get chains variable in here
 original_filename = "${INPUTFILE}"
-original_df = pd.read_csv('original_filename')
+original_df = pd.read_csv(original_filename)
 original_df['tcr'] = original_df[chains].sum(axis=1)
 len_before = len(original_df)
 original_df = original_df.merge(index_tcrs[['q_index','tcr']], left_on='tcr', right_on='tcr').drop_duplicates(['q_index','tcr'])
