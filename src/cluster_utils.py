@@ -509,12 +509,13 @@ def get_latent_df(model, df, dataset_params: dict = None):
 
 
 def get_distances_labels_from_latent(latent_df, label_col='peptide', seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'),
-                                     index_col='original_index'):
+                                     index_col='original_index', rest_cols=None, low_memory=False):
     # Columns for making distmatrix
-    rest_cols = list(
-        x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'partition', 'origin', 'binder', index_col])
+    if rest_cols is None:
+        rest_cols = list(
+            x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'partition', 'origin', 'binder', index_col])
     # Getting distmatrix and arrays
-    dist_matrix = make_dist_matrix(latent_df, label_col, seq_cols, cols=rest_cols)
+    dist_matrix = make_dist_matrix(latent_df, label_col, seq_cols, cols=rest_cols, low_memory=low_memory)
     dist_array = dist_matrix.iloc[:len(dist_matrix), :len(dist_matrix)].values
     # Getting label encoder and features for computing metrics
     features = latent_df[[z for z in latent_df.columns if z.startswith('z_')]].values

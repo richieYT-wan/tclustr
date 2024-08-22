@@ -159,6 +159,7 @@ def main():
         print('No index col included. Re-saving input with an extra seq_id column.')
         df['seq_id'] = [f'seq_{i:05}' for i in range(len(df))]
         output_df['seq_id'] = df['seq_id']
+        args['index_col'] = ['seq_id']
         df.to_csv(args['file'])
     else:
         output_df[args['index_col']] = df[args['index_col']]

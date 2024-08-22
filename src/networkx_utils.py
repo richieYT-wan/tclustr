@@ -38,8 +38,8 @@ def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_
     encoded_labels = label_encoder.fit_transform(labels)
     G = nx.Graph(values)
     for i, node in enumerate(G.nodes()):
-        G.nodes[node][label_col] = labels[i]
-        G.nodes[node][index_col] = raw_indices[i]
+        G.nodes[node]['label'] = labels[i]
+        G.nodes[node]['index'] = raw_indices[i]
     tree = nx.minimum_spanning_tree(G, algorithm=algorithm)
     # For now, return all values as they may be useful later for analysis
     return G, tree, distance_matrix, values, labels, encoded_labels, label_encoder, raw_indices
@@ -95,13 +95,13 @@ def get_color_map(distance_matrix, label_col='peptide', palette='tab10'):
     return color_map
 
 
-def plot_mst_spring(tree, color_map, title=None, figsize=(8, 8),
+def plot_mst_spring(tree, color_map, label_col='peptide', title=None, figsize=(8, 8),
                     iterations=300, threshold=1e-5, scale=0.9, k=0.05, dim=2, seed=131):
     sns.set_style('darkgrid')
     # Visualize the graph and the minimum spanning tree
     f, a = plt.subplots(1, 1, figsize=figsize)
     pos = nx.spring_layout(tree, iterations=iterations, threshold=threshold, seed=seed, scale=scale, k=k, dim=dim)
-    node_colors = [color_map[tree.nodes[node]['peptide']] for node in tree.nodes()]
+    node_colors = [color_map[tree.nodes[node]['label']] for node in tree.nodes()]
     nx.draw_networkx_nodes(tree, pos, node_color=node_colors, node_size=52.5,
                            ax=a)  # nx.draw_networkx_edges(G, pos, edge_color="grey")
     nx.draw_networkx_labels(tree, pos, font_size=4, font_color='w', font_weight='semibold', font_family="monospace")
@@ -117,9 +117,9 @@ def plot_mst_spring(tree, color_map, title=None, figsize=(8, 8),
     plt.show()
 
 
-def get_cluster_stats_from_graph(graph, nodes_list):
+def get_cluster_stats_from_graph(graph, nodes_list, label_col='peptide'):
     cluster = [graph.nodes(data=True)[x] for x in nodes_list]
-    labels = [x['peptide'] for x in cluster]
+    labels = [x['label'] for x in cluster]
     counts = {k: labels.count(k) for k in np.unique(labels)}
     majority_label = sorted(counts.items(), key=lambda item: item[1], reverse=True)[0][0]
     purity = counts[majority_label] / sum(counts.values())

@@ -1,11 +1,13 @@
 #! /usr/bin/bash
 # Here either /home/projects/vaccine/ or /home/ depending on computerome or HTC
-ABSPATH="/home/projects/vaccine/"
-TBCRALIGN="${ABSPATH}people/morni/bin/tbcralign"
+C2PATH="/home/projects/vaccine/morni/bin/tbcralign"
+HTCPATH="/home/people/morni/bin/tbcr_align"
 CHAINS=("A1" "A2" "A3" "B1" "B2" "B3")  # Default chains
-
+LABELCOL="peptide"
+EXTRACOLS=("original_peptide" "binder" "partition" "original_index")
+TBCRALIGN="$HTCPATH"
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
-while getopts ":f:c:" opt; do
+while getopts ":f:c:s:l:e" opt; do
   case ${opt} in
     f )
       INPUTFILE=$OPTARG
@@ -18,11 +20,25 @@ while getopts ":f:c:" opt; do
         OPTIND=$((OPTIND + 1))
       done
       ;;
-#    u )
-#      USER_EXPR=$OPTARG
-#      ;;
+    s )
+      if [ "$OPTARG" == "c2" ]; then
+        TBCRALIGN="$HTCPATH"
+      elif [ "$OPTARG" == "htc" ]; then
+        TBCRALIGN="$C2PATH"
+      fi
+      ;;
+    e )
+      EXTRACOLS=("$OPTARG")  # Add the first option after -c
+      while [[ ${!OPTIND} =~ ^[^-] ]]; do
+        EXTRACOLS+=("${!OPTIND}")
+        OPTIND=$((OPTIND + 1))
+      done
+      ;;
+    l )
+      LABELCOL=("$OPTARG")  # Add the first option after -c
+      ;;
     \? )
-      echo "Usage: $0 -f <INPUTFILE> -c <CHAINS> (full/CDR3) "
+      echo "Usage: $0 -f <INPUTFILE> -c <CHAINS> (full/CDR3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
       exit 1
       ;;
     : )
@@ -41,10 +57,11 @@ mkdir -pv $OUTDIR
 # Here assume we use the full TCRs
 filename=$(basename "$INPUTFILE")
 basename_without_extension="${filename%.*}"
-tmppath="${INPUTFILE}_TMP.txt"
-tbcrtmp="${INPUTFILE}_TBCR_tmp.txt"
-output_name="${OUTDIR}${basename_without_extension}_TBCR_distmatrix.txt"
+tmppath="${OUTDIR}${basename_without_extension}_TMP.txt" # Saves the intermediate tsv file for TBCRalign
+tbcrtmp="${OUTDIR}${basename_without_extension}_TBCR_TMP.txt" # Saves the output of the TBCRalign to be read to convert to distmatrix
+output_name="${OUTDIR}${basename_without_extension}_TBCR_distmatrix.csv" # final output name to save the dm
 string_chains=$(printf '%s' "$(IFS=','; echo "\"${CHAINS[*]}\"")")
+string_extracols=$(printf '%s' "$(IFS=','; echo "\"${EXTRACOLS[*]}\"")")
 
 # FILES MUST BE IN SAVED IN THE RIGHT FORMAT ; see
 if [ "$CHAINS" == "full" ]; then
@@ -65,14 +82,17 @@ EOF
   $TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
   # Embedded Python code to recover the distance matrix
 python3 <<EOF
+
 import pandas as pd
 import numpy as np
 # Accessing the Bash variable in Python
-tbcr_filename = "${OUTDIR}${basename_without_extension}"
 output_filename = "${output_name}"
 tbcr = pd.read_csv("${tbcrtmp}")
-qcols = [f'q_{x}' for x in ['A1','A2','A3','B1','B2','B3','binder']]
-dbcols = [f'db_{x}' for x in ['A1','A2','A3','B1','B2','B3']]
+chains = eval('${string_chains}').split(',')
+extra_cols = eval('${string_extracols}').split(',')
+
+qcols = [f'q_{x}' for x in chains + ['binder']]
+dbcols = [f'db_{x}' for x in chains]
 # Replace col names
 tbcr.columns = ['kind', 'source', 'q_index'] + qcols + ['target', 'db_index'] + dbcols + ['score'] + ['db_binder']
 print('Reset columns\n', tbcr.head())
@@ -81,11 +101,10 @@ print('Creating copy and swapping cols')
 fake_tbcr = tbcr.copy()
 fake_tbcr.columns = ['kind', 'name', 'db_index']+ dbcols + ['db_binder', 'target','q_index'] + [x for x in qcols if not x.endswith('binder')] + ['score','q_binder']
 
-print(fake_tbcr.head())
-
 print('Concat')
 # concatenate and create a new df with only the indices to make it lighter
 tbcr_cat = pd.concat([tbcr, fake_tbcr])
+
 print('Getting idx_scores')
 # Keeping only index and score as columns
 tbcr_idx_scores = tbcr_cat.drop(columns=[x for x in tbcr_cat.columns if 'index' not in x and 'score' not in x])
@@ -93,7 +112,7 @@ tbcr_idx_scores = tbcr_cat.drop(columns=[x for x in tbcr_cat.columns if 'index' 
 print('Creating idx df')
 # Create a new index to TCR df to re-index later
 index_tcrs = tbcr_cat.drop_duplicates(subset=['q_index'])
-index_tcrs['tcr'] = index_tcrs[[x for x in qcols if x != 'q_binder']].sum(axis=1)
+index_tcrs['tcr'] = index_tcrs[[x for x in qcols if x != 'q_binder' and x != 'q_label' and x !='q_target']].sum(axis=1)
 index_tcrs = index_tcrs[['q_index', 'tcr']]
 
 print('Adding self scores and pivoting')
@@ -108,7 +127,6 @@ print('dist_mat_shape', dist_matrix.shape)
 # TODO: Get filename and get chains variable in here
 original_filename = "${INPUTFILE}"
 original_df = pd.read_csv('original_filename')
-chains = eval('${string_chains}').split(',')
 original_df['tcr'] = original_df[chains].sum(axis=1)
 len_before = len(original_df)
 original_df = original_df.merge(index_tcrs[['q_index','tcr']], left_on='tcr', right_on='tcr').drop_duplicates(['q_index','tcr'])

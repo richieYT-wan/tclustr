@@ -24,7 +24,8 @@ def make_self_db_distmatrix(preds, peptide, label_col='peptide', cols=('peptide'
     return dist_matrix, db, query
 
 def make_dist_matrix(df, label_col='peptide',
-                     seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'), cols=('peptide', 'original_peptide')):
+                     seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'), 
+                     cols=('peptide', 'original_peptide'), low_memory=False):
     """
     From a latent vector dataframe, compute a square distance matrix with cosine distance
     Args:
@@ -45,9 +46,12 @@ def make_dist_matrix(df, label_col='peptide',
                                columns=seqs, index=seqs)
     # dist_matrix = pd.merge(dist_matrix, df.set_index('seq')[list(cols)],
     #                        left_index=True, right_index=True).drop_duplicates()  # .rename(columns={label_col: 'label'})
-    dist_matrix = pd.concat([dist_matrix, df.set_index('seq')[list(cols)]], axis=1)
-    # dm.drop_duplicates()
-    dist_matrix = dist_matrix[dist_matrix.index.to_list() + list(cols)]
+    if low_memory:
+        dist_matrix[list(cols)] = df[list(cols)]
+    else:
+        dist_matrix = pd.concat([dist_matrix, df.set_index('seq')[list(cols)]], axis=1)
+        # dm.drop_duplicates()
+        dist_matrix = dist_matrix[dist_matrix.index.to_list() + list(cols)]
     return dist_matrix
 
 
