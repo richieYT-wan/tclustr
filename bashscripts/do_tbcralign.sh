@@ -91,7 +91,7 @@ import pandas as pd
 import numpy as np
 # Accessing the Bash variable in Python
 output_filename = "${output_name}"
-tbcr = pd.read_csv("${tbcrtmp}")
+tbcr = pd.read_csv("${tbcrtmp}", comment='#', sep =' ', header=None, index_col=None)
 chains = eval('${string_chains}').split(',')
 extra_cols = eval('${string_extracols}').split(',')
 
