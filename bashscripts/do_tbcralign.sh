@@ -15,7 +15,7 @@ while getopts ":f:c:s:l:e" opt; do
       ;;
     c )
       # If -c is used, override the default chains
-      chains=("$OPTARG")  # Add the first option after -c
+      CHAINS=("$OPTARG")  # Add the first option after -c
       while [[ ${!OPTIND} =~ ^[^-] ]]; do
         CHAINS+=("${!OPTIND}")
         OPTIND=$((OPTIND + 1))
