@@ -1,4 +1,9 @@
 import argparse
+from tqdm.auto import tqdm
+import os, sys
+module_path = os.path.abspath(os.path.join('..'))
+if module_path not in sys.path:
+    sys.path.append(module_path)
 import pandas as pd
 from src.cluster_utils import *
 from src.networkx_utils import *

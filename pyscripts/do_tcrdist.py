@@ -1,5 +1,8 @@
+import os, sys
+module_path = os.path.abspath(os.path.join('..'))
+if module_path not in sys.path:
+    sys.path.append(module_path)
 import pwseqdist as pw
-import os
 import pandas as pd
 import numpy as np
 import argparse
