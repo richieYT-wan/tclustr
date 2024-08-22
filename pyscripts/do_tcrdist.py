@@ -6,6 +6,8 @@ import argparse
 from tcrdist.rep_funcs import _pws, _pw
 from pathlib import Path
 
+from src.utils import mkdirs
+
 
 def do_tcrdist3_pipeline(df, args,
                          vdist=pw.metrics.nb_vector_tcrdist,
@@ -174,7 +176,8 @@ def main():
     if not (args['out'] is None or len(args['out']) == 0):
         out_fn = f'{out_fn}_{args["out"]}'
 
-    outdir = '../output/'
+    outdir = '../output/tcrdist3'
+    mkdirs(outdir)
     if args['outdir'] is not None:
         outdir = os.path.join(outdir, args['outdir'])
         if not outdir.endswith('/'):
