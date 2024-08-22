@@ -9,9 +9,6 @@ import argparse
 from tcrdist.rep_funcs import _pws, _pw
 from pathlib import Path
 
-from src.utils import mkdirs
-
-
 def do_tcrdist3_pipeline(df, args,
                          vdist=pw.metrics.nb_vector_tcrdist,
                          dmatrix=pw.matrices.tcr_nb_distance_matrix,

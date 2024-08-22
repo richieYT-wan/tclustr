@@ -31,6 +31,19 @@ from src.utils import get_palette, get_class_initcode_keys, mkdirs
 ##################################
 #           PIPELINES            #
 ##################################
+def do_full_clustering_pipeline(df, model, dm_tbcr, dm_tcrdist,
+                                label_col='peptide', seq_cols=('A1','A2','A3','B1','B2','B3'),
+                                rest_cols=('original_peptide','binder','partition'), low_memory=True,
+                                index_col=None,
+                                initial_cut_threshold=1, initial_cut_method='top', filename='output_'):
+    latent_df = get_latent_df(model, df)
+    if index_col is None or index_col not in latent_df.columns:
+        index_col='index_col'
+        latent_df[index_col] = [f'seq_{i:04}' for i in range(len(latent_df))]
+    dm_vae, vals_vae, _, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(latent_df,
+                                                                                                  label_col, seq_cols, index_col,
+                                                                                                  rest_cols, low_memory)
+
 
 
 def do_baseline(baseline_distmatrix, identifier='baseline', label_col='peptide', n_points=500):
