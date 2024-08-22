@@ -138,8 +138,8 @@ len_after = len(original_df)
 
 if len_before!=len_after:
 	print(f'things went wrong, before = {len_before}, after = {len_after} ; Saving results')
-dm = dm.merge(original_df.set_index('q_index')[extra_cols], left_index=True, right_index=True)
-dm.to_csv(output_filename)
+dist_matrix = dist_matrix.merge(original_df.set_index('q_index')[extra_cols], left_index=True, right_index=True)
+dist_matrix.to_csv(output_filename)
 EOF
 
 
