@@ -6,6 +6,7 @@ CHAINS=("A1" "A2" "A3" "B1" "B2" "B3")  # Default chains
 LABELCOL="peptide"
 EXTRACOLS=("original_peptide" "binder" "partition" "original_index")
 TBCRALIGN="$HTCPATH"
+chainarg="full"
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
 while getopts ":f:c:s:l:e" opt; do
   case ${opt} in
@@ -14,7 +15,7 @@ while getopts ":f:c:s:l:e" opt; do
       ;;
     c )
       # If -c is used, override the default chains
-      CHAINS=("$OPTARG")  # Add the first option after -c
+      chainarg=("$OPTARG")  # Add the first option after -c
       while [[ ${!OPTIND} =~ ^[^-] ]]; do
         CHAINS+=("${!OPTIND}")
         OPTIND=$((OPTIND + 1))
@@ -35,10 +36,10 @@ while getopts ":f:c:s:l:e" opt; do
       done
       ;;
     l )
-      LABELCOL=("$OPTARG")  # Add the first option after -c
+      LABELCOL="$OPTARG"  # Add the first option after -c
       ;;
     \? )
-      echo "Usage: $0 -f <INPUTFILE> -c <CHAINS> (full/CDR3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
+      echo "Usage: $0 -f <INPUTFILE> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
       exit 1
       ;;
     : )
@@ -62,25 +63,27 @@ tbcrtmp="${OUTDIR}${basename_without_extension}_TBCR_TMP.txt" # Saves the output
 output_name="${OUTDIR}${basename_without_extension}_TBCR_distmatrix.csv" # final output name to save the dm
 string_chains=$(printf '%s' "$(IFS=','; echo "\"${CHAINS[*]}\"")")
 string_extracols=$(printf '%s' "$(IFS=','; echo "\"${EXTRACOLS[*]}\"")")
-
+# echo the variables to check stuff
+echo "${CHAINS[*]} ${LABELCOL} ${EXTRACOLS[*]} ${TBCRALIGN}"
 # FILES MUST BE IN SAVED IN THE RIGHT FORMAT ; see
-if [ "$CHAINS" == "full" ]; then
+
   # Embedded python code to save the df in the required format
 python3 <<EOF
 import pandas as pd
 filepath = "${INPUTFILE}"
 tmppath = "${tmppath}"
-df = pd.read_csv(filepath)
 chains = eval('${string_chains}').split(',')
+print(filepath, tmppath, chains)
+df = pd.read_csv(filepath)
 c='binder' if 'binder' in df.columns else 'target' if 'target' in df.columns else None
 if c is None:
   c='binder'
   df[c] = 0.5 # Create a fake column
 df[chains+[c]].to_csv(tmppath, sep='\t')
 EOF
-  # Run TBCRalign
-  $TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
-  # Embedded Python code to recover the distance matrix
+# Run TBCRalign
+$TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
+# Embedded Python code to recover the distance matrix
 python3 <<EOF
 
 import pandas as pd
@@ -137,14 +140,5 @@ if len_before!=len_after:
 dm = dm.merge(original_df.set_index('q_index')[extra_cols], left_index=True, right_index=True)
 dm.to_csv(output_filename)
 EOF
-
-# TODO : Do CDR3 also
-elif [ "$CHAINS" == "CDR3" ]; then
-  echo "CDR3 not handled atm"
-else
-  echo "-c must be full or CDR3"
-  exit 1
-fi
-#  $TBCRALIGN -a -w 0,0,
 
 
