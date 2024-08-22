@@ -16,15 +16,16 @@ while getopts ":f:c:s:l:e" opt; do
     c )
       # If -c is used, override the default chains
       chainarg=("$OPTARG")  # Add the first option after -c
+      CHAINS=()
       while [[ ${!OPTIND} =~ ^[^-] ]]; do
         CHAINS+=("${!OPTIND}")
         OPTIND=$((OPTIND + 1))
       done
       ;;
     s )
-      if [ "$OPTARG" == "c2" ]; then
+      if [ "$OPTARG" == "htc" ]; then
         TBCRALIGN="$HTCPATH"
-      elif [ "$OPTARG" == "htc" ]; then
+      elif [ "$OPTARG" == "c2" ]; then
         TBCRALIGN="$C2PATH"
       fi
       ;;
@@ -79,7 +80,7 @@ c='binder' if 'binder' in df.columns else 'target' if 'target' in df.columns els
 if c is None:
   c='binder'
   df[c] = 0.5 # Create a fake column
-df[chains+[c]].to_csv(tmppath, sep='\t')
+df[chains+[c]].to_csv(tmppath, sep='\t', header=False)
 EOF
 # Run TBCRalign
 $TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
