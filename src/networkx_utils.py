@@ -3,6 +3,8 @@ from copy import deepcopy
 
 import networkx as nx
 from pprint import pprint
+
+import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.patches import Patch
 import seaborn as sns
@@ -30,10 +32,13 @@ def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_
     values = distance_matrix[indexing].values
     labels = distance_matrix[label_col].values
     if index_col is not None:
+        # print(f'here in create_mst_from_distance_matrix, index_col is not None, using {index_col}')
         raw_indices = distance_matrix[index_col].values
     else:
-        distance_matrix['raw_index'] = [f'seq_id_{i}' for i in range(len(distance_matrix))]
-        raw_indices = distance_matrix['raw_index'].values
+        print(f'Here in create_mst_from_distance_matrix, index_col is None. Will create and use {"raw_index"} instead')
+        index_col = 'raw_index'
+        distance_matrix[index_col] = [f'seqid_{i}' for i in range(len(distance_matrix))]
+        raw_indices = distance_matrix[index_col].values
     label_encoder = LabelEncoder()
     encoded_labels = label_encoder.fit_transform(labels)
     G = nx.Graph(values)

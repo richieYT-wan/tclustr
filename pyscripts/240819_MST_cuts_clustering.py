@@ -1,6 +1,7 @@
 import argparse
 from tqdm.auto import tqdm
 import os, sys
+
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
     sys.path.append(module_path)
@@ -8,7 +9,7 @@ import pandas as pd
 from src.cluster_utils import *
 from src.networkx_utils import *
 from src.torch_utils import load_model_full
-from src.utils import str2bool, make_filename
+from src.utils import str2bool, make_filename, pkl_dump
 
 
 def args_parser():
@@ -86,12 +87,10 @@ def args_parser():
                         help='index col to sort both baselines and latent df')
     parser.add_argument('-label_col', type=str, required=False, default='peptide',
                         help='column containing the labels (eg peptide)')
-    parser.add_argument('-rb', type=str2bool, required=False, dest='reload_baselines', default=None,
-                        help='True/False to reload baselines')
-    parser.add_argument('-bf', type=str, required=False, dest='baselines_folder', default=None,
-                        help='path containing the baselines (eg peptide)')
-    parser.add_argument('-dn', type=str, required=False, dest='dataset_name', default=None,
-                        help="name of dataset of baseline to use ['OldDataTop15', 'ExpDataTop78', 'OldDataTop20', 'OldDataNoPrune','ExpData17peps']")
+    parser.add_argument('-rest_cols', type=str, required=False, default=None,
+                        nargs='*', help='Other columns to be added; ex : -rest_cols peptide partition binder')
+    parser.add_argument('-low_memory', type=str2bool, default=False,
+                        help='whether to use "low memory merge mode. Might get wrong results...')
     """
     Training hyperparameters & args
     """
@@ -119,7 +118,7 @@ def args_parser():
                         help='re instanciate a new model from scratch')
     parser.add_argument('-tcr_enc', dest='tcr_enc', type=str, default=None,
                         help='Whether to do "alternative" TCR encoding')
-    parser.add_argument('-n_jobs', dest='n_jobs', default=1, type=int,
+    parser.add_argument('-n_jobs', dest='n_jobs', default=8, type=int,
                         help='Multiprocessing')
     return parser.parse_args()
 
@@ -137,17 +136,40 @@ def main():
     mkdirs(outdir)
 
     df = pd.read_csv(args['file'])
-    idxs = df[args['index_col']].unique()
     model = load_model_full(args['pt_file'], args['json_file'], map_location=args['device'], verbose=False)
+    index_col = args['index_col']
+    label_col = args['label_col']
+    rest_cols = args['rest_cols']
     latent_df = get_latent_df(model, df)
-    dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(latent_df, index_col=args['index_col'])
+    if index_col is None or index_col not in latent_df.columns:
+        index_col = 'index_col'
+        latent_df[index_col] = [f'seq_{i:04}' for i in range(len(latent_df))]
+    seq_cols = (args[f'{x.lower()}_col'] for x in ('A1', 'A2', 'A3', 'B1', 'B2', 'B3')),
 
-    if args['do_baselines']:
-        dist_matrix_tbcralign = pd.read_csv(args['tbcr_file'])
-        dist_matrix_tcrdist3 = pd.read_csv(args['tcrdist_file'])
-        dist_matrix_tbcralign, values_tbcralign = resort_baseline(dist_matrix_tbcralign, dist_matrix, args["index_col"])
-        dist_matrix_tcrdist3, values_tcrdist3 = resort_baseline(dist_matrix_tcrdist3, dist_matrix, args["index_col"])
-
+    dm_vae, vals_vae, _, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(latent_df,
+                                                                                                  label_col, seq_cols,
+                                                                                                  index_col,
+                                                                                                  rest_cols,
+                                                                                                  args['low_memory'])
+    # This part assumes that the script will read a pre-formatted distance matrix (with labels etc) from a source.
+    # Given the full pipeline (MSTcut_all_pipeline.sh) we should run --> do_tbcralign.sh, do_tcrdist.py, then the current script
+    dm_tbcr = resort_baseline(pd.read_csv(args['tbcralign_file']), dm_vae, index_col, rest_cols)
+    dm_tcrdist = resort_baseline(pd.read_csv(args['tcrdist_file']), dm_vae, index_col, rest_cols)
+    vae_size_results, vae_topn_results, vae_agglo_results, \
+    tbcr_size_results, tbcr_topn_results, tbcr_agglo_results, \
+    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist, label_col=label_col,
+                                                                                                    index_col=index_col, outdir=outdir, filename=args['out'],
+                                                                                                    title=args['out'])
+    for result in [vae_size_results, vae_topn_results, vae_agglo_results,
+               tbcr_size_results, tbcr_topn_results, tbcr_agglo_results,
+               tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results]:
+        # Get the cluster df and save it to a txt file
+        df = result.pop('df')
+        dm_name = df['dm_name'].unique()
+        method = df['method'].unique()
+        df.to_csv(f'{outdir}cluster_results_{dm_name}_{method}.csv')
+        # Save the remaining results (curves etc) to a pickle file
+        pkl_dump(result, f'result_{dm_name}_{method}.pkl', outdir)
 
 
 

@@ -1,8 +1,10 @@
 import glob
 import os
 import re
+from copy import deepcopy
 from functools import partial
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
@@ -22,6 +24,7 @@ from src.models import TwoStageVAECLF, FullTCRVAE
 from src.multimodal_datasets import MultimodalMarginalLatentDataset
 from src.multimodal_models import BSSVAE, JMVAE
 from src.multimodal_train_eval import predict_multimodal
+from src.networkx_utils import create_mst_from_distance_matrix, iterative_size_cut, iterative_topn_cut
 from src.sim_utils import make_dist_matrix
 from src.torch_utils import load_model_full
 from src.train_eval import predict_model
@@ -31,19 +34,273 @@ from src.utils import get_palette, get_class_initcode_keys, mkdirs
 ##################################
 #           PIPELINES            #
 ##################################
-def do_full_clustering_pipeline(df, model, dm_tbcr, dm_tcrdist,
-                                label_col='peptide', seq_cols=('A1','A2','A3','B1','B2','B3'),
-                                rest_cols=('original_peptide','binder','partition'), low_memory=True,
+def do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist,
+                                label_col='peptide',
                                 index_col=None,
-                                initial_cut_threshold=1, initial_cut_method='top', filename='output_'):
-    latent_df = get_latent_df(model, df)
-    if index_col is None or index_col not in latent_df.columns:
-        index_col='index_col'
-        latent_df[index_col] = [f'seq_{i:04}' for i in range(len(latent_df))]
-    dm_vae, vals_vae, _, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(latent_df,
-                                                                                                  label_col, seq_cols, index_col,
-                                                                                                  rest_cols, low_memory)
+                                initial_cut_threshold=1, initial_cut_method='top', outdir='../output/',
+                                filename='output_', title='', n_jobs=8):
+    print('Running clustering pipeline for VAE')
+    vae_size_results, vae_topn_results, vae_agglo_results = do_three_clustering(dm_vae, label_col, index_col,
+                                                                                'VAE', initial_cut_threshold,
+                                                                                initial_cut_method, n_jobs)
+    print('Running clustering pipeline for TBCRalign')
+    tbcr_size_results, tbcr_topn_results, tbcr_agglo_results = do_three_clustering(dm_tbcr, label_col, index_col,
+                                                                                   'TBCRalign', initial_cut_threshold,
+                                                                                   initial_cut_method, n_jobs)
+    print('Running clustering pipeline for tcrdist3')
+    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_three_clustering(dm_tcrdist, label_col, index_col,
+                                                                                            'tcrdist3', initial_cut_threshold,
+                                                                                            initial_cut_method, n_jobs)
+    plot_silhouette_scores(vae_size_results['purities'], vae_size_results['retentions'], vae_size_results['scores'],
+                           vae_topn_results['purities'], vae_topn_results['retentions'], vae_topn_results['scores'],
+                           vae_agglo_results['purities'], vae_agglo_results['retentions'], vae_agglo_results['scores'],
+                           dm_name='VAE', outdir=outdir, filename=filename)
+    plot_silhouette_scores(tbcr_size_results['purities'], tbcr_size_results['retentions'], tbcr_size_results['scores'],
+                           tbcr_topn_results['purities'], tbcr_topn_results['retentions'], tbcr_topn_results['scores'],
+                           tbcr_agglo_results['purities'], tbcr_agglo_results['retentions'],
+                           tbcr_agglo_results['scores'], dm_name='TBCRalign', outdir=outdir, filename=filename)
+    plot_silhouette_scores(tcrdist_size_results['purities'], tcrdist_size_results['retentions'],
+                           tcrdist_size_results['scores'], tcrdist_topn_results['purities'],
+                           tcrdist_topn_results['retentions'], tcrdist_topn_results['scores'],
+                           tcrdist_agglo_results['purities'], tcrdist_agglo_results['retentions'],
+                           tcrdist_agglo_results['scores'], dm_name='tcrdist3', outdir=outdir, filename=filename)
+    plot_retpur_curves(vae_topn_results, vae_agglo_results,
+                       tbcr_topn_results, tbcr_agglo_results,
+                       tcrdist_topn_results, tcrdist_agglo_results,
+                       title, outdir, filename)
 
+    # WRITE FUNCTION HERE TO RECOVER "PRED" LABEL BY TOPN/SIZE/ETC CLUSTERS FOR EACH DISTMATRIX
+    # AND MERGE WITH INITIAL INPUT_DF AND RE-SAVE AS THE OUTPUT.
+    return vae_size_results, vae_topn_results, vae_agglo_results, \
+           tbcr_size_results, tbcr_topn_results, tbcr_agglo_results, \
+           tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results
+
+
+def get_optimal_point(results):
+    best_idx = np.argmax(np.where(np.isnan(results['scores']), -999, results['scores']))
+    best_silhouette = results['scores'][best_idx]
+    best_purity = results['purities'][best_idx]
+    best_retention = results['retentions'][best_idx]
+    return {'idx': best_idx, 'purity': best_purity, 'retention': best_retention, 'silhouette': best_silhouette}
+
+
+def do_three_clustering(dist_matrix,
+                        label_col, index_col=None, dm_name='',
+                        initial_cut_threshold=1, initial_cut_method='top', n_jobs=8):
+    if index_col not in dist_matrix.columns:
+        if index_col is None:
+            index_col = 'index_col'
+        dist_matrix[index_col] = [f'seq_{i:05}' for i in range(len(dist_matrix))]
+    # Get MST
+    G, original_tree, dist_matrix, values_array, labels, encoded_labels, label_encoder, raw_indices = create_mst_from_distance_matrix(
+        dist_matrix, label_col=label_col, index_col=index_col, algorithm='kruskal')
+    # Size-cut
+    size_tree, size_subgraphs, size_clusters, edges_cut, nodes_cut, size_scores, size_purities, size_retentions = iterative_size_cut(
+        values_array, original_tree,
+        initial_cut_threshold=initial_cut_threshold,
+        initial_cut_method=initial_cut_method,
+        top_n=1, which='edge', weighted=True, verbose=0, max_size=4)
+    # TopN-cut
+    topn_tree, topn_subgraphs, topn_clusters, edges_removed, nodes_removed, topn_scores, topn_purities, topn_retentions = iterative_topn_cut(
+        values_array, original_tree,
+        initial_cut_threshold=initial_cut_threshold,
+        initial_cut_method=initial_cut_method,
+        top_n=1, which='edge', weighted=True,
+        verbose=0, score_threshold=.5)
+    # Agglo and get the best threshold and redo the clustering to get the best results
+    agglo_output = cluster_all_thresholds(values_array, values_array, labels, encoded_labels, label_encoder,
+                                          n_points=300, n_jobs=n_jobs)
+    best_agglo = agglo_output.loc[agglo_output['silhouette'].idxmax()]
+    agglo_single_summary, agglo_single_df, agglo_single_c = cluster_single_threshold(values_array, values_array, labels,
+                                                                                     encoded_labels, label_encoder,
+                                                                                     threshold=best_agglo['threshold'],
+                                                                                     return_df_and_c=True)
+
+    size_results = {'tree': size_tree, 'clusters': size_clusters,
+                    'scores': size_scores, 'purities': size_purities, 'retentions': size_retentions,
+                    'df': get_cut_cluster_df(original_tree, size_clusters).assign(dm_name=dm_name,
+                                                                                  method='size_cut').rename(
+                        columns={'index': index_col,
+                                 'label': label_col})}
+    topn_results = {'tree': topn_tree, 'clusters': topn_clusters,
+                    'scores': topn_scores, 'purities': topn_purities, 'retentions': topn_retentions,
+                    'df': get_cut_cluster_df(original_tree, topn_clusters).assign(dm_name=dm_name,
+                                                                                  method='topn_cut').rename(
+                        columns={'index': index_col,
+                                 'label': label_col})}
+    agglo_results = {'scores': agglo_output['silhouette'].values,
+                     'purities': agglo_output['mean_purity'].values,
+                     'retentions': agglo_output['retention'].values,
+                     'df': get_agglo_cluster_df(agglo_single_c, dist_matrix, agglo_single_df, index_col, label_col,
+                                                rest_cols=[index_col, label_col]).assign(dm_name=dm_name,
+                                                                                         method='agglo'),
+                     'best': best_agglo}
+
+    return size_results, topn_results, agglo_results
+
+
+def get_cut_cluster_df(original_tree: nx.Graph, clusters):
+    """
+
+    Args:
+        original_tree: UNCUT, UNPRUNED original tree as created from `create_mst_from_dist_matrix`
+        clusters: the list of clusters returned by the cut algos
+
+    Returns:
+
+    """
+
+    series = []
+    original_tree = deepcopy(original_tree)
+    nodes = dict(original_tree.nodes(data=True))
+    for i, c in enumerate(clusters):
+        common_nodes = {k: v for k, v in nodes.items() if k in c['members']}
+        zz = [{'node': k, 'label': v['label'], 'index': v['index'], 'pred_label': i, 'cluster_size': c['cluster_size'],
+               'majority_label': c['majority_label'], 'purity': c['purity']} for k, v in common_nodes.items()]
+        series.append(pd.DataFrame(zz))
+    results = pd.concat(series)
+    non_singletons = results.dropna().node.unique()
+    singletons = pd.DataFrame([{'node': n, **v} for n, v in nodes.items() if n not in non_singletons])
+    if len(singletons) > 0:
+        singletons['pred_label'] = range(int(results.pred_label.max()) + 1,
+                                         int(results.pred_label.max()) + len(singletons) + 1)
+        singletons['cluster_size'] = 1
+        singletons['majority_label'] = singletons['label']
+        singletons['purity'] = np.nan
+    return pd.concat([results, singletons]).reset_index(drop=True)
+
+
+def plot_silhouette_scores(size_purities, size_retentions, size_scores,
+                           topn_purities, topn_retentions, topn_scores,
+                           agglo_purities, agglo_retentions, agglo_scores, dm_name='',
+                           outdir='../output/', filename='silhouette'
+                           ):
+    f, a = plt.subplots(1, 1, figsize=(7, 4))
+    a2 = a.twinx()
+    # "title" here should be the name of the distmatrix ; dm_name should be VAE (or TS128/OS128, TBCR, tcrdist)
+    a.set_title(
+        f'{dm_name}; No initial pruning ; Using Top-5 as initial cut ; distance-weighted betweenness\nTBCR comparison of size-cut and top-1 (silhouette) cut')
+
+    a.plot(range(len(size_purities)), size_purities, lw=.75, ls=':', c='r',
+           label='size(4)-cut avg purity')
+    a.plot(range(len(size_retentions)), size_retentions, lw=.75, ls='-', c='r',
+           label='size(4)-cut avg retention')
+    a2.plot(range(len(size_scores)), size_scores, lw=.75, ls='--', c='r',
+            label='size(4)-cut silhouette score')
+
+    a.plot(range(len(topn_purities)), topn_purities, lw=1, ls=':', c='g',
+           label='Top1-cut avg purity')
+    a.plot(range(len(topn_retentions)), topn_retentions, lw=.75, ls='-', c='g',
+           label='Top1-cut avg retention')
+    a2.plot(range(len(topn_scores)), topn_scores, lw=.8, ls='--', c='g',
+            label='Top1-cut silhouette score')
+
+    a.plot(range(len(agglo_purities)), agglo_purities, lw=1, ls=':', c='b',
+           label='Agglomerative avg purity')
+    a.plot(range(len(agglo_retentions)), agglo_retentions, lw=.75, ls='-', c='b',
+           label='Agglomerative avg retention')
+    a2.plot(range(len(agglo_scores)), agglo_scores, lw=.8, ls='--', c='b',
+            label='Agglomerative silhouette score')
+
+    # Align the tick marks
+    a.yaxis.set_tick_params(which='both', length=0)  # Remove tick marks from primary y-axis
+    a2.yaxis.set_tick_params(which='both', length=0)  # Remove tick marks from secondary y-axis
+    # Align the gridlines
+    a.grid(True)
+    a2.grid(False)  # Disable secondary y-axis gridlines
+    a.set_ylabel('Retention // Purity (%)')
+    a2.set_ylabel('Silhouette score')
+    ymin = min([np.nanmin(size_scores), np.nanmin(topn_scores), np.nanmin(agglo_scores)])
+    ymin = ymin - 0.1 * ymin
+    ymax = max([np.nanmax(size_scores), np.nanmax(topn_scores), np.nanmax(agglo_scores)])
+    ymax = ymax + 0.1 * ymax
+    a2.set_ylim([ymin, ymax])
+    a2.legend(bbox_to_anchor=(1.62, .25))
+    a.set_xlabel('iteration')
+    a.legend(bbox_to_anchor=(1.62, .88))
+    f.savefig(f'{outdir}{dm_name}{filename}_silhouette.png', dpi=150, bbox_inches='tight')
+
+
+def plot_retpur_curves(  # vae_size_results,
+        vae_topn_results, vae_agglo_results,
+        # tbcr_size_results,
+        tbcr_topn_results, tbcr_agglo_results,
+        # tcrdist_size_results,
+        tcrdist_topn_results, tcrdist_agglo_results, title, outdir, filename):
+    palette = get_palette('cool', 3)
+    # So apparently I don't use the size
+    # Get marker positions
+    # best_vae_size = get_optimal_point(vae_size_results)
+    best_vae_topn = get_optimal_point(vae_topn_results)
+    best_vae_agglo = get_optimal_point(vae_agglo_results)
+    print('best_vae_topn', best_vae_topn)
+    print('best_vae_agglo', best_vae_agglo)
+    # best_tbcr_size = get_optimal_point(tbcr_size_results)
+    best_tbcr_topn = get_optimal_point(tbcr_topn_results)
+    best_tbcr_agglo = get_optimal_point(tbcr_agglo_results)
+    print('best_tbcr_topn', best_tbcr_topn)
+    print('best_tbcr_agglo', best_tbcr_agglo)
+    # best_tcrdist_size = get_optimal_point(tcrdist_size_results)
+    best_tcrdist_topn = get_optimal_point(tcrdist_topn_results)
+    best_tcrdist_agglo = get_optimal_point(tcrdist_agglo_results)
+    print('best_tcrdist_topn', best_tcrdist_topn)
+    print('best_tcrdist_agglo', best_tcrdist_agglo)
+
+    # Plotting options
+    f, ax = plt.subplots(1, 1, figsize=(14, 14))
+    marker_size = 22
+    agglo_lw = 0.8
+    agglo_marker = '*'
+    agglo_ls = '-'
+    topn_lw = 1.1
+    topn_ls = '--'
+    topn_marker = 'x'
+    c_vae = palette[1]
+    c_tbcr = 'g'
+    c_tcrdist = 'y'
+
+    # VAE agglo
+    ax.plot(vae_agglo_results['retentions'][1:-1], vae_agglo_results['purities'][1:-1],
+            label='VAE + AggClustering', lw=agglo_lw, ls=agglo_ls, c=c_vae)
+    ax.plot(vae_topn_results['retentions'][1:-1], vae_topn_results['purities'][1:-1],
+            label='VAE + Top-1 Cut', lw=topn_lw, ls=topn_ls, c=c_vae)
+    ax.scatter(best_vae_agglo['retention'], best_vae_agglo['purity'], c=c_vae, marker=agglo_marker,
+               label='Best VAE+AggClustering', lw=1.2, s=marker_size)
+    ax.scatter(best_vae_topn['retention'], best_vae_topn['purity'], c=c_vae, marker=topn_marker,
+               label='Best VAE+Top-1 Cut', lw=1.2, s=marker_size)
+    # TBCR
+    ax.plot(tbcr_agglo_results['retentions'][1:-1], tbcr_agglo_results['purities'][1:-1],
+            label='TBCR + AggClustering', lw=agglo_lw, ls=agglo_ls, c=c_tbcr)
+    ax.plot(tbcr_topn_results['retentions'][1:-1], tbcr_topn_results['purities'][1:-1],
+            label='TBCR + Top-1 Cut', lw=topn_lw, ls=topn_ls, c=c_tbcr)
+    ax.scatter(best_tbcr_agglo['retention'], best_tbcr_agglo['purity'], c=c_tbcr, marker=agglo_marker,
+               label='Best TBCR+AggClustering', lw=1.2, s=marker_size)
+    ax.scatter(best_tbcr_topn['retention'], best_tbcr_topn['purity'], c=c_tbcr, marker=topn_marker,
+               label='Best TBCR+Top-1 Cut', lw=1.2, s=marker_size)
+    # TCRDIST
+    ax.plot(tcrdist_agglo_results['retentions'][1:-1], tcrdist_agglo_results['purities'][1:-1],
+            label='tcrdist3 + AggClustering', lw=agglo_lw, ls=agglo_ls, c=c_tcrdist)
+    ax.plot(tcrdist_topn_results['retentions'][1:-1], tcrdist_topn_results['purities'][1:-1],
+            label='tcrdist3 + Top-1 Cut', lw=topn_lw, ls=topn_ls, c=c_tcrdist)
+    ax.scatter(best_tcrdist_agglo['retention'], best_tcrdist_agglo['purity'], c=c_tcrdist, marker=agglo_marker,
+               label='Best tcrdist3+AggClustering', lw=1.2, s=marker_size)
+    ax.scatter(best_tcrdist_topn['retention'], best_tcrdist_topn['purity'], c=c_tcrdist, marker=topn_marker,
+               label='Best tcrdist3+Top-1 Cut', lw=1.2, s=marker_size)
+
+    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlim([-0.05, 1.05])
+    ax.set_xlabel('Retention', fontsize=12, fontweight='semibold')
+    ax.set_ylabel('Mean purity', fontsize=12, fontweight='semibold')
+    plt.minorticks_on()
+
+    # Customizing the legend
+    ax.legend(title='Method', prop={'weight': 'semibold', 'size': 13},
+              title_fontproperties={'weight': 'semibold', 'size': 15})
+    ax.set_title(
+        f'Purity Retention curves for {title}\n Agglomerative vs MST cutting ; Retention/Purity range : (0.5-1.0)',
+        fontweight='semibold', fontsize=14)
+    f.savefig(f'{outdir}{filename}_retpur_curves.png', dpi=200,
+              bbox_inches='tight')
 
 
 def do_baseline(baseline_distmatrix, identifier='baseline', label_col='peptide', n_points=500):
@@ -96,7 +353,8 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
         dist_matrix, dist_array, features, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(
             latent_df, index_col=index_col)
 
-        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points, n_jobs=n_jobs)
+        results = cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, n_points=n_points,
+                                         n_jobs=n_jobs)
         results['input_type'] = f'{identifier}_{name}'
         retentions = results['retention'].values[1:-1]
         purities = results['mean_purity'].values[1:-1]
@@ -121,7 +379,7 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
 
 
 def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clustersize=False,
-                       figsize=(9, 9), legend=True, outdir=None):
+                            figsize=(9, 9), legend=True, outdir=None):
     # plotting options
     sns.set_palette(palette, n_colors=len(runs.input_type.unique()))
     f, a = plt.subplots(1, 1, figsize=figsize)
@@ -177,12 +435,14 @@ def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clus
             mkdirs(outdir)
             fn = f'{outdir}{fn}'
         f.savefig(f'{fn}.png', dpi=200)
-    return f,a
+    return f, a
+
 
 def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbcr_dm, identifier='', n_points=250,
                                baselines=None, plot_title='None', fig_fn=None, n_jobs=1):
     try:
-        interval_runs, best_dm, best_name = run_interval_clustering(model_folder, input_df, index_col, identifier, n_points, n_jobs=n_jobs)
+        interval_runs, best_dm, best_name = run_interval_clustering(model_folder, input_df, index_col, identifier,
+                                                                    n_points, n_jobs=n_jobs)
     except:
         print('\n\n\n\n', model_folder, identifier, '\n\n\n\n')
         raise ValueError(model_folder, identifier)
@@ -193,7 +453,8 @@ def run_interval_plot_pipeline(model_folder, input_df, index_col, label_col, tbc
                                baselines.query('input_type == "tcrdist3"'),
                                interval_runs,
                                agg_results.assign(input_type=f'agg_{best_name}')])
-    interval_runs['input_type'] = interval_runs['input_type'].apply(lambda x: x.replace(identifier,'').lstrip('_').rstrip('_'))
+    interval_runs['input_type'] = interval_runs['input_type'].apply(
+        lambda x: x.replace(identifier, '').lstrip('_').rstrip('_'))
     # plotting options
     sns.set_palette('gnuplot2', n_colors=len(interval_runs.input_type.unique()) - 2)
     f, a = plt.subplots(1, 1, figsize=(15, 15))
@@ -277,10 +538,15 @@ def pipeline_best_model_clustering(model_folder, input_df, name, n_points=500):
     return results
 
 
-def cluster_single_threshold(dist_array, features, labels, encoded_labels, label_encoder, threshold):
+def cluster_single_threshold(dist_array, features, labels, encoded_labels, label_encoder, threshold,
+                             return_df_and_c=False):
     c = AgglomerativeClustering(n_clusters=None, metric='precomputed', distance_threshold=threshold, linkage='complete')
     c.fit(dist_array)
-    return get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder)
+    if return_df_and_c:
+        return *get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder,
+                                return_df=return_df_and_c), c
+    else:
+        return get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder)
 
 
 # Here, do a run ith only the best
@@ -288,9 +554,9 @@ def cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_e
                            decimals=5, n_points=500, n_jobs=1):
     # Getting clustering at all thresholds
     limits = get_linspace(dist_array, decimals, n_points)
-    if n_jobs>1:
-        print('HERE')
-        wrapper = partial(cluster_single_threshold, dist_array=dist_array, features=features, labels=labels, encoded_labels=encoded_labels, label_encoder=label_encoder)
+    if n_jobs > 1:
+        wrapper = partial(cluster_single_threshold, dist_array=dist_array, features=features, labels=labels,
+                          encoded_labels=encoded_labels, label_encoder=label_encoder)
         results = Parallel(n_jobs=n_jobs)(delayed(wrapper)(threshold=t) for t in tqdm(limits))
     else:
         results = []
@@ -452,13 +718,15 @@ def get_all_rpauc(retentions, purities, input_type=None, name=None):
 
     return out
 
-def get_all_inputs_rpauc(df, input_col ='input_type'):
+
+def get_all_inputs_rpauc(df, input_col='input_type'):
     # Utility function to return the rpauc df for all groups and sort by best
-    return pd.json_normalize(df.groupby('input_type').apply(lambda group: get_all_rpauc(group['retention'].values[1:-1], 
-                                                              group['mean_purity'].values[1:-1],
-                                                              group[input_col].iloc[0]))).drop(columns=['name']).set_index(input_col).sort_values('p70_r35_auc',ascending=False)
-
-
+    return pd.json_normalize(df.groupby('input_type').apply(lambda group: get_all_rpauc(group['retention'].values[1:-1],
+                                                                                        group['mean_purity'].values[
+                                                                                        1:-1],
+                                                                                        group[input_col].iloc[
+                                                                                            0]))).drop(
+        columns=['name']).set_index(input_col).sort_values('p70_r35_auc', ascending=False)
 
 
 def get_model(folder, map_location='cpu'):
@@ -526,7 +794,10 @@ def get_distances_labels_from_latent(latent_df, label_col='peptide', seq_cols=('
     # Columns for making distmatrix
     if rest_cols is None:
         rest_cols = list(
-            x for x in latent_df.columns if x in ['peptide', 'original_peptide', 'partition', 'origin', 'binder', index_col])
+            x for x in latent_df.columns if
+            x in ['peptide', 'original_peptide', 'partition', 'origin', 'binder', index_col])
+    if index_col not in rest_cols:
+        rest_cols.append(index_col)
     # Getting distmatrix and arrays
     dist_matrix = make_dist_matrix(latent_df, label_col, seq_cols, cols=rest_cols, low_memory=low_memory)
     dist_array = dist_matrix.iloc[:len(dist_matrix), :len(dist_matrix)].values
@@ -618,19 +889,48 @@ def get_purity_mixity_coherence(cluster_label: int,
 
     # Query the subset of the true labels belonging to this cluster using indices
     # Convert to int label encodings in order to use np.bincount to get purity and mixity
+
     subset = true_labels[indices]
     encoded_subset = label_encoder.transform(subset)
     counts = {i: k for i, k in enumerate(np.bincount(encoded_subset)) if k > 0}
+    majority_label = label_encoder.inverse_transform([sorted(counts.items(), key=lambda x: x[1], reverse=True)[0][0]])[
+        0]
     purity = get_purity(counts)
     # mixity = get_mixity(counts)
     # index the distance matrix and return the mean distance within this cluster (i.e. coherence)
     coherence = get_coherence(dist_array[indices][:, indices])
 
     # return purity, mixity, coherence, cluster_size, cluster_size / len(true_labels)
-    return {'purity': purity, 'coherence': coherence, 'cluster_size': cluster_size}
+    return {'purity': purity, 'coherence': coherence, 'cluster_size': cluster_size, 'majority_label': majority_label}
 
 
-def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_encoder):
+# Here put get_agglo_df_results():
+def get_agglo_cluster_df(c, dist_matrix, res_df, index_col, label_col, rest_cols):
+    """
+
+    Args:
+        c: The estimator object
+        dist_matrix: original distance matrix (labelled)
+        res_df: the "df" that we get from cluster_single_threshold(return_df_and_c=True)
+        index_col: ...
+        label_col: ...
+        rest_cols: ...
+
+    Returns:
+
+    """
+    columns = [index_col, label_col] + [x for x in list(rest_cols) if x != index_col and x != label_col]
+    subset = dist_matrix[columns]
+    subset['pred_label'] = c.labels_
+    subset = subset.merge(res_df.drop(columns=['coherence']), left_on=['pred_label'], right_on=['pred_label'],
+                          how='left')
+    subset['cluster_size'].fillna(1, inplace=True)
+    subset['majority_label'] = subset.apply(
+        lambda x: x[label_col] if x['majority_label'] != np.nan else x['majority_label'], axis=1)
+    return subset.sort_values('pred_label')
+
+
+def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_encoder, return_df=False):
     n_cluster = np.sum((np.bincount(c.labels_) > 1))
     n_singletons = (np.bincount(c.labels_) == 1).sum()
     try:
@@ -650,27 +950,40 @@ def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_en
     except:
         ari_score = np.nan
 
-    xd = pd.concat(
+    df_out = pd.concat(
         [pd.DataFrame(get_purity_mixity_coherence(k, true_labels, c.labels_, array, label_encoder), index=[0])
-         for k in set(c.labels_)]).dropna()
-    mean_purity = xd['purity'].mean()
-    mean_coherence = xd['coherence'].mean()
-    mean_cs = xd['cluster_size'].mean()
-    nc_07 = len(xd.query('purity>=0.7'))
-    return {'threshold': t,
-            'n_cluster': n_cluster, 'n_singletons': n_singletons,
-            'n_cluster_over_70p': nc_07,
-            'mean_purity': xd['purity'].mean(),
-            'min_purity': xd['purity'].min(),
-            'max_purity': xd['purity'].max(),
-            'mean_coherence': xd['coherence'].mean(),
-            'min_coherence': xd['coherence'].min(),
-            'max_coherence': xd['coherence'].max(),
-            'mean_cluster_size': xd['cluster_size'].mean(),
-            'min_cluster_size': xd['cluster_size'].min(),
-            'max_cluster_size': xd['cluster_size'].max(),
-            'silhouette': s_score,
-            'ch_index': c_score, 'db_index': d_score, 'ARI': ari_score}
+         for k in set(c.labels_)]).dropna().reset_index(drop=True).reset_index().rename(columns={'index': 'pred_label'})
+    nc_07 = len(df_out.query('purity>=0.7'))
+    if return_df:
+        return {'threshold': t,
+                'n_cluster': n_cluster, 'n_singletons': n_singletons,
+                'n_cluster_over_70p': nc_07,
+                'mean_purity': df_out['purity'].mean(),
+                'min_purity': df_out['purity'].min(),
+                'max_purity': df_out['purity'].max(),
+                'mean_coherence': df_out['coherence'].mean(),
+                'min_coherence': df_out['coherence'].min(),
+                'max_coherence': df_out['coherence'].max(),
+                'mean_cluster_size': df_out['cluster_size'].mean(),
+                'min_cluster_size': df_out['cluster_size'].min(),
+                'max_cluster_size': df_out['cluster_size'].max(),
+                'silhouette': s_score,
+                'ch_index': c_score, 'db_index': d_score, 'ARI': ari_score}, df_out
+    else:
+        return {'threshold': t,
+                'n_cluster': n_cluster, 'n_singletons': n_singletons,
+                'n_cluster_over_70p': nc_07,
+                'mean_purity': df_out['purity'].mean(),
+                'min_purity': df_out['purity'].min(),
+                'max_purity': df_out['purity'].max(),
+                'mean_coherence': df_out['coherence'].mean(),
+                'min_coherence': df_out['coherence'].min(),
+                'max_coherence': df_out['coherence'].max(),
+                'mean_cluster_size': df_out['cluster_size'].mean(),
+                'min_cluster_size': df_out['cluster_size'].min(),
+                'max_cluster_size': df_out['cluster_size'].max(),
+                'silhouette': s_score,
+                'ch_index': c_score, 'db_index': d_score, 'ARI': ari_score}
 
 
 def get_bounds(array, decimals=5):

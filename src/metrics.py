@@ -801,7 +801,7 @@ def get_roc(df, score='pred', target='agg_label', binder=None, anchor_mutation=N
         auc = roc_auc_score(df[target].values, df[score].values)
         auc01 = roc_auc_score(df[target].values, df[score].values, max_fpr=0.1)
     except KeyError:
-        print('here')
+        print('here in get_roc KeyError')
         try:
             fpr, tpr, _ = roc_curve(df[target].values, df['mean_pred'].values)
             auc = roc_auc_score(df[target].values, df['mean_pred'].values)
