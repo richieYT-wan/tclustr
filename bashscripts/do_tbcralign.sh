@@ -57,7 +57,7 @@ done
 # Shift the processed options so that $1, $2, etc. now refer to non-option arguments
 shift $((OPTIND - 1))
 
-OUTDIR="$(pwd)/../output/${OUTNAME}/"
+OUTDIR="$(pwd)/../output/${OUTPUTDIRECTORY}/"
 echo $OUTDIR
 mkdir -pv $OUTDIR
 exit 1
