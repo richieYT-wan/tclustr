@@ -117,12 +117,17 @@ python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -other
 tbcrfile="$(ls $OUTDIR*TBCR_distmatrix*.csv)"
 tcrdistfile="$(ls $OUTDIR*tcrdist3_distmatrix*.txt)"
 
+echo "#######################################"
+echo ""
 echo "Running script using the following:"
+echo "#######################################"
+echo ""
 echo "tbcrfile: ${tbcrfile}"
 echo "tcrdistfile: ${tcrdistfile}"
 echo "PTFILE: ${PTFILE}"
 echo "JSON: ${JSONFILE}"
-
+echo "#######################################"
+echo ""
 source ${CONDA}
 conda activate cuda
 

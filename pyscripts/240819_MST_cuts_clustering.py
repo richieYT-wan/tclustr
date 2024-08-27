@@ -10,7 +10,7 @@ from src.cluster_utils import *
 from src.networkx_utils import *
 from src.torch_utils import load_model_full
 from src.utils import str2bool, make_filename, pkl_dump
-
+from datetime import datetime as dt
 
 def args_parser():
     parser = argparse.ArgumentParser(description='Script to train and evaluate a VAE model with all chains')
@@ -124,6 +124,7 @@ def args_parser():
 
 
 def main():
+    start = dt.now()
     print('Starting MST-cut pyscript')
     sns.set_style('darkgrid')
     args = vars(args_parser())
@@ -177,7 +178,9 @@ def main():
         # Save the remaining results (curves etc) to a pickle file
         pkl_dump(result, f'result_{dm_name}_{method}.pkl', outdir)
 
-
+    end = dt.now()
+    elapsed = divmod((end - start).seconds, 60)
+    print(f'MST-cut finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
 
 if __name__ == '__main__':
     main()

@@ -1,5 +1,7 @@
 #! /usr/bin/bash
 # Here either /home/projects/vaccine/ or /home/ depending on computerome or HTC
+start_time=$(date +%s)
+
 C2PATH="/home/projects/vaccine/people/morni/bin/tbcr_align"
 HTCPATH="/home/people/morni/bin/tbcr_align"
 CHAINS=("A1" "A2" "A3" "B1" "B2" "B3")  # Default chains
@@ -69,7 +71,6 @@ output_name="${OUTDIR}${basename_without_extension}_TBCR_distmatrix.csv" # final
 string_chains=$(printf '%s' "$(IFS=','; echo "\"${CHAINS[*]}\"")")
 string_extracols=$(printf '%s' "$(IFS=','; echo "\"${EXTRACOLS[*]}\"")")
 # echo the variables to check stuff
-echo "${CHAINS[*]} ${LABELCOL} ${EXTRACOLS[*]} ${TBCRALIGN}"
 # FILES MUST BE IN SAVED IN THE RIGHT FORMAT ; see
 
   # Embedded python code to save the df in the required format
@@ -106,7 +107,7 @@ dbcols = [f'db_{x}' for x in chains]
 print('Setting columns ;')
 # Replace col names
 tbcr.columns = ['kind', 'source', 'q_index'] + qcols + ['target', 'db_index'] + dbcols + ['score'] + ['db_binder']
-print('Reset columns\n', tbcr.head())
+print('Reset columns')
 # Create a copy and switch around col names (To create lower triangle of the square matrix)
 print('Creating copy and swapping cols')
 fake_tbcr = tbcr.copy()
@@ -133,7 +134,6 @@ tbcr_idx_scores = pd.concat([tbcr_idx_scores, pd.DataFrame([[x, x, 12.] for x in
 # Pivot and do 1 - x / 12 to get a square distance matrix instead of a similarity matrix with max value 12
 dist_matrix = 1-(tbcr_idx_scores.pivot_table(index='q_index', columns='db_index', values='score')/12)
 
-print('dist_mat_shape', dist_matrix.shape)
 
 # TODO: Get filename and get chains variable in here
 original_filename = "${INPUTFILE}"
@@ -152,4 +152,22 @@ EOF
 
 rm ${OUTDIR}*TMP*.txt
 
+
+endtime=$(date +"%y%m%d_%H%M%S")
+# Record the end time
+end_time=$(date +%s)
+
+# Calculate the duration in seconds
+duration=$(( end_time - start_time ))
+
+# Convert the duration to HH:mm:ss format
+hours=$(( duration / 3600 ))
+minutes=$(( (duration % 3600) / 60 ))
+seconds=$(( duration % 60 ))
+
+# Format the output to HH:mm:ss
+printf -v elapsed_time "%02d:%02d:%02d" $hours $minutes $seconds
+
+# Output the elapsed time
+echo "TBCRalign : Time taken: $elapsed_time"
 

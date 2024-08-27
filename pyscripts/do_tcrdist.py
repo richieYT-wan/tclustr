@@ -8,6 +8,7 @@ import numpy as np
 import argparse
 from tcrdist.rep_funcs import _pws, _pw
 from pathlib import Path
+from datetime import datetime as dt
 
 def do_tcrdist3_pipeline(df, args,
                          vdist=pw.metrics.nb_vector_tcrdist,
@@ -147,6 +148,7 @@ def args_parser():
 
 
 def main():
+    start = dt.now()
     args = vars(args_parser())
     print(args)
     # Read and run tcrdist3
@@ -184,7 +186,9 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     output_df.to_csv(f'{outdir}{out_fn}.txt')
     print(f'Output saved at {outdir}{out_fn}.txt')
-
+    end = dt.now()
+    elapsed = divmod((end - start).seconds, 60)
+    print(f'tcrdist3 finished in {elapsed[0]} minutes, {elapsed[1]} seconds.')
 
 if __name__ == '__main__':
     main()
