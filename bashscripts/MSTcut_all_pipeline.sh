@@ -15,6 +15,7 @@ rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 random_id="${first_char}${rest_chars}"
 # Datetime part
 datetime_string=$(date +"%y%m%d_%H%M%S")
+start_time=$(date +%s)
 # Setting default paths
 CHAINS=("A1" "A2" "A3" "B1" "B2" "B3")  # Default chains
 LABELCOL="peptide"
@@ -128,9 +129,20 @@ conda activate cuda
 #sys exit 1
 python3 240819_MST_cuts_clustering.py -pt_file ${PTFILE} -json_file ${JSONFILE} -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 40
 
+endtime=$(date +"%y%m%d_%H%M%S")
+# Record the end time
+end_time=$(date +%s)
 
-# Get tcrdist3 dist_matrix
-# Get TBCRalign dist_matrix
-# Run pipeline and read both baseline DMs, read df --> get model --> latent --> VAE dm --> run MST size vs topn vs AggloCluster for all 3 matrices
-# --> Do silhouette plot (one for each dm) and total final RetPur curves
+# Calculate the duration in seconds
+duration=$(( end_time - start_time ))
 
+# Convert the duration to HH:mm:ss format
+hours=$(( duration / 3600 ))
+minutes=$(( (duration % 3600) / 60 ))
+seconds=$(( duration % 60 ))
+
+# Format the output to HH:mm:ss
+printf -v elapsed_time "%02d:%02d:%02d" $hours $minutes $seconds
+
+# Output the elapsed time
+echo "Time taken: $elapsed_time"
