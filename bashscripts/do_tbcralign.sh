@@ -7,6 +7,7 @@ LABELCOL="peptide"
 EXTRACOLS=("original_peptide" "binder" "partition" "original_index")
 TBCRALIGN="$HTCPATH"
 chainarg="full"
+OUTNAME=""
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
 while getopts ":f:c:s:l:e:o" opt; do
   case ${opt} in
@@ -14,7 +15,7 @@ while getopts ":f:c:s:l:e:o" opt; do
       INPUTFILE=$OPTARG
       ;;
     o )
-      OUTDIR=$OPTARG
+      OUTNAME=$OPTARG
       ;;
     c )
       # If -c is used, override the default chains
@@ -55,7 +56,7 @@ done
 # Shift the processed options so that $1, $2, etc. now refer to non-option arguments
 shift $((OPTIND - 1))
 
-OUTDIR="$(pwd)/../output/${OUTDIR}/"
+OUTDIR="$(pwd)/../output/${OUTNAME}/"
 echo $OUTDIR
 mkdir -pv $OUTDIR
 # Extract the basename without the extension using parameter expansion
