@@ -9,7 +9,7 @@ TBCRALIGN="$HTCPATH"
 chainarg="full"
 OUTPUTDIRECTORY=""
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
-while getopts ":f:c:s:l:e:o" opt; do
+while getopts ":f:c:s:l:e:o:" opt; do
   case ${opt} in
     f )
       INPUTFILE=$OPTARG
