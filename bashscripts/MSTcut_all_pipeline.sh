@@ -103,9 +103,9 @@ BASHDIR="${HOMEDIR}bashscripts/"
 
 # that's where all the outputs will be saved. We just need "OUTPUTDIRECTORY"
 # because all the other scripts handle the "../output/${OUTPUTDIRECTORY}" by default
-OUTDIR="$(pwd)/../output/${OUTPUTDIRECTORY}/"
+OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")"
 mkdir -pv $OUTDIR
-
+echo ${OUTDIR}
 # TODO DEFINE A SINGLE OUTDIR WHERE WE SAVE ALL THE OUTPUT DMs
 
 source ${CONDA}
@@ -117,8 +117,8 @@ cd $PYDIR
 python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -others "${EXTRACOLS[@]}" -idx $INDEXCOL
 
 
-tbcrfile="${OUTDIR}/$(ls $OUTDIR/*TBCR_distmatrix*.csv)"
-tcrdistfile="${OUTDIR}/$(ls $OUTDIR/*tcrdist3_distmatrix*.txt)"
+tbcrfile="$(ls $OUTDIR/*TBCR_distmatrix*.csv)"
+tcrdistfile="$(ls $OUTDIR/*tcrdist3_distmatrix*.txt)"
 echo $tbcrfile
 echo $tcrdistfile
 

@@ -57,9 +57,9 @@ done
 # Shift the processed options so that $1, $2, etc. now refer to non-option arguments
 shift $((OPTIND - 1))
 
-OUTDIR="$(pwd)/../output/${OUTPUTDIRECTORY}/"
-echo $OUTDIR
+OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")"
 mkdir -pv $OUTDIR
+echo ${OUTDIR}
 # Extract the basename without the extension using parameter expansion
 # Here assume we use the full TCRs
 filename=$(basename "$INPUTFILE")
