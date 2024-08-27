@@ -1,9 +1,8 @@
 #! /usr/bin/bash
 
 # HERE IT DEPENDS ON WHETHER WE ARE USING C2 OR HTC
-source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-source activate cuda
 
+# RID part
 # Define the characters that can be used
 characters="abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ0123456789"
 # Generate a random index between 0 and 61 (total number of characters)
@@ -14,26 +13,28 @@ first_char="${characters:index:1}"
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_id="${first_char}${rest_chars}"
-
-# Setting input directory paths
-HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
-PYDIR=${HOMEDIR}pyscripts/
-
-HOMEDIR='/home/projects/vaccine/people/yatwan/tclustr/'
-PYDIR="${HOMEDIR}pyscripts/"
-BASHDIR="${HOMEDIR}bashscripts/"
-C2PATH="/home/projects/vaccine/people/morni/bin/tbcr_align"
-HTCPATH="/home/people/morni/bin/tbcr_align"
+# Datetime part
+datetime_string=$(date +"%y%m%d_%H%M%S")
+# Setting default paths
 CHAINS=("A1" "A2" "A3" "B1" "B2" "B3")  # Default chains
 LABELCOL="peptide"
+INDEXCOL=None
 EXTRACOLS=("original_peptide" "binder" "partition" "original_index")
-TBCRALIGN="$HTCPATH"
+TBCRALIGN="/home/projects/vaccine/people/morni/bin/tbcr_align"
+HOMEDIR="/home/projects/vaccine/people/yatwan/tclustr/"
 chainarg="full"
+# Pre-set the name with a random id, then parse the -o if exists
+OUTNAME="MST_${random_id}"
+OUTPUTDIRECTORY=${OUTNAME}
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
-while getopts ":f:c:s:l:e" opt; do
+while getopts ":f:c:s:l:e:o:i:" opt; do
   case ${opt} in
     f )
       INPUTFILE=$OPTARG
+      ;;
+    o )
+      OUTPUTDIRECTORY="${OPTARG}_${OUTPUTDIRECTORY}"
+      echo "HERE ${OUTPUTDIRECTORY}"
       ;;
     c )
       # If -c is used, override the default chains
@@ -44,10 +45,16 @@ while getopts ":f:c:s:l:e" opt; do
       done
       ;;
     s )
+      # Health Tech server
       if [ "$OPTARG" == "htc" ]; then
-        TBCRALIGN="$HTCPATH"
+        source /home/people/riwa/anaconda3/etc/profile.d/conda.sh
+        TBCRALIGN="/home/people/morni/bin/tbcr_align"
+        HOMEDIR='/home/projects2/riwa/tclustr/'
+      # Computerome
       elif [ "$OPTARG" == "c2" ]; then
-        TBCRALIGN="$C2PATH"
+        source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+        TBCRALIGN="/home/projects/vaccine/people/morni/bin/tbcr_align"
+        HOMEDIR="/home/projects/vaccine/people/yatwan/tclustr/"
       fi
       ;;
     e )
@@ -60,8 +67,11 @@ while getopts ":f:c:s:l:e" opt; do
     l )
       LABELCOL="$OPTARG"  # Add the first option after -c
       ;;
+    i )
+      INDEXCOL="$OPTARG"
+      ;;
     \? )
-      echo "Usage: $0 -f <INPUTFILE> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
+      echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
       exit 1
       ;;
     : )
@@ -70,17 +80,34 @@ while getopts ":f:c:s:l:e" opt; do
       ;;
   esac
 done
+# Then add the datetime
+OUTPUTDIRECTORY="${datetime_string}_${OUTPUTDIRECTORY}"
+# Get the full paths depending on the server used
+PYDIR="${HOMEDIR}pyscripts/"
+BASHDIR="${HOMEDIR}bashscripts/"
 
+# that's where all the outputs will be saved. We just need "OUTPUTDIRECTORY"
+# because all the other scripts handle the "../output/${OUTPUTDIRECTORY}" by default
+OUTDIR="$(pwd)/../output/${OUTPUTDIRECTORY}/"
+mkdir -pv $OUTDIR
 
 # TODO DEFINE A SINGLE OUTDIR WHERE WE SAVE ALL THE OUTPUT DMs
 cd $BASHDIR
-sh do_tbcralign.sh -f $INPUTFILE-c A1 A2 A3 B1 B2 B3 -s c2 -l Disease -e Disease Source count index_col Run
+sh do_tbcralign.sh -f $INPUTFILE -o ${OUTPUTDIRECTORY} -c "${CHAINS[@]}" -s c2 -l $LABELCOL -e "${EXTRACOLS[@]}"
 
+source activate tcrdist3
 cd $PYDIR
-python3 do_tcrdist.py -f $INPUTFILE -pep $LABELCOL -others Disease CancerType count -idx index_col
+python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -others "${EXTRACOLS[@]}" -idx $INDEXCOL
 
-# TODO FINISH THIS
-python3 240819_MST_cuts_clustering.py -rid ${random_id}
+
+tbcrfile="${OUTDIR}/$(ls $OUTDIR/*TBCR_distmatrix*.csv)"
+tcrdistfile="${OUTDIR}/$(ls $OUTDIR/*tcrdist3_distmatrix*.txt)"
+
+source deactivate
+source activate cuda
+
+sys exit 1
+python3 240819_MST_cuts_clustering.py -pt_file ${PTFILE} -json_file ${JSONFILE} -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 40
 
 
 # Get tcrdist3 dist_matrix

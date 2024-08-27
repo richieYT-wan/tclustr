@@ -158,7 +158,7 @@ def main():
     output_array = f(df, args)
     # Creating output and adding the extra columns
     output_df = pd.DataFrame(output_array)
-    if args['index_col'] is None:
+    if args['index_col'] is None or args['index_col']=='':
         print('No index col included. Re-saving input with an extra seq_id column.')
         df['seq_id'] = [f'seq_{i:05}' for i in range(len(df))]
         output_df['seq_id'] = df['seq_id']

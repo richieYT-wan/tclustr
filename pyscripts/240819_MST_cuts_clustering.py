@@ -132,7 +132,9 @@ def main():
         outdir = os.path.join(outdir, args['outdir'])
         if not outdir.endswith('/'):
             outdir = outdir + '/'
-    outdir = os.path.join(outdir, unique_filename) + '/'
+    # Here this is commented because we handle the uniquefilename creation already
+    # in the overall bash script
+    # outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
 
     df = pd.read_csv(args['file'])
@@ -142,7 +144,7 @@ def main():
     label_col = args['label_col']
     rest_cols = args['rest_cols']
     latent_df = get_latent_df(model, df)
-    if index_col is None or index_col not in latent_df.columns:
+    if index_col is None or index_col=='' or index_col not in latent_df.columns:
         index_col = 'index_col'
         latent_df[index_col] = [f'seq_{i:04}' for i in range(len(latent_df))]
     seq_cols = (args[f'{x.lower()}_col'] for x in ('A1', 'A2', 'A3', 'B1', 'B2', 'B3')),
