@@ -97,12 +97,14 @@ import pandas as pd
 import numpy as np
 # Accessing the Bash variable in Python
 output_filename = "${output_name}"
+print('Read TBCR raw')
 tbcr = pd.read_csv("${tbcrtmp}", comment='#', sep =' ', header=None, index_col=None)
 chains = eval('${string_chains}').split(',')
 extra_cols = eval('${string_extracols}').split(',')
 extra_cols = [x for x in extra_cols if len(x)>0] # bad fix for my optargs handling
 qcols = [f'q_{x}' for x in chains + ['binder']]
 dbcols = [f'db_{x}' for x in chains]
+print('Setting columns ;')
 # Replace col names
 tbcr.columns = ['kind', 'source', 'q_index'] + qcols + ['target', 'db_index'] + dbcols + ['score'] + ['db_binder']
 print('Reset columns\n', tbcr.head())

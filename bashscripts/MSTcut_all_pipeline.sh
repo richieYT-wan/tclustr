@@ -94,11 +94,12 @@ OUTDIR="$(pwd)/../output/${OUTPUTDIRECTORY}/"
 mkdir -pv $OUTDIR
 
 # TODO DEFINE A SINGLE OUTDIR WHERE WE SAVE ALL THE OUTPUT DMs
-cd $BASHDIR
-sh do_tbcralign.sh -f $INPUTFILE -o ${OUTPUTDIRECTORY} -c "${CHAINS[@]}" -s $SERVER -l $LABELCOL -e "${EXTRACOLS[@]}"
 
 source $CONDA
 source activate tcrdist3
+cd $BASHDIR
+sh do_tbcralign.sh -f $INPUTFILE -o ${OUTPUTDIRECTORY} -c "${CHAINS[@]}" -s $SERVER -l $LABELCOL -e "${EXTRACOLS[@]}"
+
 cd $PYDIR
 python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -others "${EXTRACOLS[@]}" -idx $INDEXCOL
 
