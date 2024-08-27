@@ -47,12 +47,12 @@ while getopts ":f:c:s:l:e:o:i:" opt; do
     s )
       # Health Tech server
       if [ "$OPTARG" == "htc" ]; then
-        source /home/people/riwa/anaconda3/etc/profile.d/conda.sh
+        CONDA="/home/people/riwa/anaconda3/etc/profile.d/conda.sh"
         TBCRALIGN="/home/people/morni/bin/tbcr_align"
         HOMEDIR='/home/projects2/riwa/tclustr/'
       # Computerome
       elif [ "$OPTARG" == "c2" ]; then
-        source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
+        CONDA="/home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh"
         TBCRALIGN="/home/projects/vaccine/people/morni/bin/tbcr_align"
         HOMEDIR="/home/projects/vaccine/people/yatwan/tclustr/"
       fi
@@ -71,7 +71,7 @@ while getopts ":f:c:s:l:e:o:i:" opt; do
       INDEXCOL="$OPTARG"
       ;;
     \? )
-      echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
+      echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS> -i <INDEXCOL>"
       exit 1
       ;;
     : )
@@ -95,6 +95,7 @@ mkdir -pv $OUTDIR
 cd $BASHDIR
 sh do_tbcralign.sh -f $INPUTFILE -o ${OUTPUTDIRECTORY} -c "${CHAINS[@]}" -s c2 -l $LABELCOL -e "${EXTRACOLS[@]}"
 
+source activate $CONDA
 source activate tcrdist3
 cd $PYDIR
 python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -others "${EXTRACOLS[@]}" -idx $INDEXCOL
