@@ -80,7 +80,7 @@ cd $PYDIR
 python3 do_tcrdist.py -f $INPUTFILE -pep $LABELCOL -others Disease CancerType count -idx index_col
 
 # TODO FINISH THIS
-python3 240819_MST_cuts_clustering.py -... options
+python3 240819_MST_cuts_clustering.py -rid ${random_id}
 
 
 # Get tcrdist3 dist_matrix

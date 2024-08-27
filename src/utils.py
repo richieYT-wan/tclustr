@@ -29,12 +29,13 @@ def batchify(data, batch_size):
 def make_filename(args):
     connector = '' if args["out"] == '' else '_'
     if "fold" in args:
-        kf = '-1' if args["fold"] is None else args['fold']
+        kf = 'NoKF' if args["fold"] is None else args['fold']
     elif 'valid_fold' in args and 'test_fold' in args:
         valid_fold = args['valid_fold']
         test_fold = args['test_fold']
         kf = f'v{valid_fold}_t{test_fold}'
-
+    else:
+        kf = 'NoKF'
     rid = args['random_id'] if (args['random_id'] is not None and args['random_id'] != '') \
         else get_random_id() if (args['random_id'] == '' or args['random_id'] is None) else args['random_id']
 

@@ -136,7 +136,8 @@ def main():
     mkdirs(outdir)
 
     df = pd.read_csv(args['file'])
-    model = load_model_full(args['pt_file'], args['json_file'], map_location=args['device'], verbose=False)
+    model = load_model_full(args['pt_file'], args['json_file'],
+                            map_location=args['device'], verbose=False)
     index_col = args['index_col']
     label_col = args['label_col']
     rest_cols = args['rest_cols']
