@@ -47,11 +47,13 @@ while getopts ":f:c:s:l:e:o:i:" opt; do
     s )
       # Health Tech server
       if [ "$OPTARG" == "htc" ]; then
+        SERVER="$OPTARG"
         CONDA="/home/people/riwa/anaconda3/etc/profile.d/conda.sh"
         TBCRALIGN="/home/people/morni/bin/tbcr_align"
         HOMEDIR='/home/projects2/riwa/tclustr/'
       # Computerome
       elif [ "$OPTARG" == "c2" ]; then
+        SERVER="$OPTARG"
         CONDA="/home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh"
         TBCRALIGN="/home/projects/vaccine/people/morni/bin/tbcr_align"
         HOMEDIR="/home/projects/vaccine/people/yatwan/tclustr/"
@@ -93,7 +95,7 @@ mkdir -pv $OUTDIR
 
 # TODO DEFINE A SINGLE OUTDIR WHERE WE SAVE ALL THE OUTPUT DMs
 cd $BASHDIR
-sh do_tbcralign.sh -f $INPUTFILE -o ${OUTPUTDIRECTORY} -c "${CHAINS[@]}" -s c2 -l $LABELCOL -e "${EXTRACOLS[@]}"
+sh do_tbcralign.sh -f $INPUTFILE -o ${OUTPUTDIRECTORY} -c "${CHAINS[@]}" -s $SERVER -l $LABELCOL -e "${EXTRACOLS[@]}"
 
 source activate $CONDA
 source activate tcrdist3

@@ -148,6 +148,6 @@ dist_matrix = dist_matrix.merge(original_df.set_index('q_index')[extra_cols], le
 dist_matrix.to_csv(output_filename)
 EOF
 
-rm ${OUTDIR}*TMP*.txt
+#rm ${OUTDIR}*TMP*.txt
 
 
