@@ -29,7 +29,8 @@ OUTPUTDIRECTORY=${OUTNAME}
 PTFILE=""
 JSONFILE=""
 # HANDLE SINGLE LETTER ARGS
-while getopts ":f:c:s:l:e:o:i:" opt; do
+
+while getopts ":f:c:s:l:e:o:i:p:j:" opt; do
   case ${opt} in
     f )
       INPUTFILE=$OPTARG
@@ -74,8 +75,16 @@ while getopts ":f:c:s:l:e:o:i:" opt; do
     i )
       INDEXCOL="$OPTARG"
       ;;
+    p )
+      PTFILE="$2"
+      shift 2
+      ;;
+    j )
+      JSONFILE="$2"
+      shift 2
+      ;;
     \? )
-      echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS> -i <INDEXCOL>"
+      echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS> -i <INDEXCOL> -p <PTFILE> -j <JSONFILE>"
       exit 1
       ;;
     : )
@@ -85,27 +94,6 @@ while getopts ":f:c:s:l:e:o:i:" opt; do
   esac
 done
 
-# HANDLE MULTILETTER ARGS LIKE PT AND JSON FILES
-# Shift past the processed options
-shift $((OPTIND -1))
-
-# Parse multi-letter options
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --pt_file)
-      PTFILE="$2"
-      shift 2
-      ;;
-    --json_file)
-      JSONFILE="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown option: $1" >&2
-      exit 1
-      ;;
-  esac
-done
 
 # Then add the datetime
 OUTPUTDIRECTORY="${datetime_string}_${OUTPUTDIRECTORY}"
