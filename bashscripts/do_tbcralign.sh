@@ -56,6 +56,7 @@ done
 shift $((OPTIND - 1))
 
 OUTDIR="$(pwd)/../output/${OUTDIR}/"
+echo $OUTDIR
 mkdir -pv $OUTDIR
 # Extract the basename without the extension using parameter expansion
 # Here assume we use the full TCRs
