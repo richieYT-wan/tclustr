@@ -176,13 +176,12 @@ def main():
     if not (args['out'] is None or len(args['out']) == 0):
         out_fn = f'{out_fn}_{args["out"]}'
 
-    outdir = '../output/tcrdist3/'
-    os.makedirs(outdir, exist_ok=True)
+    outdir = '../output/'
     if args['outdir'] is not None:
         outdir = os.path.join(outdir, args['outdir'])
         if not outdir.endswith('/'):
             outdir = outdir + '/'
-
+    os.makedirs(outdir, exist_ok=True)
     output_df.to_csv(f'{outdir}{out_fn}.txt')
     print(f'Output saved at {outdir}{out_fn}.txt')
 
