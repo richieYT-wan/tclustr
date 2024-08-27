@@ -19,7 +19,7 @@ def args_parser():
     """
     parser.add_argument('-cuda', dest='cuda', default=False, type=str2bool,
                         help="Will use GPU if True and GPUs are available")
-    parser.add_argument('-device', dest='device', default=None, type=str,
+    parser.add_argument('-device', dest='device', default='cpu', type=str,
                         help='device to use for cuda')
     parser.add_argument('-f', '--file', dest='file', required=True, type=str,
                         default='../data/filtered/231205_nettcr_old_26pep_with_swaps.csv',
@@ -124,6 +124,7 @@ def args_parser():
 
 
 def main():
+    sns.set_style('darkgrid')
     args = vars(args_parser())
     unique_filename, kf, rid, connector = make_filename(args)
     outdir = '../output/'
@@ -147,7 +148,7 @@ def main():
     if index_col is None or index_col=='' or index_col not in latent_df.columns:
         index_col = 'index_col'
         latent_df[index_col] = [f'seq_{i:04}' for i in range(len(latent_df))]
-    seq_cols = (args[f'{x.lower()}_col'] for x in ('A1', 'A2', 'A3', 'B1', 'B2', 'B3')),
+    seq_cols = tuple(args[f'{x.lower()}_col'] for x in ('A1', 'A2', 'A3', 'B1', 'B2', 'B3'))
 
     dm_vae, vals_vae, _, labels, encoded_labels, label_encoder = get_distances_labels_from_latent(latent_df,
                                                                                                   label_col, seq_cols,
@@ -156,8 +157,8 @@ def main():
                                                                                                   args['low_memory'])
     # This part assumes that the script will read a pre-formatted distance matrix (with labels etc) from a source.
     # Given the full pipeline (MSTcut_all_pipeline.sh) we should run --> do_tbcralign.sh, do_tcrdist.py, then the current script
-    dm_tbcr = resort_baseline(pd.read_csv(args['tbcralign_file']), dm_vae, index_col, rest_cols)
-    dm_tcrdist = resort_baseline(pd.read_csv(args['tcrdist_file']), dm_vae, index_col, rest_cols)
+    dm_tbcr, _ = resort_baseline(pd.read_csv(args['tbcralign_file'], index_col=0), dm_vae, index_col, rest_cols)
+    dm_tcrdist, _ = resort_baseline(pd.read_csv(args['tcrdist_file'], index_col=0), dm_vae, index_col, rest_cols)
     vae_size_results, vae_topn_results, vae_agglo_results, \
     tbcr_size_results, tbcr_topn_results, tbcr_agglo_results, \
     tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist, label_col=label_col,
@@ -167,10 +168,11 @@ def main():
                tbcr_size_results, tbcr_topn_results, tbcr_agglo_results,
                tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results]:
         # Get the cluster df and save it to a txt file
-        df = result.pop('df')
-        dm_name = df['dm_name'].unique()
-        method = df['method'].unique()
-        df.to_csv(f'{outdir}cluster_results_{dm_name}_{method}.csv')
+        resdf = result.pop('df')
+        dm_name = resdf['dm_name'].unique()[0]
+        method = resdf['method'].unique()[0]
+        # Merge to inputdf first!
+        resdf.to_csv(f'{outdir}cluster_results_{dm_name}_{method}.csv')
         # Save the remaining results (curves etc) to a pickle file
         pkl_dump(result, f'result_{dm_name}_{method}.pkl', outdir)
 

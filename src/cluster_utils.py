@@ -245,9 +245,8 @@ def plot_retpur_curves(  # vae_size_results,
     best_tcrdist_agglo = get_optimal_point(tcrdist_agglo_results)
     print('best_tcrdist_topn', best_tcrdist_topn)
     print('best_tcrdist_agglo', best_tcrdist_agglo)
-
     # Plotting options
-    f, ax = plt.subplots(1, 1, figsize=(14, 14))
+    f, ax = plt.subplots(1, 1, figsize=(16, 16))
     marker_size = 22
     agglo_lw = 0.8
     agglo_marker = '*'
@@ -287,11 +286,14 @@ def plot_retpur_curves(  # vae_size_results,
     ax.scatter(best_tcrdist_topn['retention'], best_tcrdist_topn['purity'], c=c_tcrdist, marker=topn_marker,
                label='Best tcrdist3+Top-1 Cut', lw=1.2, s=marker_size)
 
-    ax.set_ylim([-0.05, 1.05])
-    ax.set_xlim([-0.05, 1.05])
+    ax.set_ylim([-0.015, 1.015])
+    ax.set_xlim([-0.015, 1.015])
     ax.set_xlabel('Retention', fontsize=12, fontweight='semibold')
     ax.set_ylabel('Mean purity', fontsize=12, fontweight='semibold')
-    plt.minorticks_on()
+    # Enable grids
+    ax.grid(True, which='major', linestyle='-')
+    ax.minorticks_on()  # This enables the minor ticks
+    ax.grid(True, which='minor', linestyle='--')
 
     # Customizing the legend
     ax.legend(title='Method', prop={'weight': 'semibold', 'size': 13},
@@ -299,7 +301,7 @@ def plot_retpur_curves(  # vae_size_results,
     ax.set_title(
         f'Purity Retention curves for {title}\n Agglomerative vs MST cutting ; Retention/Purity range : (0.5-1.0)',
         fontweight='semibold', fontsize=14)
-    f.savefig(f'{outdir}{filename}_retpur_curves.png', dpi=200,
+    f.savefig(f'{outdir}{filename}_retpur_curves.png', dpi=150,
               bbox_inches='tight')
 
 
@@ -676,6 +678,8 @@ def resort_baseline(baseline_dm, input_dm, index_col,
     baseline_copy = baseline_dm.copy()
     baseline_copy = baseline_copy.drop_duplicates(index_col)
     original_index_col = baseline_dm.index.name
+    if original_index_col is None:
+        original_index_col = 'index'
     reindex = input_dm[index_col].values
     baseline_copy = baseline_copy.reset_index().set_index(index_col).loc[reindex].reset_index().set_index(
         original_index_col)
