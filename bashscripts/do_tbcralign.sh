@@ -62,7 +62,7 @@ mkdir -pv $OUTDIR
 filename=$(basename "$INPUTFILE")
 basename_without_extension="${filename%.*}"
 tmppath="${OUTDIR}${basename_without_extension}_TMP.txt" # Saves the intermediate tsv file for TBCRalign
-tbcrtmp="${OUTDIR}${basename_without_extension}_TBCR_TMP.txt" # Saves the output of the TBCRalign to be read to convert to distmatrix
+tbcrtmp="${OUTDIR}${basename_without_extension}_TBCRraw_TMP.txt" # Saves the output of the TBCRalign to be read to convert to distmatrix
 output_name="${OUTDIR}${basename_without_extension}_TBCR_distmatrix.csv" # final output name to save the dm
 string_chains=$(printf '%s' "$(IFS=','; echo "\"${CHAINS[*]}\"")")
 string_extracols=$(printf '%s' "$(IFS=','; echo "\"${EXTRACOLS[*]}\"")")
@@ -145,6 +145,6 @@ dist_matrix = dist_matrix.merge(original_df.set_index('q_index')[extra_cols], le
 dist_matrix.to_csv(output_filename)
 EOF
 
-rm *
+rm "${OUTDIR}*TMP*.txt"
 
 
