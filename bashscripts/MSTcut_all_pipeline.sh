@@ -97,7 +97,7 @@ mkdir -pv $OUTDIR
 cd $BASHDIR
 sh do_tbcralign.sh -f $INPUTFILE -o ${OUTPUTDIRECTORY} -c "${CHAINS[@]}" -s $SERVER -l $LABELCOL -e "${EXTRACOLS[@]}"
 
-source activate $CONDA
+source $CONDA
 source activate tcrdist3
 cd $PYDIR
 python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -others "${EXTRACOLS[@]}" -idx $INDEXCOL
