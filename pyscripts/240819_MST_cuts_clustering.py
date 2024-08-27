@@ -124,6 +124,7 @@ def args_parser():
 
 
 def main():
+    print('Starting MST-cut pyscript')
     sns.set_style('darkgrid')
     args = vars(args_parser())
     unique_filename, kf, rid, connector = make_filename(args)

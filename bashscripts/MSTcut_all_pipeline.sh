@@ -121,7 +121,9 @@ tbcrfile="${OUTDIR}/$(ls $OUTDIR/*TBCR_distmatrix*.csv)"
 tcrdistfile="${OUTDIR}/$(ls $OUTDIR/*tcrdist3_distmatrix*.txt)"
 echo $tbcrfile
 echo $tcrdistfile
-source activate cuda
+
+source ${CONDA}
+conda activate cuda
 
 #sys exit 1
 python3 240819_MST_cuts_clustering.py -pt_file ${PTFILE} -json_file ${JSONFILE} -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 40
