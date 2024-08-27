@@ -26,7 +26,9 @@ chainarg="full"
 # Pre-set the name with a random id, then parse the -o if exists
 OUTNAME="MST_${random_id}"
 OUTPUTDIRECTORY=${OUTNAME}
-# args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
+PTFILE=""
+JSONFILE=""
+# HANDLE SINGLE LETTER ARGS
 while getopts ":f:c:s:l:e:o:i:" opt; do
   case ${opt} in
     f )
@@ -82,6 +84,29 @@ while getopts ":f:c:s:l:e:o:i:" opt; do
       ;;
   esac
 done
+
+# HANDLE MULTILETTER ARGS LIKE PT AND JSON FILES
+# Shift past the processed options
+shift $((OPTIND -1))
+
+# Parse multi-letter options
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --pt_file)
+      PTFILE="$2"
+      shift 2
+      ;;
+    --json_file)
+      JSONFILE="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
 # Then add the datetime
 OUTPUTDIRECTORY="${datetime_string}_${OUTPUTDIRECTORY}"
 # Get the full paths depending on the server used
@@ -106,11 +131,11 @@ python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -other
 
 tbcrfile="${OUTDIR}/$(ls $OUTDIR/*TBCR_distmatrix*.csv)"
 tcrdistfile="${OUTDIR}/$(ls $OUTDIR/*tcrdist3_distmatrix*.txt)"
-
-source deactivate
+echo $tbcrfile
+echo $tcrdistfile
 source activate cuda
 
-sys exit 1
+#sys exit 1
 python3 240819_MST_cuts_clustering.py -pt_file ${PTFILE} -json_file ${JSONFILE} -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 40
 
 
