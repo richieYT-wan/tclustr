@@ -7,7 +7,7 @@ LABELCOL="peptide"
 EXTRACOLS=("original_peptide" "binder" "partition" "original_index")
 TBCRALIGN="$HTCPATH"
 chainarg="full"
-OUTNAME=""
+OUTPUTDIRECTORY=""
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
 while getopts ":f:c:s:l:e:o" opt; do
   case ${opt} in
@@ -15,7 +15,8 @@ while getopts ":f:c:s:l:e:o" opt; do
       INPUTFILE=$OPTARG
       ;;
     o )
-      OUTNAME=$OPTARG
+      OUTPUTDIRECTORY=$OPTARG
+      echo "HERE ${OUTPUTDIRECTORY}"
       ;;
     c )
       # If -c is used, override the default chains
@@ -43,7 +44,7 @@ while getopts ":f:c:s:l:e:o" opt; do
       LABELCOL="$OPTARG"  # Add the first option after -c
       ;;
     \? )
-      echo "Usage: $0 -f <INPUTFILE> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
+      echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS>"
       exit 1
       ;;
     : )
@@ -59,6 +60,7 @@ shift $((OPTIND - 1))
 OUTDIR="$(pwd)/../output/${OUTNAME}/"
 echo $OUTDIR
 mkdir -pv $OUTDIR
+exit 1
 # Extract the basename without the extension using parameter expansion
 # Here assume we use the full TCRs
 filename=$(basename "$INPUTFILE")
