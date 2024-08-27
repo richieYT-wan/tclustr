@@ -57,7 +57,7 @@ done
 # Shift the processed options so that $1, $2, etc. now refer to non-option arguments
 shift $((OPTIND - 1))
 
-OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")"
+OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")/"
 mkdir -pv $OUTDIR
 echo ${OUTDIR}
 # Extract the basename without the extension using parameter expansion
@@ -148,6 +148,7 @@ if len_before!=len_after:
 	print(f'things went wrong, before = {len_before}, after = {len_after}')
 dist_matrix = dist_matrix.merge(original_df.set_index('q_index')[extra_cols], left_index=True, right_index=True)
 dist_matrix.to_csv(output_filename)
+print(f'TBCR distmatrix saved at {output_filename}')
 EOF
 
 rm ${OUTDIR}*TMP*.txt

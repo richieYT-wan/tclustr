@@ -103,7 +103,7 @@ BASHDIR="${HOMEDIR}bashscripts/"
 
 # that's where all the outputs will be saved. We just need "OUTPUTDIRECTORY"
 # because all the other scripts handle the "../output/${OUTPUTDIRECTORY}" by default
-OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")"
+OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")/"
 mkdir -pv $OUTDIR
 echo ${OUTDIR}
 # TODO DEFINE A SINGLE OUTDIR WHERE WE SAVE ALL THE OUTPUT DMs
