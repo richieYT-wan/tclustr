@@ -15,7 +15,7 @@ while getopts ":f:c:s:l:e:o" opt; do
       INPUTFILE=$OPTARG
       ;;
     o )
-      OUTPUTDIRECTORY=$OPTARG
+      OUTPUTDIRECTORY="$OPTARG"
       echo "HERE ${OUTPUTDIRECTORY}"
       ;;
     c )
