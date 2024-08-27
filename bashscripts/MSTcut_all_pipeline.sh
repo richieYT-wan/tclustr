@@ -76,12 +76,10 @@ while getopts ":f:c:s:l:e:o:i:p:j:" opt; do
       INDEXCOL="$OPTARG"
       ;;
     p )
-      PTFILE="$2"
-      shift 2
+      PTFILE="$OPTARG"
       ;;
     j )
-      JSONFILE="$2"
-      shift 2
+      JSONFILE="$OPTARG"
       ;;
     \? )
       echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS> -i <INDEXCOL> -p <PTFILE> -j <JSONFILE>"
@@ -105,8 +103,6 @@ BASHDIR="${HOMEDIR}bashscripts/"
 # because all the other scripts handle the "../output/${OUTPUTDIRECTORY}" by default
 OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")/"
 mkdir -pv $OUTDIR
-echo ${OUTDIR}
-# TODO DEFINE A SINGLE OUTDIR WHERE WE SAVE ALL THE OUTPUT DMs
 
 source ${CONDA}
 source activate tcrdist3
@@ -117,10 +113,14 @@ cd $PYDIR
 python3 do_tcrdist.py -f $INPUTFILE -od ${OUTPUTDIRECTORY} -pep $LABELCOL -others "${EXTRACOLS[@]}" -idx $INDEXCOL
 
 
-tbcrfile="$(ls $OUTDIR/*TBCR_distmatrix*.csv)"
-tcrdistfile="$(ls $OUTDIR/*tcrdist3_distmatrix*.txt)"
-echo $tbcrfile
-echo $tcrdistfile
+tbcrfile="$(ls $OUTDIR*TBCR_distmatrix*.csv)"
+tcrdistfile="$(ls $OUTDIR*tcrdist3_distmatrix*.txt)"
+
+echo "Running script using the following:"
+echo "tbcrfile: ${tbcrfile}"
+echo "tcrdistfile: ${tcrdistfile}"
+echo "PTFILE: ${PTFILE}"
+echo "JSON: ${JSONFILE}"
 
 source ${CONDA}
 conda activate cuda
