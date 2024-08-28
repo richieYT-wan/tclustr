@@ -938,7 +938,9 @@ def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_en
     n_cluster = np.sum((np.bincount(c.labels_) > 1))
     n_singletons = (np.bincount(c.labels_) == 1).sum()
     try:
-        s_score = silhouette_score(features, c.labels_, metric='cosine')
+        # Here assumes features is the distance array...
+        # So using pre-computed !!
+        s_score = silhouette_score(features, c.labels_, metric='precomputed')
     except:
         s_score = np.nan
     try:

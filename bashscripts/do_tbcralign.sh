@@ -74,13 +74,12 @@ string_extracols=$(printf '%s' "$(IFS=','; echo "\"${EXTRACOLS[*]}\"")")
 # FILES MUST BE IN SAVED IN THE RIGHT FORMAT ; see
 
   # Embedded python code to save the df in the required format
-python3 <<EOF
+python3 -W ignore <<EOF
 print('Saving tmp file')
 import pandas as pd
 filepath = "${INPUTFILE}"
 tmppath = "${tmppath}"
 chains = eval('${string_chains}').split(',')
-print(filepath, tmppath, chains)
 df = pd.read_csv(filepath)
 c='binder' if 'binder' in df.columns else 'target' if 'target' in df.columns else None
 if c is None:
@@ -91,7 +90,7 @@ EOF
 # Run TBCRalign
 $TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
 # Embedded Python code to recover the distance matrix
-python3 <<EOF
+python3 -W ignore <<EOF
 print('Reading TBCRalign output and converting to dist_matrix')
 import pandas as pd
 import numpy as np
