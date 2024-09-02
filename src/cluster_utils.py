@@ -34,23 +34,28 @@ from src.utils import get_palette, get_class_initcode_keys, mkdirs
 ##################################
 #           PIPELINES            #
 ##################################
-def do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist,
-                                label_col='peptide',
-                                index_col=None,
+def do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist, label_col='peptide', index_col=None, weight_col=None,
                                 initial_cut_threshold=1, initial_cut_method='top', outdir='../output/',
                                 filename='output_', title='', n_jobs=8):
     print('Running clustering pipeline for VAE')
-    vae_size_results, vae_topn_results, vae_agglo_results = do_three_clustering(dm_vae, label_col, index_col,
-                                                                                'VAE', initial_cut_threshold,
-                                                                                initial_cut_method, n_jobs)
+    vae_size_results, vae_topn_results, vae_agglo_results = do_three_clustering(dm_vae, label_col, index_col,  weight_col,
+                                                                                dm_name='VAE',
+                                                                                initial_cut_threshold=initial_cut_threshold,
+                                                                                initial_cut_method=initial_cut_method,
+                                                                                n_jobs=n_jobs)
     print('Running clustering pipeline for TBCRalign')
-    tbcr_size_results, tbcr_topn_results, tbcr_agglo_results = do_three_clustering(dm_tbcr, label_col, index_col,
-                                                                                   'TBCRalign', initial_cut_threshold,
-                                                                                   initial_cut_method, n_jobs)
+    tbcr_size_results, tbcr_topn_results, tbcr_agglo_results = do_three_clustering(dm_tbcr, label_col, index_col, weight_col,
+                                                                                   dm_name='TBCRalign',
+                                                                                   initial_cut_threshold=initial_cut_threshold,
+                                                                                   initial_cut_method=initial_cut_method,
+                                                                                   n_jobs=n_jobs)
     print('Running clustering pipeline for tcrdist3')
-    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_three_clustering(dm_tcrdist, label_col, index_col,
-                                                                                            'tcrdist3', initial_cut_threshold,
-                                                                                            initial_cut_method, n_jobs)
+    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_three_clustering(dm_tcrdist, label_col,
+                                                                                            index_col, weight_col,
+                                                                                            dm_name='tcrdist3',
+                                                                                            initial_cut_threshold=initial_cut_threshold,
+                                                                                            initial_cut_method=initial_cut_method,
+                                                                                            n_jobs=n_jobs)
     plot_silhouette_scores(vae_size_results['purities'], vae_size_results['retentions'], vae_size_results['scores'],
                            vae_topn_results['purities'], vae_topn_results['retentions'], vae_topn_results['scores'],
                            vae_agglo_results['purities'], vae_agglo_results['retentions'], vae_agglo_results['scores'],
@@ -64,6 +69,7 @@ def do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist,
                            tcrdist_topn_results['retentions'], tcrdist_topn_results['scores'],
                            tcrdist_agglo_results['purities'], tcrdist_agglo_results['retentions'],
                            tcrdist_agglo_results['scores'], dm_name='tcrdist3', outdir=outdir, filename=filename)
+
     plot_retpur_curves(vae_topn_results, vae_agglo_results,
                        tbcr_topn_results, tbcr_agglo_results,
                        tcrdist_topn_results, tcrdist_agglo_results,
@@ -84,29 +90,23 @@ def get_optimal_point(results):
     return {'idx': best_idx, 'purity': best_purity, 'retention': best_retention, 'silhouette': best_silhouette}
 
 
-def do_three_clustering(dist_matrix,
-                        label_col, index_col=None, dm_name='',
-                        initial_cut_threshold=1, initial_cut_method='top', n_jobs=8):
+def do_three_clustering(dist_matrix, label_col, index_col=None, weight_col=None, dm_name='', initial_cut_threshold=1,
+                        initial_cut_method='top', n_jobs=8):
     if index_col not in dist_matrix.columns:
         if index_col is None:
             index_col = 'index_col'
         dist_matrix[index_col] = [f'seq_{i:05}' for i in range(len(dist_matrix))]
     # Get MST
     G, original_tree, dist_matrix, values_array, labels, encoded_labels, label_encoder, raw_indices = create_mst_from_distance_matrix(
-        dist_matrix, label_col=label_col, index_col=index_col, algorithm='kruskal')
+        dist_matrix, label_col=label_col, index_col=index_col, weight_col=weight_col, algorithm='kruskal')
     # Size-cut
     size_tree, size_subgraphs, size_clusters, edges_cut, nodes_cut, size_scores, size_purities, size_retentions = iterative_size_cut(
-        values_array, original_tree,
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        top_n=1, which='edge', weighted=True, verbose=0, max_size=4)
+        values_array, original_tree, initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method,
+        top_n=1, which='edge', distance_weighted=True, verbose=0, max_size=4)
     # TopN-cut
     topn_tree, topn_subgraphs, topn_clusters, edges_removed, nodes_removed, topn_scores, topn_purities, topn_retentions = iterative_topn_cut(
-        values_array, original_tree,
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        top_n=1, which='edge', weighted=True,
-        verbose=0, score_threshold=.5)
+        values_array, original_tree, initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method,
+        top_n=1, which='edge', distance_weighted=True, verbose=0, score_threshold=.75)
     # Agglo and get the best threshold and redo the clustering to get the best results
     agglo_output = cluster_all_thresholds(values_array, values_array, labels, encoded_labels, label_encoder,
                                           n_points=300, n_jobs=n_jobs)

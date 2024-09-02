@@ -87,6 +87,8 @@ def args_parser():
                         help='index col to sort both baselines and latent df')
     parser.add_argument('-label_col', type=str, required=False, default='peptide',
                         help='column containing the labels (eg peptide)')
+    parser.add_argument('-weight_col', type=str, required=False, default=None,
+                        help='Column that contains the weight for a count (ex: norm_count); Leave empty to not use it')
     parser.add_argument('-rest_cols', type=str, required=False, default=None,
                         nargs='*', help='Other columns to be added; ex : -rest_cols peptide partition binder')
     parser.add_argument('-low_memory', type=str2bool, default=False,
@@ -146,6 +148,11 @@ def main():
     index_col = args['index_col']
     label_col = args['label_col']
     rest_cols = args['rest_cols']
+    weight_col = args['weight_col']
+    if weight_col is not None:
+        if weight_col not in rest_cols:
+            rest_cols.append(weight_col)
+
     latent_df = get_latent_df(model, df)
     if index_col is None or index_col=='' or index_col not in latent_df.columns:
         index_col = 'index_col'
@@ -163,8 +170,14 @@ def main():
     dm_tcrdist, _ = resort_baseline(pd.read_csv(args['tcrdist_file'], index_col=0), dm_vae, index_col, rest_cols)
     vae_size_results, vae_topn_results, vae_agglo_results, \
     tbcr_size_results, tbcr_topn_results, tbcr_agglo_results, \
-    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist, label_col=label_col,
-                                                                                                    index_col=index_col, outdir=outdir, filename=args['out'],
+    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_full_clustering_pipeline(dm_vae, dm_tbcr,
+                                                                                                    dm_tcrdist,
+                                                                                                    label_col=label_col,
+                                                                                                    index_col=index_col,
+                                                                                                    weight_col=weight_col,
+                                                                                                    outdir=outdir,
+                                                                                                    filename=args[
+                                                                                                        'out'],
                                                                                                     title=args['out'])
     for result in [vae_size_results, vae_topn_results, vae_agglo_results,
                tbcr_size_results, tbcr_topn_results, tbcr_agglo_results,

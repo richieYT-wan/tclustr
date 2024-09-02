@@ -14,7 +14,8 @@ from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_s
     v_measure_score
 
 
-def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_col='raw_index', algorithm='kruskal'):
+def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_col='raw_index',
+                                    weight_col=None, algorithm='kruskal'):
     """
     Given a labelled distance matrix, create the Graph and minimum spanning tree associated
     Args:
@@ -39,12 +40,20 @@ def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_
         index_col = 'raw_index'
         distance_matrix[index_col] = [f'seqid_{i}' for i in range(len(distance_matrix))]
         raw_indices = distance_matrix[index_col].values
+
     label_encoder = LabelEncoder()
     encoded_labels = label_encoder.fit_transform(labels)
+    if weight_col is not None and weight_col in distance_matrix.columns:
+        weights = distance_matrix[weight_col].values
+
+    # Creating the graph and storing data in nodes
     G = nx.Graph(values)
     for i, node in enumerate(G.nodes()):
         G.nodes[node]['label'] = labels[i]
         G.nodes[node]['index'] = raw_indices[i]
+        if weight_col is not None and weight_col in distance_matrix.columns:
+            G.nodes[node]['weight'] = weights[i]
+
     tree = nx.minimum_spanning_tree(G, algorithm=algorithm)
     # For now, return all values as they may be useful later for analysis
     return G, tree, distance_matrix, values, labels, encoded_labels, label_encoder, raw_indices
@@ -122,10 +131,16 @@ def plot_mst_spring(tree, color_map, label_col='peptide', title=None, figsize=(8
     plt.show()
 
 
-def get_cluster_stats_from_graph(graph, nodes_list, label_col='peptide'):
+def get_cluster_stats_from_graph(graph, nodes_list, weighted:bool=False):
     cluster = [graph.nodes(data=True)[x] for x in nodes_list]
     labels = [x['label'] for x in cluster]
-    counts = {k: labels.count(k) for k in np.unique(labels)}
+    if weighted:
+        # assumes we have a "weight" parameter in the node data
+        weights = [x['weight'] for x in cluster] # ex here could be the normalized count
+        counts = {label: sum(weight for l, weight in zip(labels, weights) if l == label) for label in set(labels)}
+
+    else:
+        counts = {k: labels.count(k) for k in np.unique(labels)}
     majority_label = sorted(counts.items(), key=lambda item: item[1], reverse=True)[0][0]
     purity = counts[majority_label] / sum(counts.values())
     return {'cluster_size': len(nodes_list),
@@ -149,7 +164,18 @@ def get_nodes_stats(G, node):
             'mean_edge_centrality': np.mean(list(filtered_centralities.values()))}
 
 
-def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=False):
+def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_weighted=False):
+    """
+
+    Args:
+        tree:
+        cut_threshold:
+        cut_method:
+        distance_weighted: Here it means "weighted" for distance weighted edge betweenness
+
+    Returns:
+
+    """
     assert cut_method in ['threshold',
                           'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
     assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
@@ -160,7 +186,7 @@ def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=F
     edge_betweenness = nx.edge_betweenness_centrality(tree_cut)
 
     # Weight of an edge here is the distance between two nodes
-    if weighted:
+    if distance_weighted:
         edge_betweenness = {k: tree_cut.edges[k]['weight'] * v for k, v in edge_betweenness.items()}
     # sorted for printing purposes
     sorted_edges = sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True)
@@ -180,7 +206,7 @@ def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=F
     return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
-def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=False):
+def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_weighted=False):
     assert cut_method in ['threshold',
                           'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
     assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
@@ -191,7 +217,7 @@ def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=F
     node_betweenness = nx.betweenness_centrality(tree_cut)
 
     # Weight of an edge here is the distance between two nodes
-    if weighted:
+    if distance_weighted:
         pass  # For now, don't do this part because it can get extremely slow
         # node_betweenness = {k:get_nodes_stats(tree_cut, k)['mean_dist']*v for k,v in node_betweenness.items()}
     sorted_nodes = sorted(node_betweenness.items(), key=lambda item: item[1], reverse=True)
@@ -214,7 +240,7 @@ def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', weighted=F
     return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
-def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge', weighted=False, verbose=1):
+def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge', distance_weighted=False, verbose=1):
     """
     Wrap-around method to do either edge or node cut.
     Can select either threshold (centrality>cut_threshold) or top (first `cut_threshold` elements) cutting.
@@ -226,7 +252,7 @@ def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge', w
         cut_method (str): "threshold" or "top" cut mode ;
         which (str) : "edge" or "node", which way to cut the tree
         verbose (int): verbosity levels, from 0 to 2
-        weighted (bool) : whether to use distance to weight the centrality.
+        distance_weighted (bool) : whether to use distance to weight the centrality.
 
     Returns:
 
@@ -241,14 +267,14 @@ def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge', w
     # Take from the original tree to get the original centrality 
     if which == 'edge':
         tree_cut, clusters, edges_to_remove, nodes_to_remove = edge_betweenness_cut(tree, cut_threshold, cut_method,
-                                                                                    weighted)
+                                                                                    distance_weighted)
         if verbose > 1:
             node_betweenness = nx.betweenness_centrality(tree)
             nodes_to_remove = [x for x in sorted(node_betweenness.items(), key=lambda item: item[1], reverse=True) if
                                x[0] in nodes_to_remove]
     elif which == 'node':
         tree_cut, clusters, edges_to_remove, nodes_to_remove = node_betweenness_cut(tree, cut_threshold, cut_method,
-                                                                                    weighted)
+                                                                                    distance_weighted)
         if verbose > 1:
             edge_betweenness = nx.edge_betweenness_centrality(tree)
             edges_to_remove = [x for x in sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True) if
@@ -285,8 +311,8 @@ def get_pred_labels(G, clusters):
     return pred_labels
 
 
-def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_method,
-                       top_n=1, which='edge', weighted=False, verbose=1, max_size=6):
+def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_method, top_n=1, which='edge',
+                       distance_weighted=False, verbose=1, max_size=6):
 
     # TODO : This function seems to be wrong somehow, in the returns
     #        But if we don't use it in the end maybe no need to fix ??
@@ -295,7 +321,7 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
     # Or if the weighted mean edge distance is some threshold ??
     # Initial cut, takes the input parameters
     tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
-                                                                       which, weighted, verbose)
+                                                                       which, distance_weighted, verbose)
     current_silhouette_score = get_silhouette_score_at_cut(dist_array, clusters, 4)
     subgraphs = []
     # What exit condition ??
@@ -315,7 +341,8 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
                 # Subsequent cuts : Take the cluster subgraph, cut top_n with 'top' cut method.
                 subgraph = nx.subgraph(tree_cut, current_cluster['members'])
                 subgraph_cut, subgraph_clusters, subgraph_edges_removed, subgraph_nodes_removed = betweenness_cut(
-                    subgraph, cut_threshold=top_n, cut_method='top', which=which, weighted=weighted, verbose=verbose)
+                    subgraph, cut_threshold=top_n, cut_method='top', which=which, distance_weighted=distance_weighted,
+                    verbose=verbose)
                 clusters.extend(subgraph_clusters)
                 edges_removed.extend(subgraph_edges_removed)
                 nodes_removed.extend(subgraph_nodes_removed)
@@ -350,14 +377,15 @@ def get_silhouette_score_at_cut(dist_array, clusters, precision=4):
     """
     pred_labels = get_pred_labels(dist_array, clusters)
 
-    return round(silhouette_score(dist_array, pred_labels, metric='precomputed'), precision)
+    return round(silhouette_score(dist_array, pred_labels, metric='precomputed'),
+                 precision)
 
 
-def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top',
-                       top_n=1, which='edge', weighted=False, verbose=1, score_threshold=.25):
+def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top', top_n=1, which='edge',
+                       distance_weighted=False, verbose=1, score_threshold=.75):
     # Set initial_cut_method to 'top' and initial_cut_threshold to top_n=1 to have fully iterative behaviour
     tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
-                                                                       which, weighted, verbose)
+                                                                       which, distance_weighted, verbose)
     current_silhouette_score = get_silhouette_score_at_cut(dist_array, clusters)
     print('Initial mean purity, silhouette score, retention')
     print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score,
@@ -373,8 +401,8 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
     tree_trimmed = tree_cut.copy()
     while current_silhouette_score <= score_threshold or retentions[-1] > 0:
         tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed, cut_threshold=top_n,
-                                                                               cut_method='top',
-                                                                               which=which, weighted=weighted,
+                                                                               cut_method='top', which=which,
+                                                                               distance_weighted=distance_weighted,
                                                                                verbose=verbose)
         try:
             current_silhouette_score = get_silhouette_score_at_cut(dist_array, clusters)
