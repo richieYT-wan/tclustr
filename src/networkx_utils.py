@@ -356,6 +356,7 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
                     subgraph, cut_threshold=top_n, cut_method='top', which=which, distance_weighted=distance_weighted,
                     verbose=verbose)
                 clusters.extend(subgraph_clusters)
+                # max_size=max([x['cluster_size'] for x in clusters if x['majority_label'] != 'healthy'])
                 edges_removed.extend(subgraph_edges_removed)
                 nodes_removed.extend(subgraph_nodes_removed)
                 subgraphs.append(subgraph_cut)
