@@ -171,7 +171,8 @@ def main():
 
     output_df[args['pep_col']] = df[args['pep_col']]
     if args['others'] is not None:
-        output_df[args['others']] = df[args['others']]
+        other_cols = [x for x in args['others'] if x in df.columns]
+        output_df[other_cols] = df[other_cols]
     # Saving and filepath stuff
     out_fn = os.path.basename(args['file'].split('/')[-1].replace(file_extension, ''))
     out_fn = f'{out_fn}_tcrdist3_distmatrix'

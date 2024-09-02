@@ -150,7 +150,7 @@ def main():
     rest_cols = args['rest_cols']
     weight_col = args['weight_col']
     if weight_col is not None:
-        if weight_col not in rest_cols:
+        if weight_col not in rest_cols and weight_col in df.columns:
             rest_cols.append(weight_col)
 
     latent_df = get_latent_df(model, df)

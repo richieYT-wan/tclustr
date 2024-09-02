@@ -141,6 +141,7 @@ original_df['tcr'] = original_df[chains].sum(axis=1)
 len_before = len(original_df)
 original_df = original_df.merge(index_tcrs[['q_index','tcr']], left_on='tcr', right_on='tcr').drop_duplicates(['q_index','tcr'])
 len_after = len(original_df)
+extra_cols = [x for x in extra_cols if x in original_df.columns]
 print(f'Saving dist_matrix with extra columns {extra_cols}')
 if len_before!=len_after:
 	print(f'things went wrong, before = {len_before}, after = {len_after}')
