@@ -131,8 +131,20 @@ def plot_mst_spring(tree, color_map, label_col='peptide', title=None, figsize=(8
     plt.show()
 
 
-def get_cluster_stats_from_graph(graph, nodes_list, weighted:bool=False):
+def get_cluster_stats_from_graph(graph, nodes_list):
+    """
+    Here this is a potentially bad behaviour because of how graphs can be created
+    and saved with a "weight" node data even if we don't intend to use it
+    240902 I made it like this because I didn't want to re-do too much code
+    Args:
+        graph:
+        nodes_list:
+
+    Returns:
+
+    """
     cluster = [graph.nodes(data=True)[x] for x in nodes_list]
+    weighted = 'weight' in cluster[0].keys()
     labels = [x['label'] for x in cluster]
     if weighted:
         # assumes we have a "weight" parameter in the node data
