@@ -148,7 +148,7 @@ def main():
     if args['outdir'] is not None:
         outdir = os.path.join(outdir, args['outdir'])
         if not outdir.endswith('/'):
-            outdir = outdir+ f'_{rid}_' + '/'
+            outdir = outdir+ '/'
     # Here this is commented because we handle the uniquefilename creation already
     # in the overall bash script
     # outdir = os.path.join(outdir, unique_filename) + '/'
