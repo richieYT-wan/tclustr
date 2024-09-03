@@ -153,6 +153,11 @@ def main():
     # in the overall bash script
     # outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
+    # dumping args to file
+    with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
+        for key, value in args.items():
+            file.write(f"{key}: {value}\n")
+
 
     df = pd.read_csv(args['file'])
     model_os_notrp = load_model_full(args['pt_file_os_notrp'], args['json_file_os_notrp'],
@@ -233,6 +238,7 @@ def main():
         resdf.to_csv(f'{outdir}cluster_results_{dm_name}_{method}.csv')
         # Save the remaining results (curves etc) to a pickle file
         pkl_dump(result, f'result_{dm_name}_{method}.pkl', outdir)
+
 
     end = dt.now()
     elapsed = divmod((end - start).seconds, 60)

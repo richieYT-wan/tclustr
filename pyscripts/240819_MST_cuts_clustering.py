@@ -141,7 +141,10 @@ def main():
     # in the overall bash script
     # outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
-
+    # dumping args to file
+    with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
+        for key, value in args.items():
+            file.write(f"{key}: {value}\n")
     df = pd.read_csv(args['file'])
     model = load_model_full(args['pt_file'], args['json_file'],
                             map_location=args['device'], verbose=False)
