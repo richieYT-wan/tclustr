@@ -543,6 +543,7 @@ def plot_4vae_retpur_curves(  # vae_size_results,
     ax.set_title(
         f'Purity Retention curves for {title}\n Agglomerative vs MST cutting ; Retention/Purity range : (0.5-1.0)',
         fontweight='semibold', fontsize=14)
+    print(f'HERE FUCK OFF {filename}')
     f.savefig(f'{outdir}{filename}_retpur_curves.png', dpi=150,
               bbox_inches='tight')
 
