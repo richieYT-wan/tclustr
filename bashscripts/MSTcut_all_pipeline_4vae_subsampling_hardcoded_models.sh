@@ -141,7 +141,7 @@ TS_NOTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_NOT
 TS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1608_pDQhj/"
 
 #sys exit 1
-python3 240903_MST_cuts_clustering_4VAEs.py -pt_file_os_notrp "$(ls $OS_NOTRP_DIR/*best*.pt)" -json_file_os_notrp "$(ls $OS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_notrp "$(ls $TS_NOTRP_DIR/*4500*.pt)" -json_file_ts_notrp "$(ls $TS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_os_cstrp "$(ls $OS_CSTRP_DIR/*best*.pt)" -json_file_os_cstrp "$(ls $OS_CSTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*4500*.pt)" -json_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*JSON_kwargs*.json)" -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 40 -o $EXTRA_OUTNAME
+python3 240903_MST_cuts_clustering_4VAEs.py -pt_file_os_notrp "$(ls $OS_NOTRP_DIR/*best*.pt)" -json_file_os_notrp "$(ls $OS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_notrp "$(ls $TS_NOTRP_DIR/*4500*.pt)" -json_file_ts_notrp "$(ls $TS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_os_cstrp "$(ls $OS_CSTRP_DIR/*best*.pt)" -json_file_os_cstrp "$(ls $OS_CSTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*4500*.pt)" -json_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*JSON_kwargs*.json)" -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 13 -o $EXTRA_OUTNAME
 
 endtime=$(date +"%y%m%d_%H%M%S")
 # Record the end time
