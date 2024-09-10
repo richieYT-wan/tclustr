@@ -178,6 +178,7 @@ def main():
     tbcralign_test, _ = resort_baseline(tbcralign.query('partition==@test_fold'), test_df, index_col)
     tcrdist_test, _ = resort_baseline(tcrdist.query('partition==@test_fold'), test_df, index_col)
 
+    print(len(tbcralign_train), len(tbcralign_valid), len(tbcralign_test))
     if args['reload_baselines'] and args['baselines_folder'] is not None and args['dataset_name'] is not None:
         if not args['baselines_folder'].endswith('/'):
             args['baselines_folder'] = args['baselines_folder'] + '/'

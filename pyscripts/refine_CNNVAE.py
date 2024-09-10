@@ -1,6 +1,5 @@
 import glob
 from typing import Union, Dict
-
 import pandas as pd
 from tqdm.auto import tqdm
 import os, sys
@@ -19,7 +18,7 @@ from src.utils import str2bool, pkl_dump, mkdirs, get_random_id, get_datetime_st
     get_dict_of_lists, make_filename, get_class_initcode_keys, pkl_load
 from src.torch_utils import load_checkpoint, save_model_full, get_available_device, save_json, load_json, \
     load_model_full
-from src.conv_models import CNNVAE, TwoStageCNNVAECLF
+from src.conv_models import CNNVAE
 from src.train_eval import predict_model, train_eval_loops
 from src.datasets import TCRSpecificDataset
 from src.samplers import GroupClassBatchSampler, MinorityClassSampler
@@ -69,16 +68,37 @@ def args_parser():
                         help='Batch size for mini-batch optimization')
     parser.add_argument('-ne', '--n_epochs', dest='n_epochs', type=int, default=None, required=True,
                         help='Number of epochs to train')
-    parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=None, required=False,
+    parser.add_argument('-tol', '--tolerance', dest='tolerance', type=float, default=1e-5, required=False,
                         help='Tolerance for loss variation to log best model')
-    parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=None,
+    parser.add_argument('-lwseq', '--weight_seq', dest='weight_seq', type=float, default=1,
                         help='Which beta to use for the seq reconstruction term in the loss')
-    parser.add_argument('-lwkld_n', '--weight_kld_n', dest='weight_kld_n', type=float, default=None,
-                        help='Which weight to use for the KLD (normal) term in the loss')
-    parser.add_argument('-lwkld_z', '--weight_kld_z', dest='weight_kld_z', type=float, default=None,
-                        help='Which weight to use for the KLD (Latent) term in the loss')
-    parser.add_argument('-addkldn', '--add_kld_n_marg', dest='add_kld_n_marg', type=str2bool, default=False,
-                        help='Add one more KLD term from Z_marg to N(0,1)')
+    parser.add_argument('-lwkld', '--weight_kld', dest='weight_kld', type=float, default=1e-2,
+                        help='Which weight to use for the KLD term in the loss')
+    parser.add_argument('-wu', '--warm_up', dest='warm_up', type=int, default=150,
+                        help='Whether to do a warm-up period for the loss (without the KLD term). ' \
+                             'Default = 10. Set to 0 if you want this disabled')
+    parser.add_argument('-kldts', '--kld_tahn_scale', dest='kld_tahn_scale', type=float, default=0.075,
+                        help='Scale for the TanH annealing in the KLD_n term')
+    parser.add_argument('-fp', '--flat_phase', dest='flat_phase', default=50, type=int,
+                        help='If used, the duration (in epochs) of the "flat phase" in the KLD annealing')
+    parser.add_argument('-kld_dec', dest='kld_decrease', type=float, default=1e-2,
+                        help="KLD_N linear decrease rate per epoch")
+    parser.add_argument('-lwvae', '--weight_vae', dest='weight_vae', default=1,
+                        help='Weight for the VAE term (reconstruction+KLD)')
+    parser.add_argument('-lwtrp', '--weight_triplet',
+                        dest='weight_triplet', type=float, default=3, help='Weight for the triplet loss term')
+    parser.add_argument('-dist_type', '--dist_type', dest='dist_type', default='cosine', type=str,
+                        help='Which distance metric to use ')
+    parser.add_argument('-margin', dest='margin', default=0.2, type=float,
+                        help='Margin for the triplet loss (Default is None and will have the default behaviour depending on the distance type)')
+    parser.add_argument('-dwpos', dest='pos_dist_weight', default=1, type=float,
+                        help='Weight for the positive distance part of triplet loss')
+    parser.add_argument('-dwneg', dest='neg_dist_weight', default=1, type=float,
+                        help='Weight for the positive distance part of triplet loss')
+    parser.add_argument('-wutrp', dest='triplet_warm_up', default=None, type=int,
+                        help='Warm-up period for the triplet loss')
+    parser.add_argument('-cdtrp', dest='triplet_cool_down', default=None, type=int,
+                        help='Cooldown period for the triplet loss')
 
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
@@ -234,15 +254,14 @@ def main():
     # Do the same as normal script but without model_params because it's already loaded
 
     model_class = model.__class__.__name__
-    loss_class = eval(f'{model_class}Loss')
-    dataset_keys = get_class_initcode_keys(MultimodalPepTCRDataset, args)
-    loss_keys = get_class_initcode_keys(loss_class, args)
+    dataset_keys = get_class_initcode_keys(TCRSpecificDataset, args)
+    loss_keys = get_class_initcode_keys(CombinedVAELoss, args)
     # Get params from args
     dataset_params = {k: args[k] for k in dataset_keys}
     loss_params = {k: args[k] for k in loss_keys}
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
-    train_dataset = MultimodalPepTCRDataset(train_df, **dataset_params)
-    valid_dataset = MultimodalPepTCRDataset(valid_df, **dataset_params)
+    train_dataset = TCRSpecificDataset(train_df, **dataset_params)
+    valid_dataset = TCRSpecificDataset(valid_df, **dataset_params)
     # Random Sampler for Train; Sequential for Valid.
     # Larger batch size for validation because we have enough memory
     train_loader = train_dataset.get_dataloader(batch_size=args['batch_size'], sampler=RandomSampler)
@@ -253,7 +272,7 @@ def main():
     # instantiate objects
     torch.manual_seed(args["fold"])
     # TODO: This behaviour might bite me in the ass later
-    criterion = loss_class(**loss_params)
+    criterion = CombinedVAELoss(**loss_params)
     criterion.to(device)
     model.to(device)
     optimizer = optim.Adam(model.parameters(), **optim_params)
@@ -262,12 +281,12 @@ def main():
     criterion.set_counter(run_params['restart_epoch'])
     train_dataset.set_counter(run_params['restart_epoch'])
     valid_dataset.set_counter(run_params['restart_epoch'])
+    save_json(args, f'run_parameters_{unique_filename}.json', outdir)
 
     model, train_metrics, valid_metrics, train_losses, valid_losses, \
-    best_epoch, best_val_loss, best_val_metrics = multimodal_train_eval_loops(args['n_epochs'], model,
-                                                                              criterion, optimizer, train_loader,
-                                                                              valid_loader, checkpoint_filename, outdir,
-                                                                              args['tolerance'])
+    best_epoch, best_val_loss, best_val_metrics = train_eval_loops(args['n_epochs'], args['tolerance'], model,
+                                                                       criterion, optimizer, train_loader, valid_loader,
+                                                                       checkpoint_filename, outdir)
     best_epoch = best_epoch + run_params['restart_epoch']
     # Convert list of dicts to dicts of lists
     train_losses_dict = get_dict_of_lists(train_losses,
