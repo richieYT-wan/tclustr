@@ -17,7 +17,7 @@ first_char="${characters:index:1}"
 rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_id=DELETE
-outname=RefineTest_ONESTAGE_DELETE
+outname=RefineTest_ONESTAGE_CosTriplet
 
 # Run VAE
 python3 ./240910_refine_CNNVAE.py -od ${outdir} -o ${outname} -f ${HOMEDIR}/data/OTS/concat_francis_garner_random_5fold.csv -model_pt ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1501_6omni/checkpoint_best_fold00_kcv_240618_nettcr_exp_nested_posonly_train_p0234_f00_Nested_CNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1501_6omni.pt -model_json ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1501_6omni/checkpoint_best_fold00_kcv_240618_nettcr_exp_nested_posonly_train_p0234_f00_Nested_CNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1501_6omni_JSON_kwargs.json -model_folder ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1501_6omnie/ -device cuda -ne 2500 -kf 0 -debug False -tf ${HOMEDIR}/data/OTS/subsampled_1percent_concat_francis_garner_random_5fold.csv
