@@ -277,7 +277,7 @@ class TripletLoss(LossParent):
         self.margin = margin
         self.pos_dist_weight = pos_dist_weight
         self.neg_dist_weight = neg_dist_weight
-        self.activated = weight>1
+        self.activated = weight>0
         self.weight = weight
         self.warm_up = warm_up
         self.cool_down = cool_down

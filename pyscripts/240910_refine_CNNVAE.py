@@ -45,7 +45,7 @@ def args_parser():
     parser.add_argument('-tf', '--test_file', dest='test_file', type=str,
                         default=None, help='External test set (None by default)')
     parser.add_argument('-o', '--out', dest='out', required=False,
-                        type=str, default=None, help='Additional output name')
+                        type=str, default=None, help='Additional output ¡name')
     parser.add_argument('-od', '--outdir', dest='outdir', required=False,
                         type=str, default=None, help='Additional output directory')
     """
@@ -267,6 +267,9 @@ def main():
     dataset_params = {k: args[k] for k in dataset_keys}
     dataset_params['conv']=True
     loss_params = {k: args[k] for k in loss_keys}
+    # TODO IMPORTANT REFACTOR;
+    #   FOR NOW : Manually set triplet weight to 0 to avoid refining on covid/healthy triplet
+    loss_params['weight_triplet'] = 0
     optim_params = {'lr': args['lr'], 'weight_decay': args['weight_decay']}
     train_dataset = TCRSpecificDataset(train_df, **dataset_params)
     valid_dataset = TCRSpecificDataset(valid_df, **dataset_params)
