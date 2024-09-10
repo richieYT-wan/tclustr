@@ -20,9 +20,8 @@ random_id=DELETE
 outname=RefineTest_ONESTAGE_DELETE
 
 # Run VAE
-python3 ./240910_refine_CNNVAE.py -od ${outdir} -o ${outname} -f ${HOMEDIR}/data/OTS/concat_francis_garner_random_5fold.csv -model_pt ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1232_ph8wm/epoch_4500_interval_checkpoint__kcv_fold_00_Nested_TwoStageCNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1232_ph8wm.pt -model_json ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ/checkpoint_best_fold00_kcv_240618_nettcr_exp_nested_posonly_train_p0234_f00_Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ_JSON_kwargs.json -model_folder ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ/ -device cuda -ne 3000 -kf 0 -debug True -tf ${HOMEDIR}/data/OTS/subsampled_1percent_concat_francis_garner_random_5fold.csv
+python3 ./240910_refine_CNNVAE.py -od ${outdir} -o ${outname} -f ${HOMEDIR}/data/OTS/concat_francis_garner_random_5fold.csv -model_pt ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ/checkpoint_best_fold00_kcv_240618_nettcr_exp_nested_posonly_train_p0234_f00_Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ.pt -model_json ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ/checkpoint_best_fold00_kcv_240618_nettcr_exp_nested_posonly_train_p0234_f00_Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ_JSON_kwargs.json -model_folder ${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ/ -device cuda -ne 2500 -kf 0 -debug False -tf ${HOMEDIR}/data/OTS/subsampled_1percent_concat_francis_garner_random_5fold.csv
 #
-
 #outmatch=$(ls -t ${RESDIR} | grep ${random_id} | head -n 1)
 #iid=ExpData17peps
 #idf=/home/projects/vaccine/people/yatwan/tclustr/data/filtered/240418_nettcr_expanded_20binders_17pep_POSONLY.csv
