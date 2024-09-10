@@ -101,7 +101,6 @@ def args_parser():
                         help='Warm-up period for the triplet loss')
     parser.add_argument('-cdtrp', dest='triplet_cool_down', default=None, type=int,
                         help='Cooldown period for the triplet loss')
-
     parser.add_argument('-debug', dest='debug', type=str2bool, default=False,
                         help='Whether to run in debug mode (False by default)')
     parser.add_argument('-pepweight', dest='pep_weighted', type=str2bool, default=False,
@@ -184,6 +183,7 @@ def load_previous_run(args, device) -> (Union[CNNVAE, TwoStageCNNVAECLF], Dict, 
     if hasattr(model, 'vae'):
         model = model.vae
     model.train()
+
     return model, model_params, run_params, dict_curves
 
 
