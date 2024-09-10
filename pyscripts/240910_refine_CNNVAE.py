@@ -46,6 +46,8 @@ def args_parser():
                         default=None, help='External test set (None by default)')
     parser.add_argument('-o', '--out', dest='out', required=False,
                         type=str, default=None, help='Additional output name')
+    parser.add_argument('-od', '--outdir', dest='outdir', required=False,
+                        type=str, default=None, help='Additional output directory')
     """
     Models args 
     """
@@ -249,7 +251,12 @@ def main():
     unique_filename, kf, rid, connector = make_filename(args)
 
     # checkpoint_filename = f'checkpoint_best_{unique_filename}.pt'
-    outdir = os.path.join('../output/', unique_filename) + '/'
+    outdir = '../output/'
+    if args['outdir'] is not None:
+        outdir = os.path.join(outdir, args['outdir'])
+        if not outdir.endswith('/'):
+            outdir = outdir + '/'
+    outdir = os.path.join(outdir, unique_filename) + '/'
     mkdirs(outdir)
     # Do the same as normal script but without model_params because it's already loaded
 
