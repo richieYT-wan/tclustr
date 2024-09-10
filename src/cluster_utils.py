@@ -143,6 +143,91 @@ def do_4vae_clustering_pipeline(dm_vae_os_notrp, dm_vae_ts_notrp, dm_vae_os_cstr
            tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results
 
 
+def do_twostage_2vae_clustering_pipeline(dm_vae_ts_notrp, dm_vae_ts_cstrp,
+                                         dm_tbcr, dm_tcrdist, label_col='peptide',
+                                         index_col=None,
+                                         weight_col=None,
+                                         initial_cut_threshold=1, initial_cut_method='top',
+                                         outdir='../output/',
+                                         filename='output_', title='',
+                                         n_jobs=8) -> object:
+    print('Running clustering pipeline for VAE_ts_notrp')
+    vae_ts_notrp_size_results, vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results = do_three_clustering(
+        dm_vae_ts_notrp, label_col, index_col,
+        weight_col,
+        dm_name='VAE_TS_NoTRP',
+        initial_cut_threshold=initial_cut_threshold,
+        initial_cut_method=initial_cut_method,
+        n_jobs=n_jobs)
+
+    print('Running clustering pipeline for VAE_ts_cstrp')
+    vae_ts_cstrp_size_results, vae_ts_cstrp_topn_results, vae_ts_cstrp_agglo_results = do_three_clustering(
+        dm_vae_ts_cstrp, label_col, index_col,
+        weight_col,
+        dm_name='VAE_TS_CsTRP',
+        initial_cut_threshold=initial_cut_threshold,
+        initial_cut_method=initial_cut_method,
+        n_jobs=n_jobs)
+
+    print('Running clustering pipeline for TBCRalign')
+    tbcr_size_results, tbcr_topn_results, tbcr_agglo_results = do_three_clustering(dm_tbcr, label_col, index_col,
+                                                                                   weight_col,
+                                                                                   dm_name='TBCRalign',
+                                                                                   initial_cut_threshold=initial_cut_threshold,
+                                                                                   initial_cut_method=initial_cut_method,
+                                                                                   n_jobs=n_jobs)
+    print('Running clustering pipeline for tcrdist3')
+    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_three_clustering(dm_tcrdist, label_col,
+                                                                                            index_col, weight_col,
+                                                                                            dm_name='tcrdist3',
+                                                                                            initial_cut_threshold=initial_cut_threshold,
+                                                                                            initial_cut_method=initial_cut_method,
+                                                                                            n_jobs=n_jobs)
+
+    # TODO: CHANGE VARIABLE NAMES FOR VAE AND INCREASE NUMBER OF PLOTS // PALETTE
+
+    plot_silhouette_scores(vae_ts_notrp_size_results['purities'], vae_ts_notrp_size_results['retentions'],
+                           vae_ts_notrp_size_results['scores'],
+                           vae_ts_notrp_topn_results['purities'], vae_ts_notrp_topn_results['retentions'],
+                           vae_ts_notrp_topn_results['scores'],
+                           vae_ts_notrp_agglo_results['purities'], vae_ts_notrp_agglo_results['retentions'],
+                           vae_ts_notrp_agglo_results['scores'],
+                           dm_name='VAE_TS_NoTRP', outdir=outdir, filename=filename)
+
+    plot_silhouette_scores(vae_ts_cstrp_size_results['purities'], vae_ts_cstrp_size_results['retentions'],
+                           vae_ts_cstrp_size_results['scores'],
+                           vae_ts_cstrp_topn_results['purities'], vae_ts_cstrp_topn_results['retentions'],
+                           vae_ts_cstrp_topn_results['scores'],
+                           vae_ts_cstrp_agglo_results['purities'], vae_ts_cstrp_agglo_results['retentions'],
+                           vae_ts_cstrp_agglo_results['scores'],
+                           dm_name='VAE_TS_CsTRP', outdir=outdir, filename=filename)
+    plot_silhouette_scores(tbcr_size_results['purities'], tbcr_size_results['retentions'], tbcr_size_results['scores'],
+                           tbcr_topn_results['purities'], tbcr_topn_results['retentions'], tbcr_topn_results['scores'],
+                           tbcr_agglo_results['purities'], tbcr_agglo_results['retentions'],
+                           tbcr_agglo_results['scores'], dm_name='TBCRalign', outdir=outdir, filename=filename)
+    plot_silhouette_scores(tcrdist_size_results['purities'], tcrdist_size_results['retentions'],
+                           tcrdist_size_results['scores'], tcrdist_topn_results['purities'],
+                           tcrdist_topn_results['retentions'], tcrdist_topn_results['scores'],
+                           tcrdist_agglo_results['purities'], tcrdist_agglo_results['retentions'],
+                           tcrdist_agglo_results['scores'], dm_name='tcrdist3', outdir=outdir, filename=filename)
+
+    # SUPER BAD ON THE GO REUSING LINES
+    plot_4vae_retpur_curves(vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results,
+                            vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results,
+                            vae_ts_cstrp_topn_results, vae_ts_cstrp_agglo_results,
+                            vae_ts_cstrp_topn_results, vae_ts_cstrp_agglo_results,
+                            tbcr_topn_results, tbcr_agglo_results,
+                            tcrdist_topn_results, tcrdist_agglo_results,
+                            title, outdir, filename)
+
+    # WRITE FUNCTION HERE TO RECOVER "PRED" LABEL BY TOPN/SIZE/ETC CLUSTERS FOR EACH DISTMATRIX
+    # AND MERGE WITH INITIAL INPUT_DF AND RE-SAVE AS THE OUTPUT.
+    return vae_ts_notrp_size_results, vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results, \
+           vae_ts_cstrp_size_results, vae_ts_cstrp_topn_results, vae_ts_cstrp_agglo_results, \
+           tbcr_size_results, tbcr_topn_results, tbcr_agglo_results, \
+           tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results
+
+
 def do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist, label_col='peptide', index_col=None, weight_col=None,
                                 initial_cut_threshold=1, initial_cut_method='top', outdir='../output/',
                                 filename='output_', title='', n_jobs=8):

@@ -183,7 +183,7 @@ def plot_loss_aucs(train_losses, valid_losses, train_aucs, valid_aucs,
 
 def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
                        palette='gnuplot2_r', warm_up=10,
-                       figsize=(14, 10), ylim0=[0, 1], ylim1=[0.2, 1.05], title=None):
+                       figsize=(14, 10), ylim0=[0, 1], ylim1=[0.2, 1.05], title=None, restart=None):
     """
 
     Args:
@@ -234,6 +234,11 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
                  c='k', label=f'Best accs epoch {best_val_accs_epoch}')
     if max_acc <= 0.6:
         ylim1 = [0, 1.]
+
+    if restart:
+        a[0].axvline(x=restart, ymin=0, ymax=1, ls=':', c='c', lw=0.75, label=f'Training resumed at {restart}')
+        a[1].axvline(x=restart, ymin=0, ymax=1, ls=':', c='c', lw=0.75, label=f'Training resumed at {restart}')
+
     a[1].set_ylim(ylim1)
     a[0].set_title('Losses')
     a[1].set_title('Accuracies')
@@ -241,6 +246,7 @@ def plot_vae_loss_accs(losses_dict, accs_dict, filename, outdir, dpi=300,
     a[1].legend()
     a[0].set_xlabel('epochs')
     a[1].set_xlabel('epochs')
+
     if title is not None:
         f.suptitle(title, fontweight='semibold', fontsize=14)
         f.tight_layout()
