@@ -104,7 +104,7 @@ BASHDIR="${HOMEDIR}bashscripts/"
 
 # that's where all the outputs will be saved. We just need "OUTPUTDIRECTORY"
 # because all the other scripts handle the "../output/${OUTPUTDIRECTORY}" by default
-OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")/"
+OUTDIR="$(realpath "$(pwd)/../output/240911_RedoTwoStageOnly_MST_cut_francis_garner_subsampled/${OUTPUTDIRECTORY}/")/"
 mkdir -pv $OUTDIR
 
 source ${CONDA}
