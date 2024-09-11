@@ -108,6 +108,7 @@ OUTDIR="${HOMEDIR}output/${OUTPUTDIRECTORY}/"
 final_outdir="${HOMEDIR}output/240911_Refined4vaes_MST_cut_francis_garner_subsampled/"
 
 mkdir -pv $OUTDIR
+mkdir -pv $final_outdir
 
 source ${CONDA}
 source activate tcrdist3
