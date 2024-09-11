@@ -104,8 +104,10 @@ BASHDIR="${HOMEDIR}bashscripts/"
 
 # that's where all the outputs will be saved. We just need "OUTPUTDIRECTORY"
 # because all the other scripts handle the "../output/${OUTPUTDIRECTORY}" by default
-OUTDIR="$(realpath "$(pwd)/../output/240911_RedoTwoStageOnly_MST_cut_francis_garner_subsampled/${OUTPUTDIRECTORY}/")/"
+OUTDIR="${HOMEDIR}output/${OUTPUTDIRECTORY}/"
+final_outdir="${HOMEDIR}output/240911_RedoTwoStageOnly_MST_cut_francis_garner_subsampled/"
 mkdir -pv $OUTDIR
+mkdir -pv $final_outdir
 
 source ${CONDA}
 source activate tcrdist3
@@ -141,6 +143,7 @@ TS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_lat
 #sys exit 1
 python3 240910_MST_cuts_clustering_RedoTwoStage_only.py -pt_file_ts_notrp "$(ls $TS_NOTRP_DIR/*4500*.pt)" -json_file_ts_notrp "$(ls $TS_NOTRP_DIR/*JSON_kwargs*.json)"  -pt_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*4500*.pt)" -json_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*JSON_kwargs*.json)" -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 13 -o $EXTRA_OUTNAME
 
+mv $OUTDIR $final_outdir
 endtime=$(date +"%y%m%d_%H%M%S")
 # Record the end time
 end_time=$(date +%s)
