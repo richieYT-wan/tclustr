@@ -25,7 +25,7 @@ TBCRALIGN="/home/projects/vaccine/people/morni/bin/tbcr_align"
 HOMEDIR="/home/projects/vaccine/people/yatwan/tclustr/"
 chainarg="full"
 # Pre-set the name with a random id, then parse the -o if exists
-OUTNAME="MST_4VAE_subsampling_${random_id}"
+OUTNAME="MST_Redo_2TwoStages_subsampling_${random_id}"
 OUTPUTDIRECTORY=${OUTNAME}
 # HANDLE SINGLE LETTER ARGS
 

@@ -18,9 +18,9 @@ rest_chars=$(head /dev/urandom | tr -dc "$characters" | head -c 4)
 # Combine the first and remaining characters
 random_id=DELETE
 outname=RefineTest_TWOSTAGE_CosTriplet
-modelfolder="${HOMEDIR}/output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_latent_128_kld_1e-2_ExpData_BLOSUM_PEP_KFold_0_240910_1436_jyGpd/"
-json=$(ls "${modelfolder}*JSON_kwargs*.json")
-pt=$(ls "${modelfolder}*4500*.pt")
+modelfolder="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_latent_128_kld_1e-2_ExpData_BLOSUM_PEP_KFold_0_240910_1436_jyGpd/"
+json=$(ls $modelfolder*JSON_kwargs*.json)
+pt=$(ls $modelfolder*4500*.pt)
 # Run VAE
 python3 ./240910_refine_CNNVAE.py -od ${outdir} -o ${outname} -f ${HOMEDIR}/data/OTS/concat_francis_garner_random_5fold.csv -model_pt ${pt} -model_json ${json} -model_folder ${modelfolder} -device cuda -ne 2500 -kf 0 -debug False -tf ${HOMEDIR}/data/OTS/subsampled_1percent_concat_francis_garner_random_5fold.csv
 #
