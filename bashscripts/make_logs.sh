@@ -11,8 +11,8 @@ for f in $(ls $1/*.sh.e*);  do
     echo "${tail_file}" >> $1/all_error_logs.txt;
   else
     error_bool="False";
-    echo "No errors for ${name} ${job_id}. Removing log"
-    rm $1/*${job_id}*
+#    echo "No errors for ${name} ${job_id}. Removing log"
+#    rm $1/*${job_id}*
     echo "${name} ${job_id} ${error_bool}" >> $1/all_error_logs.txt;
   fi;
   echo " " >> $1/all_error_logs.txt;
