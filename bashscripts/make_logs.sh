@@ -1,3 +1,4 @@
+touch $1/all_error_logs.txt
 for f in $(ls $1/*.sh.e*);  do
   name="${f%.sh.*}";
   job_id="${f##*.sh.e}";
