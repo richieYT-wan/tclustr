@@ -223,7 +223,8 @@ def main():
                                                                                                     weight_col=weight_col,
                                                                                                     outdir=outdir,
                                                                                                     filename=args['out'],
-                                                                                                    title=args['out'])
+                                                                                                    title=args['out'],
+                                                                                                    n_jobs=args['n_jobs'])
     for result in [vae_os_notrp_size_results, vae_os_notrp_topn_results, vae_os_notrp_agglo_results,
                    vae_ts_notrp_size_results, vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results,
                    vae_os_cstrp_size_results, vae_os_cstrp_topn_results, vae_os_cstrp_agglo_results,
