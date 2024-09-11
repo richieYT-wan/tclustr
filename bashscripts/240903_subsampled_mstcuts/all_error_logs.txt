@@ -1,0 +1,1891 @@
+subsampled_francis_000_seed_006  51211129 False
+ 
+subsampled_francis_000_seed_006  51211193 False
+ 
+subsampled_francis_000_seed_007  51211130 False
+ 
+subsampled_francis_000_seed_007  51211194 False
+ 
+subsampled_francis_000_seed_008  51211131 False
+ 
+subsampled_francis_000_seed_008  51211195 False
+ 
+subsampled_francis_000_seed_059  51211132 False
+ 
+subsampled_francis_000_seed_059  51211196 False
+ 
+subsampled_francis_000_seed_072  51211133 False
+ 
+subsampled_francis_000_seed_072  51211197 False
+ 
+subsampled_francis_000_seed_073  51211134 False
+ 
+subsampled_francis_000_seed_073  51211198 False
+ 
+subsampled_francis_000_seed_074  51211135 False
+ 
+subsampled_francis_000_seed_074  51211199 False
+ 
+subsampled_francis_000_seed_078  51211136 False
+ 
+subsampled_francis_000_seed_078  51211200 False
+ 
+subsampled_francis_000_seed_079  51211137 False
+ 
+subsampled_francis_000_seed_079  51211201 False
+ 
+subsampled_francis_000_seed_080  51211138 False
+ 
+subsampled_francis_000_seed_080  51211202 False
+ 
+subsampled_francis_001_seed_008  51211139 False
+ 
+subsampled_francis_001_seed_008  51211203 False
+ 
+subsampled_francis_001_seed_009  51211140 False
+ 
+subsampled_francis_001_seed_009  51211204 False
+ 
+subsampled_francis_001_seed_010  51211141 False
+ 
+subsampled_francis_001_seed_010  51211205 False
+ 
+subsampled_francis_001_seed_014  51211142 False
+ 
+subsampled_francis_001_seed_014  51211206 False
+ 
+subsampled_francis_001_seed_015  51211143 False
+ 
+subsampled_francis_001_seed_015  51211207 False
+ 
+subsampled_francis_001_seed_019  51211144 False
+ 
+subsampled_francis_001_seed_019  51211208 False
+ 
+XX_REMOVED  51211145 False
+ 
+XX_REMOVED  51211209 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212155 False
+ 
+XX_REMOVED  51212220 False
+ 
+subsampled_francis_001_seed_045  51211146 False
+ 
+subsampled_francis_001_seed_045  51211210 False
+ 
+subsampled_francis_001_seed_046  51211147 False
+ 
+subsampled_francis_001_seed_046  51211211 False
+ 
+subsampled_francis_001_seed_071  51211148 False
+ 
+subsampled_francis_001_seed_071  51211212 False
+ 
+XX_REMOVED  51211149 False
+ 
+XX_REMOVED  51211213 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212156 False
+ 
+XX_REMOVED  51212221 False
+ 
+XX_REMOVED  51211150 False
+ 
+XX_REMOVED  51211214 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212157 False
+ 
+XX_REMOVED  51212222 False
+ 
+XX_REMOVED  51211151 False
+ 
+XX_REMOVED  51211215 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212158 False
+ 
+XX_REMOVED  51212223 False
+ 
+subsampled_francis_001_seed_075  51211152 False
+ 
+subsampled_francis_001_seed_075  51211216 False
+ 
+subsampled_francis_001_seed_076  51211153 False
+ 
+subsampled_francis_001_seed_076  51211217 False
+ 
+subsampled_francis_001_seed_080  51211154 False
+ 
+subsampled_francis_001_seed_080  51211218 False
+ 
+subsampled_francis_001_seed_081  51211155 False
+ 
+subsampled_francis_001_seed_081  51211219 False
+ 
+subsampled_francis_001_seed_082  51211156 False
+ 
+subsampled_francis_001_seed_082  51211220 False
+ 
+subsampled_francis_001_seed_083  51211157 False
+ 
+subsampled_francis_001_seed_083  51211221 False
+ 
+subsampled_francis_001_seed_084  51211158 False
+ 
+subsampled_francis_001_seed_084  51211222 False
+ 
+subsampled_francis_001_seed_085  51211159 False
+ 
+subsampled_francis_001_seed_085  51211223 False
+ 
+subsampled_francis_001_seed_089  51211160 False
+ 
+subsampled_francis_001_seed_089  51211224 False
+ 
+subsampled_francis_001_seed_090  51211161 False
+ 
+subsampled_francis_001_seed_090  51211225 False
+ 
+subsampled_francis_001_seed_091  51211162 False
+ 
+subsampled_francis_001_seed_091  51211226 False
+ 
+subsampled_francis_002_seed_001  51211163 False
+ 
+subsampled_francis_002_seed_001  51211227 False
+ 
+subsampled_francis_002_seed_002  51211164 False
+ 
+subsampled_francis_002_seed_002  51211228 False
+ 
+subsampled_francis_002_seed_003  51211165 False
+ 
+subsampled_francis_002_seed_003  51211229 False
+ 
+subsampled_francis_002_seed_004  51211166 False
+ 
+subsampled_francis_002_seed_004  51211230 False
+ 
+XX_REMOVED  51211167 False
+ 
+XX_REMOVED  51211231 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212159 False
+ 
+XX_REMOVED  51212224 False
+ 
+XX_REMOVED  51211168 False
+ 
+XX_REMOVED  51211232 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212160 False
+ 
+XX_REMOVED  51212225 False
+ 
+XX_REMOVED  51211169 False
+ 
+XX_REMOVED  51211233 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212161 False
+ 
+XX_REMOVED  51212226 False
+ 
+subsampled_francis_002_seed_011  51211170 False
+ 
+subsampled_francis_002_seed_011  51211234 False
+ 
+subsampled_francis_002_seed_012  51211171 False
+ 
+subsampled_francis_002_seed_012  51211235 False
+ 
+subsampled_francis_002_seed_019  51211172 False
+ 
+subsampled_francis_002_seed_019  51211236 False
+ 
+XX_REMOVED  51211173 False
+ 
+XX_REMOVED  51211237 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212162 False
+ 
+XX_REMOVED  51212227 False
+ 
+XX_REMOVED  51211174 False
+ 
+XX_REMOVED  51211238 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212163 False
+ 
+XX_REMOVED  51212228 False
+ 
+subsampled_francis_002_seed_022  51211175 False
+ 
+subsampled_francis_002_seed_022  51211239 False
+ 
+subsampled_francis_002_seed_023  51211176 False
+ 
+subsampled_francis_002_seed_023  51211240 False
+ 
+subsampled_francis_002_seed_024  51211177 False
+ 
+subsampled_francis_002_seed_024  51211241 False
+ 
+subsampled_francis_002_seed_025  51211178 False
+ 
+subsampled_francis_002_seed_025  51211242 False
+ 
+subsampled_francis_002_seed_026  51211179 False
+ 
+subsampled_francis_002_seed_026  51211243 False
+ 
+subsampled_francis_002_seed_027  51211180 False
+ 
+subsampled_francis_002_seed_027  51211244 False
+ 
+subsampled_francis_002_seed_043  51211181 False
+ 
+subsampled_francis_002_seed_043  51211245 False
+ 
+subsampled_francis_002_seed_044  51211182 False
+ 
+subsampled_francis_002_seed_044  51211246 False
+ 
+subsampled_francis_002_seed_046  51211183 False
+ 
+subsampled_francis_002_seed_046  51211247 False
+ 
+subsampled_francis_002_seed_047  51211184 False
+ 
+subsampled_francis_002_seed_047  51211248 False
+ 
+subsampled_francis_002_seed_048  51211185 False
+ 
+subsampled_francis_002_seed_048  51211249 False
+ 
+subsampled_francis_002_seed_049  51211186 False
+ 
+subsampled_francis_002_seed_049  51211250 False
+ 
+subsampled_francis_002_seed_050  51211187 False
+ 
+subsampled_francis_002_seed_050  51211251 False
+ 
+subsampled_francis_002_seed_051  51211188 False
+ 
+subsampled_francis_002_seed_051  51211252 False
+ 
+subsampled_francis_002_seed_052  51211189 False
+ 
+subsampled_francis_002_seed_052  51211253 False
+ 
+XX_REMOVED  51211190 False
+ 
+XX_REMOVED  51211254 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212164 False
+ 
+XX_REMOVED  51212229 False
+ 
+subsampled_francis_002_seed_086  51211191 False
+ 
+subsampled_francis_002_seed_086  51211255 False
+ 
+subsampled_francis_002_seed_088  51211192 False
+ 
+subsampled_francis_002_seed_088  51211256 False
+ 
+subsampled_francis_002_seed_089  51211257 False
+ 
+subsampled_francis_002_seed_090  51211258 False
+ 
+subsampled_francis_002_seed_091  51211259 False
+ 
+subsampled_francis_002_seed_092  51211260 False
+ 
+subsampled_francis_002_seed_093  51211261 False
+ 
+subsampled_francis_003_seed_023  51211262 False
+ 
+subsampled_francis_003_seed_033  51211263 False
+ 
+subsampled_francis_003_seed_034  51211264 False
+ 
+subsampled_francis_003_seed_045  51211265 False
+ 
+subsampled_francis_003_seed_046  51211266 False
+ 
+subsampled_francis_003_seed_047  51211267 False
+ 
+subsampled_francis_003_seed_063  51211268 False
+ 
+subsampled_francis_003_seed_064  51211269 False
+ 
+subsampled_francis_003_seed_065  51211270 False
+ 
+subsampled_francis_004_seed_016  51211271 False
+ 
+subsampled_francis_004_seed_020  51211272 False
+ 
+subsampled_francis_004_seed_021  51211273 False
+ 
+subsampled_francis_004_seed_022  51211274 False
+ 
+subsampled_francis_004_seed_049  51211275 False
+ 
+subsampled_francis_004_seed_050  51211276 False
+ 
+subsampled_francis_004_seed_051  51211277 False
+ 
+subsampled_francis_004_seed_058  51211278 False
+ 
+subsampled_francis_004_seed_059  51211279 False
+ 
+subsampled_francis_004_seed_060  51211280 False
+ 
+subsampled_francis_004_seed_064  51211281 False
+ 
+subsampled_francis_004_seed_065  51211282 False
+ 
+subsampled_francis_004_seed_066  51211283 False
+ 
+subsampled_francis_004_seed_076  51211284 False
+ 
+XX_REMOVED  51211285 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212165 False
+ 
+XX_REMOVED  51212230 False
+ 
+XX_REMOVED  51211286 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212166 False
+ 
+XX_REMOVED  51212231 False
+ 
+XX_REMOVED  51211287 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/svm'
+ 
+XX_REMOVED  51212167 False
+ 
+XX_REMOVED  51212232 False
+ 
+subsampled_francis_004_seed_080  51211288 False
+ 
+subsampled_francis_004_seed_081  51211289 False
+ 
+subsampled_francis_005_seed_012  51211290 False
+ 
+XX_REMOVED  51211291 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/svm'
+ 
+XX_REMOVED  51212168 False
+ 
+XX_REMOVED  51212233 False
+ 
+XX_REMOVED  51211292 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/svm'
+ 
+XX_REMOVED  51212169 False
+ 
+XX_REMOVED  51212234 False
+ 
+XX_REMOVED  51211293 True
+    class AxisConcatenator:
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/numpy/lib/index_tricks.py", line 318, in AxisConcatenator
+    makemat = staticmethod(matrixlib.matrix)
+                           ^^^^^^^^^^^^^^^^
+AttributeError: module 'numpy.matrixlib' has no attribute 'matrix'
+ 
+XX_REMOVED  51212170 False
+ 
+XX_REMOVED  51212235 False
+ 
+XX_REMOVED  51211294 True
+    class AxisConcatenator:
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/numpy/lib/index_tricks.py", line 318, in AxisConcatenator
+    makemat = staticmethod(matrixlib.matrix)
+                           ^^^^^^^^^^^^^^^^
+AttributeError: module 'numpy.matrixlib' has no attribute 'matrix'
+ 
+XX_REMOVED  51212171 False
+ 
+XX_REMOVED  51212236 False
+ 
+XX_REMOVED  51211295 True
+    class AxisConcatenator:
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/numpy/lib/index_tricks.py", line 318, in AxisConcatenator
+    makemat = staticmethod(matrixlib.matrix)
+                           ^^^^^^^^^^^^^^^^
+AttributeError: module 'numpy.matrixlib' has no attribute 'matrix'
+ 
+XX_REMOVED  51212172 False
+ 
+XX_REMOVED  51212237 False
+ 
+XX_REMOVED  51211296 True
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/quantization/quantization_mappings.py", line 201, in <module>
+    nn.Linear: ao_nn.sparse.quantized.Linear
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'torch.ao.nn.sparse.quantized' has no attribute 'Linear'
+ 
+XX_REMOVED  51212173 False
+ 
+XX_REMOVED  51212238 False
+ 
+subsampled_francis_005_seed_042  51211297 False
+ 
+subsampled_francis_005_seed_043  51211298 False
+ 
+subsampled_francis_005_seed_044  51211299 False
+ 
+subsampled_francis_005_seed_093  51211300 False
+ 
+subsampled_francis_005_seed_094  51211301 False
+ 
+subsampled_francis_005_seed_095  51211302 False
+ 
+subsampled_francis_006_seed_055  51211303 False
+ 
+subsampled_francis_006_seed_056  51211304 False
+ 
+subsampled_francis_006_seed_057  51211305 False
+ 
+subsampled_francis_006_seed_094  51211306 False
+ 
+subsampled_francis_006_seed_095  51211307 False
+ 
+subsampled_francis_006_seed_096  51211308 False
+ 
+subsampled_francis_008_seed_067  51211309 False
+ 
+subsampled_francis_008_seed_068  51211310 False
+ 
+subsampled_francis_008_seed_069  51211311 False
+ 
+subsampled_francis_008_seed_085  51211312 False
+ 
+subsampled_francis_008_seed_086  51211313 False
+ 
+subsampled_francis_008_seed_087  51211314 False
+ 
+subsampled_francis_011_seed_084  51211315 False
+ 
+subsampled_francis_011_seed_085  51211316 False
+ 
+subsampled_francis_011_seed_086  51211317 False
+ 
+subsampled_francis_012_seed_084  51211318 False
+ 
+subsampled_francis_012_seed_088  51211319 False
+ 
+subsampled_francis_012_seed_089  51211320 False
+ 
+XX_REMOVED  51211321 True
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/quantization/quantization_mappings.py", line 201, in <module>
+    nn.Linear: ao_nn.sparse.quantized.Linear
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'torch.ao.nn.sparse.quantized' has no attribute 'Linear'
+ 
+XX_REMOVED  51212174 False
+ 
+XX_REMOVED  51212239 False
+ 
+XX_REMOVED  51211322 True
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/quantization/quantization_mappings.py", line 201, in <module>
+    nn.Linear: ao_nn.sparse.quantized.Linear
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'torch.ao.nn.sparse.quantized' has no attribute 'Linear'
+ 
+XX_REMOVED  51212175 False
+ 
+XX_REMOVED  51212240 False
+ 
+XX_REMOVED  51211323 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/_decomp'
+ 
+XX_REMOVED  51212176 False
+ 
+XX_REMOVED  51212241 False
+ 
+subsampled_francis_014_seed_029  51211324 False
+ 
+subsampled_francis_014_seed_030  51211325 False
+ 
+subsampled_francis_014_seed_037  51211326 False
+ 
+subsampled_francis_014_seed_038  51211327 False
+ 
+subsampled_francis_014_seed_039  51211328 False
+ 
+subsampled_francis_014_seed_040  51211329 False
+ 
+subsampled_francis_014_seed_041  51211330 False
+ 
+subsampled_francis_014_seed_042  51211331 False
+ 
+subsampled_francis_014_seed_043  51211332 False
+ 
+subsampled_francis_014_seed_044  51211333 False
+ 
+subsampled_francis_014_seed_045  51211334 False
+ 
+subsampled_francis_014_seed_046  51211335 False
+ 
+subsampled_francis_014_seed_047  51211336 False
+ 
+subsampled_francis_014_seed_048  51211337 False
+ 
+subsampled_francis_014_seed_052  51211338 False
+ 
+subsampled_francis_014_seed_053  51211339 False
+ 
+subsampled_francis_014_seed_054  51211340 False
+ 
+subsampled_francis_014_seed_055  51211341 False
+ 
+subsampled_francis_014_seed_056  51211342 False
+ 
+subsampled_francis_014_seed_057  51211343 False
+ 
+subsampled_francis_014_seed_061  51211344 False
+ 
+subsampled_francis_014_seed_062  51211345 False
+ 
+subsampled_francis_014_seed_063  51211346 False
+ 
+subsampled_francis_014_seed_064  51211347 False
+ 
+XX_REMOVED  51211348 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/_decomp'
+ 
+XX_REMOVED  51212177 False
+ 
+XX_REMOVED  51212242 False
+ 
+XX_REMOVED  51211349 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/_decomp'
+ 
+XX_REMOVED  51212178 False
+ 
+XX_REMOVED  51212243 False
+ 
+subsampled_francis_014_seed_067  51211350 False
+ 
+subsampled_francis_014_seed_068  51211351 False
+ 
+subsampled_francis_014_seed_069  51211352 False
+ 
+subsampled_francis_014_seed_070  51211353 False
+ 
+subsampled_francis_014_seed_071  51211354 False
+ 
+subsampled_francis_014_seed_072  51211355 False
+ 
+subsampled_francis_014_seed_073  51211356 False
+ 
+subsampled_francis_014_seed_074  51211357 False
+ 
+subsampled_francis_014_seed_075  51211358 False
+ 
+subsampled_francis_014_seed_076  51211359 False
+ 
+XX_REMOVED  51211360 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/external'
+ 
+XX_REMOVED  51212179 False
+ 
+XX_REMOVED  51212244 False
+ 
+XX_REMOVED  51211361 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/external'
+ 
+XX_REMOVED  51212180 False
+ 
+XX_REMOVED  51212245 False
+ 
+XX_REMOVED  51211362 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/external'
+ 
+XX_REMOVED  51212181 False
+ 
+XX_REMOVED  51212246 False
+ 
+subsampled_francis_014_seed_080  51211363 False
+ 
+subsampled_francis_014_seed_081  51211364 False
+ 
+subsampled_francis_014_seed_082  51211365 False
+ 
+subsampled_francis_014_seed_083  51211366 False
+ 
+subsampled_francis_014_seed_084  51211367 False
+ 
+subsampled_francis_014_seed_085  51211368 False
+ 
+subsampled_francis_014_seed_086  51211369 False
+ 
+subsampled_francis_014_seed_087  51211370 False
+ 
+subsampled_francis_014_seed_088  51211371 False
+ 
+subsampled_francis_014_seed_089  51211372 False
+ 
+subsampled_francis_014_seed_090  51211373 False
+ 
+subsampled_francis_014_seed_091  51211374 False
+ 
+subsampled_francis_014_seed_092  51211375 False
+ 
+subsampled_francis_014_seed_093  51211376 False
+ 
+subsampled_francis_014_seed_094  51211377 False
+ 
+subsampled_francis_014_seed_095  51211378 False
+ 
+subsampled_francis_014_seed_096  51211379 False
+ 
+subsampled_francis_014_seed_097  51211380 False
+ 
+subsampled_francis_014_seed_098  51211381 False
+ 
+subsampled_francis_014_seed_099  51211382 False
+ 
+subsampled_francis_015_seed_000  51211383 False
+ 
+subsampled_francis_015_seed_001  51211384 False
+ 
+subsampled_francis_015_seed_002  51211385 False
+ 
+subsampled_francis_015_seed_003  51211386 False
+ 
+subsampled_francis_015_seed_004  51211387 False
+ 
+subsampled_francis_015_seed_005  51211388 False
+ 
+subsampled_francis_015_seed_006  51211389 False
+ 
+subsampled_francis_015_seed_007  51211390 False
+ 
+subsampled_francis_015_seed_008  51211391 False
+ 
+subsampled_francis_015_seed_009  51211392 False
+ 
+subsampled_francis_015_seed_010  51211393 False
+ 
+subsampled_francis_015_seed_011  51211394 False
+ 
+subsampled_francis_015_seed_012  51211395 False
+ 
+XX_REMOVED  51211396 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212182 False
+ 
+XX_REMOVED  51212247 False
+ 
+XX_REMOVED  51211397 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212183 False
+ 
+XX_REMOVED  51212248 False
+ 
+XX_REMOVED  51211398 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212184 False
+ 
+XX_REMOVED  51212249 False
+ 
+XX_REMOVED  51211399 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212185 False
+ 
+XX_REMOVED  51212250 False
+ 
+XX_REMOVED  51211400 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212251 False
+ 
+XX_REMOVED  51211401 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212252 False
+ 
+XX_REMOVED  51211402 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212253 False
+ 
+XX_REMOVED  51211403 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212189 False
+ 
+XX_REMOVED  51212254 False
+ 
+XX_REMOVED  51211404 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212190 False
+ 
+XX_REMOVED  51212255 False
+ 
+subsampled_francis_015_seed_022  51211405 False
+ 
+subsampled_francis_015_seed_023  51211406 False
+ 
+subsampled_francis_015_seed_030  51211407 False
+ 
+subsampled_francis_015_seed_031  51211408 False
+ 
+subsampled_francis_015_seed_032  51211409 False
+ 
+subsampled_francis_015_seed_033  51211410 False
+ 
+subsampled_francis_015_seed_034  51211411 False
+ 
+subsampled_francis_015_seed_035  51211412 False
+ 
+subsampled_francis_015_seed_042  51211413 False
+ 
+subsampled_francis_015_seed_043  51211414 False
+ 
+subsampled_francis_015_seed_044  51211415 False
+ 
+subsampled_francis_015_seed_051  51211416 False
+ 
+subsampled_francis_015_seed_052  51211417 False
+ 
+subsampled_francis_015_seed_053  51211418 False
+ 
+subsampled_francis_016_seed_046  51211419 False
+ 
+subsampled_francis_016_seed_047  51211420 False
+ 
+subsampled_francis_016_seed_048  51211421 False
+ 
+subsampled_francis_016_seed_085  51211422 False
+ 
+subsampled_francis_016_seed_086  51211423 False
+ 
+subsampled_francis_016_seed_087  51211424 False
+ 
+subsampled_francis_017_seed_000  51211425 False
+ 
+XX_REMOVED  51211426 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/scipy/_lib/_uarray'
+ 
+XX_REMOVED  51212191 False
+ 
+XX_REMOVED  51212256 False
+ 
+XX_REMOVED  51211427 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/scipy/_lib/_uarray'
+ 
+XX_REMOVED  51212257 False
+ 
+XX_REMOVED  51211428 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/scipy/_lib/_uarray'
+ 
+XX_REMOVED  51212258 False
+ 
+subsampled_francis_017_seed_019  51211429 False
+ 
+subsampled_francis_018_seed_066  51211430 False
+ 
+subsampled_francis_018_seed_067  51211431 False
+ 
+subsampled_francis_018_seed_068  51211432 False
+ 
+subsampled_francis_018_seed_078  51211433 False
+ 
+subsampled_francis_018_seed_079  51211434 False
+ 
+subsampled_francis_018_seed_080  51211435 False
+ 
+subsampled_francis_020_seed_013  51211436 False
+ 
+subsampled_francis_020_seed_014  51211437 False
+ 
+subsampled_francis_020_seed_015  51211438 False
+ 
+subsampled_francis_021_seed_017  51211439 False
+ 
+subsampled_francis_021_seed_018  51211440 False
+ 
+subsampled_francis_021_seed_019  51211441 False
+ 
+subsampled_francis_021_seed_038  51211442 False
+ 
+subsampled_francis_021_seed_039  51211443 False
+ 
+subsampled_francis_021_seed_040  51211444 False
+ 
+subsampled_francis_022_seed_049  51211445 False
+ 
+subsampled_francis_022_seed_050  51211446 False
+ 
+subsampled_francis_022_seed_051  51211447 False
+ 
+subsampled_francis_022_seed_052  51211448 False
+ 
+subsampled_francis_022_seed_053  51211449 False
+ 
+subsampled_francis_022_seed_054  51211450 False
+ 
+subsampled_francis_022_seed_055  51211451 False
+ 
+subsampled_francis_022_seed_056  51211452 False
+ 
+subsampled_francis_022_seed_057  51211453 False
+ 
+subsampled_francis_022_seed_058  51211454 False
+ 
+subsampled_francis_022_seed_059  51211455 False
+ 
+subsampled_francis_022_seed_060  51211456 False
+ 
+subsampled_francis_022_seed_064  51211457 False
+ 
+subsampled_francis_022_seed_065  51211458 False
+ 
+subsampled_francis_022_seed_066  51211459 False
+ 
+subsampled_francis_022_seed_070  51211460 False
+ 
+subsampled_francis_022_seed_071  51211461 False
+ 
+subsampled_francis_022_seed_072  51211462 False
+ 
+subsampled_francis_022_seed_079  51211463 False
+ 
+subsampled_francis_022_seed_080  51211464 False
+ 
+XX_REMOVED  51211465 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51211466 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51211467 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_023_seed_005  51211468 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/svm'
+ 
+subsampled_francis_023_seed_005  51212262 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_024_seed_070  51211469 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/svm'
+ 
+subsampled_francis_024_seed_070  51212263 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_024_seed_071  51211470 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/svm'
+ 
+subsampled_francis_024_seed_071  51212264 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_024_seed_072  51211471 False
+ 
+subsampled_francis_024_seed_088  51211472 False
+ 
+subsampled_francis_024_seed_089  51211473 False
+ 
+subsampled_francis_025_seed_014  51211474 False
+ 
+subsampled_francis_025_seed_015  51211475 False
+ 
+subsampled_francis_025_seed_016  51211476 False
+ 
+subsampled_francis_025_seed_050  51211477 False
+ 
+subsampled_francis_025_seed_051  51211478 False
+ 
+subsampled_francis_025_seed_052  51211479 False
+ 
+subsampled_francis_025_seed_071  51211480 False
+ 
+subsampled_francis_025_seed_072  51211481 False
+ 
+subsampled_francis_025_seed_073  51211482 False
+ 
+subsampled_francis_026_seed_025  51211483 False
+ 
+subsampled_francis_026_seed_026  51211484 False
+ 
+subsampled_francis_026_seed_027  51211485 False
+ 
+subsampled_francis_026_seed_028  51211486 False
+ 
+subsampled_francis_026_seed_029  51211487 False
+ 
+subsampled_francis_026_seed_030  51211488 False
+ 
+subsampled_francis_026_seed_055  51211489 False
+ 
+subsampled_francis_026_seed_056  51211490 False
+ 
+subsampled_francis_026_seed_057  51211491 False
+ 
+subsampled_francis_026_seed_082  51211492 False
+ 
+subsampled_francis_026_seed_083  51211493 False
+ 
+subsampled_francis_026_seed_084  51211494 False
+ 
+subsampled_francis_026_seed_091  51211495 False
+ 
+subsampled_francis_026_seed_092  51211496 False
+ 
+subsampled_francis_026_seed_093  51211497 False
+ 
+subsampled_francis_026_seed_094  51211498 False
+ 
+subsampled_francis_026_seed_095  51211499 False
+ 
+subsampled_francis_026_seed_096  51211500 False
+ 
+subsampled_francis_027_seed_000  51211501 False
+ 
+subsampled_francis_027_seed_001  51211502 False
+ 
+subsampled_francis_027_seed_002  51211503 False
+ 
+subsampled_francis_027_seed_012  51211504 False
+ 
+subsampled_francis_027_seed_013  51211505 False
+ 
+subsampled_francis_027_seed_014  51211506 False
+ 
+subsampled_francis_027_seed_015  51211507 False
+ 
+subsampled_francis_027_seed_016  51211508 False
+ 
+subsampled_francis_027_seed_017  51211509 False
+ 
+subsampled_francis_027_seed_021  51211510 False
+ 
+subsampled_francis_027_seed_022  51211511 False
+ 
+subsampled_francis_027_seed_023  51211512 False
+ 
+subsampled_francis_027_seed_030  51211513 False
+ 
+subsampled_francis_027_seed_031  51211514 False
+ 
+subsampled_francis_027_seed_032  51211515 False
+ 
+subsampled_francis_027_seed_033  51211516 False
+ 
+subsampled_francis_027_seed_034  51211517 False
+ 
+subsampled_francis_027_seed_035  51211518 False
+ 
+subsampled_francis_027_seed_036  51211519 False
+ 
+subsampled_francis_027_seed_037  51211520 False
+ 
+subsampled_francis_027_seed_038  51211521 False
+ 
+subsampled_francis_027_seed_054  51211522 True
+    class AxisConcatenator:
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/numpy/lib/index_tricks.py", line 318, in AxisConcatenator
+    makemat = staticmethod(matrixlib.matrix)
+                           ^^^^^^^^^^^^^^^^
+AttributeError: module 'numpy.matrixlib' has no attribute 'matrix'
+ 
+subsampled_francis_027_seed_054  51212265 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_027_seed_055  51211523 True
+    class AxisConcatenator:
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/numpy/lib/index_tricks.py", line 318, in AxisConcatenator
+    makemat = staticmethod(matrixlib.matrix)
+                           ^^^^^^^^^^^^^^^^
+AttributeError: module 'numpy.matrixlib' has no attribute 'matrix'
+ 
+subsampled_francis_027_seed_055  51212266 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_027_seed_056  51211524 True
+    class AxisConcatenator:
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/numpy/lib/index_tricks.py", line 318, in AxisConcatenator
+    makemat = staticmethod(matrixlib.matrix)
+                           ^^^^^^^^^^^^^^^^
+AttributeError: module 'numpy.matrixlib' has no attribute 'matrix'
+ 
+subsampled_francis_027_seed_056  51212267 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_027_seed_057  51211525 False
+ 
+subsampled_francis_027_seed_058  51211526 False
+ 
+subsampled_francis_027_seed_059  51211527 False
+ 
+subsampled_francis_027_seed_060  51211528 False
+ 
+subsampled_francis_027_seed_061  51211529 False
+ 
+subsampled_francis_027_seed_062  51211530 False
+ 
+subsampled_francis_027_seed_063  51211531 False
+ 
+subsampled_francis_027_seed_064  51211532 False
+ 
+subsampled_francis_027_seed_065  51211533 False
+ 
+subsampled_francis_027_seed_093  51211534 False
+ 
+subsampled_francis_027_seed_094  51211535 False
+ 
+subsampled_francis_027_seed_095  51211536 False
+ 
+subsampled_francis_027_seed_096  51211537 False
+ 
+subsampled_francis_027_seed_097  51211538 False
+ 
+subsampled_francis_027_seed_098  51211539 False
+ 
+XX_REMOVED  51211540 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51211541 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51211542 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+subsampled_francis_028_seed_002  51211543 False
+ 
+subsampled_francis_028_seed_003  51211544 False
+ 
+subsampled_francis_028_seed_004  51211545 False
+ 
+subsampled_francis_028_seed_011  51211546 False
+ 
+subsampled_francis_028_seed_012  51211547 False
+ 
+subsampled_francis_028_seed_013  51211548 False
+ 
+subsampled_francis_028_seed_026  51211549 False
+ 
+subsampled_francis_028_seed_027  51211550 False
+ 
+subsampled_francis_028_seed_028  51211551 False
+ 
+subsampled_francis_028_seed_032  51211552 False
+ 
+subsampled_francis_028_seed_033  51211553 False
+ 
+subsampled_francis_028_seed_034  51211554 False
+ 
+subsampled_francis_028_seed_044  51211555 False
+ 
+subsampled_francis_028_seed_045  51211556 False
+ 
+subsampled_francis_028_seed_046  51211557 False
+ 
+subsampled_francis_028_seed_053  51211558 False
+ 
+subsampled_francis_028_seed_054  51211559 False
+ 
+subsampled_francis_028_seed_056  51211560 False
+ 
+subsampled_francis_028_seed_057  51211561 False
+ 
+subsampled_francis_028_seed_058  51211562 False
+ 
+subsampled_francis_028_seed_074  51211563 False
+ 
+subsampled_francis_028_seed_075  51211564 False
+ 
+subsampled_francis_028_seed_076  51211565 False
+ 
+subsampled_francis_029_seed_031  51211566 False
+ 
+subsampled_francis_029_seed_032  51211567 False
+ 
+subsampled_francis_029_seed_033  51211568 False
+ 
+subsampled_francis_029_seed_060  51211569 False
+ 
+subsampled_francis_029_seed_061  51211570 False
+ 
+subsampled_francis_029_seed_062  51211571 False
+ 
+subsampled_francis_029_seed_069  51211572 False
+ 
+subsampled_francis_029_seed_070  51211573 False
+ 
+subsampled_francis_029_seed_071  51211574 False
+ 
+subsampled_francis_029_seed_075  51211575 False
+ 
+subsampled_francis_029_seed_076  51211576 False
+ 
+subsampled_francis_029_seed_077  51211577 False
+ 
+subsampled_francis_029_seed_087  51211578 False
+ 
+subsampled_francis_029_seed_088  51211579 False
+ 
+subsampled_francis_029_seed_089  51211580 False
+ 
+subsampled_francis_029_seed_090  51211581 False
+ 
+subsampled_francis_029_seed_091  51211582 False
+ 
+subsampled_francis_029_seed_092  51211583 False
+ 
+subsampled_francis_030_seed_032  51211584 False
+ 
+subsampled_francis_030_seed_033  51211585 False
+ 
+subsampled_francis_030_seed_034  51211586 False
+ 
+subsampled_francis_030_seed_053  51211587 False
+ 
+subsampled_francis_030_seed_054  51211588 False
+ 
+subsampled_francis_030_seed_055  51211589 False
+ 
+subsampled_francis_030_seed_065  51211590 False
+ 
+subsampled_francis_030_seed_066  51211591 False
+ 
+subsampled_francis_030_seed_067  51211592 False
+ 
+subsampled_francis_030_seed_068  51211593 False
+ 
+subsampled_francis_030_seed_069  51211594 False
+ 
+subsampled_francis_030_seed_070  51211595 False
+ 
+subsampled_francis_030_seed_077  51211596 False
+ 
+XX_REMOVED  51211597 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51211598 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51211599 True
+                                           [-reset RESET]
+                                           [-random_latent RANDOM_LATENT]
+                                           [-newmodel NEWMODEL]
+                                           [-tcr_enc TCR_ENC] [-n_jobs N_JOBS]
+240903_MST_cuts_clustering_4VAEs.py: error: argument -tcrdist/--tcrdist_file: expected one argument
+ 
+XX_REMOVED  51212208 False
+ 
+subsampled_francis_031_seed_009  51211600 False
+ 
+subsampled_francis_031_seed_010  51211601 False
+ 
+subsampled_francis_031_seed_017  51211602 False
+ 
+subsampled_francis_031_seed_018  51211603 False
+ 
+subsampled_francis_031_seed_019  51211604 False
+ 
+subsampled_francis_032_seed_075  51211605 False
+ 
+subsampled_francis_032_seed_076  51211606 False
+ 
+subsampled_francis_032_seed_077  51211607 False
+ 
+subsampled_francis_032_seed_093  51211608 False
+ 
+subsampled_francis_032_seed_094  51211609 False
+ 
+subsampled_francis_033_seed_031  51211610 False
+ 
+subsampled_francis_033_seed_032  51211611 False
+ 
+subsampled_francis_033_seed_033  51211612 False
+ 
+subsampled_francis_033_seed_070  51211613 False
+ 
+subsampled_francis_033_seed_071  51211614 False
+ 
+subsampled_francis_033_seed_072  51211615 False
+ 
+subsampled_francis_033_seed_076  51211616 False
+ 
+subsampled_francis_033_seed_077  51211617 False
+ 
+subsampled_francis_033_seed_078  51211618 False
+ 
+subsampled_francis_033_seed_091  51211619 False
+ 
+subsampled_francis_033_seed_092  51211620 False
+ 
+subsampled_francis_033_seed_093  51211621 False
+ 
+subsampled_francis_034_seed_012  51211622 False
+ 
+subsampled_francis_034_seed_013  51211623 False
+ 
+subsampled_francis_034_seed_014  51211624 False
+ 
+subsampled_francis_034_seed_045  51211625 False
+ 
+XX_REMOVED  51211626 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/metrics/_plot'
+ 
+XX_REMOVED  51212209 False
+ 
+XX_REMOVED  51211627 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/metrics/_plot'
+ 
+XX_REMOVED  51211628 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sklearn/metrics/_plot'
+ 
+subsampled_francis_034_seed_052  51211629 False
+ 
+subsampled_francis_034_seed_053  51211630 False
+ 
+subsampled_francis_034_seed_054  51211631 False
+ 
+subsampled_francis_034_seed_055  51211632 False
+ 
+subsampled_francis_034_seed_056  51211633 False
+ 
+subsampled_francis_034_seed_081  51211634 False
+ 
+XX_REMOVED  51211635 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/nn/qat/dynamic/modules'
+ 
+XX_REMOVED  51211636 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/nn/qat/dynamic/modules'
+ 
+XX_REMOVED  51211637 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/nn/qat/dynamic/modules'
+ 
+subsampled_francis_035_seed_009  51211638 False
+ 
+subsampled_francis_035_seed_010  51211639 False
+ 
+subsampled_francis_035_seed_011  51211640 False
+ 
+XX_REMOVED  51211641 True
+    class Axes(_AxesBase):
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/matplotlib/axes/_axes.py", line 8441, in Axes
+    tricontour = mtri.tricontour
+                 ^^^^^^^^^^^^^^^
+AttributeError: module 'matplotlib.tri' has no attribute 'tricontour'
+ 
+XX_REMOVED  51211642 True
+    class Axes(_AxesBase):
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/matplotlib/axes/_axes.py", line 8441, in Axes
+    tricontour = mtri.tricontour
+                 ^^^^^^^^^^^^^^^
+AttributeError: module 'matplotlib.tri' has no attribute 'tricontour'
+ 
+XX_REMOVED  51211643 True
+    class Axes(_AxesBase):
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/matplotlib/axes/_axes.py", line 8441, in Axes
+    tricontour = mtri.tricontour
+                 ^^^^^^^^^^^^^^^
+AttributeError: module 'matplotlib.tri' has no attribute 'tricontour'
+ 
+subsampled_francis_035_seed_022  51211644 False
+ 
+subsampled_francis_035_seed_056  51211645 False
+ 
+subsampled_francis_035_seed_057  51211646 False
+ 
+subsampled_francis_035_seed_058  51211647 False
+ 
+subsampled_francis_035_seed_059  51211648 False
+ 
+subsampled_francis_035_seed_060  51211649 False
+ 
+subsampled_francis_035_seed_061  51211650 False
+ 
+subsampled_francis_035_seed_062  51211651 False
+ 
+subsampled_francis_035_seed_063  51211652 False
+ 
+XX_REMOVED  51211653 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/polys/matrices'
+ 
+XX_REMOVED  51211654 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/polys/matrices'
+ 
+XX_REMOVED  51211655 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/polys/matrices'
+ 
+XX_REMOVED  51211656 True
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/quantization/quantization_mappings.py", line 201, in <module>
+    nn.Linear: ao_nn.sparse.quantized.Linear
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'torch.ao.nn.sparse.quantized' has no attribute 'Linear'
+ 
+XX_REMOVED  51211657 True
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/quantization/quantization_mappings.py", line 201, in <module>
+    nn.Linear: ao_nn.sparse.quantized.Linear
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'torch.ao.nn.sparse.quantized' has no attribute 'Linear'
+ 
+XX_REMOVED  51211658 True
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/ao/quantization/quantization_mappings.py", line 201, in <module>
+    nn.Linear: ao_nn.sparse.quantized.Linear
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'torch.ao.nn.sparse.quantized' has no attribute 'Linear'
+ 
+subsampled_francis_036_seed_026  51211659 False
+ 
+subsampled_francis_036_seed_027  51211660 False
+ 
+subsampled_francis_036_seed_028  51211661 False
+ 
+subsampled_francis_036_seed_029  51211662 False
+ 
+subsampled_francis_036_seed_030  51211663 False
+ 
+subsampled_francis_036_seed_037  51211664 False
+ 
+subsampled_francis_036_seed_038  51211665 False
+ 
+subsampled_francis_036_seed_055  51211666 False
+ 
+subsampled_francis_036_seed_056  51211667 False
+ 
+subsampled_francis_036_seed_057  51211668 False
+ 
+subsampled_francis_036_seed_058  51211669 False
+ 
+subsampled_francis_037_seed_028  51211670 False
+ 
+subsampled_francis_037_seed_029  51211671 False
+ 
+subsampled_francis_037_seed_030  51211672 False
+ 
+subsampled_francis_037_seed_058  51211673 False
+ 
+subsampled_francis_037_seed_059  51211674 False
+ 
+subsampled_francis_037_seed_060  51211675 False
+ 
+subsampled_francis_037_seed_064  51211676 False
+ 
+subsampled_francis_037_seed_065  51211677 False
+ 
+subsampled_francis_037_seed_066  51211678 False
+ 
+subsampled_francis_037_seed_067  51211679 False
+ 
+subsampled_francis_037_seed_068  51211680 False
+ 
+subsampled_francis_037_seed_069  51211681 False
+ 
+subsampled_francis_037_seed_094  51211682 False
+ 
+subsampled_francis_037_seed_095  51211683 False
+ 
+subsampled_francis_037_seed_096  51211684 False
+ 
+subsampled_francis_038_seed_021  51211685 False
+ 
+subsampled_francis_038_seed_022  51211686 False
+ 
+subsampled_francis_038_seed_023  51211687 False
+ 
+subsampled_francis_038_seed_024  51211688 False
+ 
+subsampled_francis_038_seed_025  51211689 False
+ 
+subsampled_francis_038_seed_026  51211690 False
+ 
+subsampled_francis_038_seed_033  51211691 False
+ 
+subsampled_francis_038_seed_034  51211692 False
+ 
+subsampled_francis_038_seed_035  51211693 False
+ 
+subsampled_francis_038_seed_039  51211694 False
+ 
+subsampled_francis_038_seed_040  51211695 False
+ 
+subsampled_francis_038_seed_041  51211696 False
+ 
+subsampled_francis_038_seed_051  51211697 False
+ 
+XX_REMOVED  51211698 True
+    from . import _api, _version, cbook, _docstring, rcsetup
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/matplotlib/cbook.py", line 369, in <module>
+    warning_cls=_api.MatplotlibDeprecationWarning):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'matplotlib._api' has no attribute 'MatplotlibDeprecationWarning'
+ 
+XX_REMOVED  51211699 True
+    from . import _api, _version, cbook, _docstring, rcsetup
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/matplotlib/cbook.py", line 369, in <module>
+    warning_cls=_api.MatplotlibDeprecationWarning):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'matplotlib._api' has no attribute 'MatplotlibDeprecationWarning'
+ 
+XX_REMOVED  51211700 True
+    from . import _api, _version, cbook, _docstring, rcsetup
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/matplotlib/cbook.py", line 369, in <module>
+    warning_cls=_api.MatplotlibDeprecationWarning):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'matplotlib._api' has no attribute 'MatplotlibDeprecationWarning'
+ 
+subsampled_francis_038_seed_055  51211701 False
+ 
+subsampled_francis_038_seed_056  51211702 False
+ 
+subsampled_francis_038_seed_060  51211703 False
+ 
+subsampled_francis_038_seed_061  51211704 False
+ 
+subsampled_francis_038_seed_062  51211705 False
+ 
+subsampled_francis_038_seed_069  51211706 False
+ 
+subsampled_francis_038_seed_070  51211707 False
+ 
+subsampled_francis_038_seed_071  51211708 False
+ 
+subsampled_francis_038_seed_072  51211709 False
+ 
+subsampled_francis_038_seed_073  51211710 False
+ 
+subsampled_francis_038_seed_074  51211711 False
+ 
+subsampled_francis_038_seed_075  51211712 False
+ 
+subsampled_francis_038_seed_076  51211713 False
+ 
+subsampled_francis_038_seed_077  51211714 False
+ 
+subsampled_francis_038_seed_093  51211715 False
+ 
+subsampled_francis_038_seed_094  51211716 False
+ 
+subsampled_francis_038_seed_095  51211717 False
+ 
+subsampled_francis_038_seed_096  51211718 False
+ 
+XX_REMOVED  51211719 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/_decomp'
+ 
+XX_REMOVED  51211720 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/_decomp'
+ 
+XX_REMOVED  51211721 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/torch/_decomp'
+ 
+subsampled_francis_039_seed_000  51211722 False
+ 
+subsampled_francis_039_seed_001  51211723 False
+ 
+subsampled_francis_039_seed_002  51211724 False
+ 
+subsampled_francis_039_seed_003  51211725 False
+ 
+subsampled_francis_039_seed_004  51211726 False
+ 
+subsampled_francis_039_seed_032  51211727 False
+ 
+subsampled_francis_039_seed_033  51211728 False
+ 
+subsampled_francis_039_seed_034  51211729 False
+ 
+subsampled_francis_039_seed_035  51211730 False
+ 
+subsampled_francis_039_seed_036  51211731 False
+ 
+subsampled_francis_039_seed_037  51211732 False
+ 
+subsampled_francis_039_seed_038  51211733 False
+ 
+subsampled_francis_039_seed_039  51211734 False
+ 
+subsampled_francis_039_seed_040  51211735 False
+ 
+subsampled_francis_039_seed_041  51211736 False
+ 
+subsampled_francis_039_seed_042  51211737 False
+ 
+subsampled_francis_039_seed_043  51211738 False
+ 
+subsampled_francis_039_seed_050  51211739 False
+ 
+subsampled_francis_039_seed_051  51211740 False
+ 
+subsampled_francis_039_seed_052  51211741 False
+ 
+subsampled_francis_039_seed_065  51211742 False
+ 
+subsampled_francis_039_seed_066  51211743 False
+ 
+subsampled_francis_039_seed_067  51211744 False
+ 
+subsampled_francis_039_seed_071  51211745 False
+ 
+subsampled_francis_039_seed_095  51211746 False
+ 
+subsampled_francis_039_seed_096  51211747 False
+ 
+subsampled_francis_039_seed_097  51211748 False
+ 
+subsampled_francis_040_seed_013  51211749 False
+ 
+subsampled_francis_040_seed_014  51211750 False
+ 
+subsampled_francis_040_seed_015  51211751 False
+ 
+subsampled_francis_040_seed_070  51211752 False
+ 
+subsampled_francis_040_seed_071  51211753 False
+ 
+subsampled_francis_040_seed_072  51211754 False
+ 
+subsampled_francis_040_seed_099  51211755 False
+ 
+subsampled_francis_041_seed_000  51211756 False
+ 
+subsampled_francis_041_seed_001  51211757 False
+ 
+subsampled_francis_041_seed_008  51211758 False
+ 
+subsampled_francis_041_seed_009  51211759 False
+ 
+subsampled_francis_041_seed_010  51211760 False
+ 
+subsampled_francis_041_seed_014  51211761 False
+ 
+subsampled_francis_041_seed_015  51211762 False
+ 
+subsampled_francis_041_seed_016  51211763 False
+ 
+subsampled_francis_041_seed_026  51211764 False
+ 
+subsampled_francis_041_seed_027  51211765 False
+ 
+subsampled_francis_041_seed_028  51211766 False
+ 
+subsampled_francis_041_seed_029  51211767 False
+ 
+subsampled_francis_041_seed_030  51211768 False
+ 
+subsampled_francis_041_seed_031  51211769 False
+ 
+XX_REMOVED  51211770 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/calculus'
+ 
+XX_REMOVED  51211771 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/calculus'
+ 
+XX_REMOVED  51211772 True
+  File "<frozen importlib._bootstrap_external>", line 1504, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1476, in _get_spec
+  File "<frozen importlib._bootstrap_external>", line 1616, in find_spec
+  File "<frozen importlib._bootstrap_external>", line 1659, in _fill_cache
+OSError: [Errno 116] Stale file handle: '/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/sympy/calculus'
+ 
+XX_REMOVED  51211773 True
+    main()
+  File "/home/projects/vaccine/people/yatwan/tclustr/pyscripts/240903_MST_cuts_clustering_4VAEs.py", line 157, in main
+    with open(f'{outdir}args_{unique_filename}.txt', 'w') as file:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '../output/240904_215354_XX_REMOVED_MST_4VAE_subsampling_yZuJH/args_XX_REMOVED_KFold_NoKF_240904_2154_clstr.txt'
+ 
+XX_REMOVED  51211774 True
+    image.save(fname, **pil_kwargs)
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/PIL/Image.py", line 2435, in save
+    fp = builtins.open(filename, "w+b")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '../output/240904_215354_XX_REMOVED_MST_4VAE_subsampling_e6fNO/VAE_OS_NoTRPXX_REMOVED_silhouette.png'
+ 
+XX_REMOVED  51211775 True
+    image.save(fname, **pil_kwargs)
+  File "/home/projects/vaccine/people/yatwan/anaconda3/envs/cuda/lib/python3.11/site-packages/PIL/Image.py", line 2435, in save
+    fp = builtins.open(filename, "w+b")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '../output/240904_215354_XX_REMOVED_MST_4VAE_subsampling_F0eiQ/VAE_OS_NoTRPXX_REMOVED_silhouette.png'
+ 
