@@ -1,4 +1,5 @@
 touch $1/all_error_logs.txt
+mkdir $1/treated_logs/
 for f in $(ls $1/*.sh.e*);  do
   name="${f%.sh.*}";
   job_id="${f##*.sh.e}";
@@ -15,5 +16,6 @@ for f in $(ls $1/*.sh.e*);  do
 #    rm $1/*${job_id}*
     echo "${name} ${job_id} ${error_bool}" >> $1/all_error_logs.txt;
   fi;
+  mv ${f} $1/treated_logs/${f}
   echo " " >> $1/all_error_logs.txt;
 done
