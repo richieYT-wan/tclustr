@@ -160,14 +160,15 @@ def main():
 
 
     df = pd.read_csv(args['file'])
+
     model_os_notrp = load_model_full(args['pt_file_os_notrp'], args['json_file_os_notrp'],
-                            map_location=args['device'], verbose=False)
+                            map_location=args['device'], verbose=True)
     model_ts_notrp = load_model_full(args['pt_file_ts_notrp'], args['json_file_ts_notrp'],
-                            map_location=args['device'], verbose=False)
+                            map_location=args['device'], verbose=True)
     model_os_cstrp = load_model_full(args['pt_file_os_cstrp'], args['json_file_os_cstrp'],
-                            map_location=args['device'], verbose=False)
+                            map_location=args['device'], verbose=True)
     model_ts_cstrp = load_model_full(args['pt_file_ts_cstrp'], args['json_file_ts_cstrp'],
-                            map_location=args['device'], verbose=False)
+                            map_location=args['device'], verbose=True)
     index_col = args['index_col']
     label_col = args['label_col']
     rest_cols = args['rest_cols']
