@@ -133,7 +133,7 @@ echo "JSON: ${JSONFILE}"
 echo "#######################################"
 echo ""
 source ${CONDA}
-conda activate cuda
+conda activate cuda 
 
 
 # Hardcoded bs
