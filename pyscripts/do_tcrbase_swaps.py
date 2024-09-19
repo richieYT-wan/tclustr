@@ -264,7 +264,7 @@ def main():
         vae, js = load_model_full(args['pt_file'], args['json_file'], return_json=True, map_location=device)
 
     # here, extracts the VAE if it's part of the Bimodal
-    if isinstance(vae, TwoStageVAECLF) and hasattr(vae, 'vae'):
+    if isinstance(vae, TwoStageVAECLF) or hasattr(vae, 'vae'):
         vae = vae.vae
         js = js["vae_kwargs"]
 
