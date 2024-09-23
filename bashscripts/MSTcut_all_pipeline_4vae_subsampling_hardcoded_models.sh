@@ -137,8 +137,10 @@ conda activate cuda
 # Hardcoded bs
 OS_NOTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1501_6omni/"
 OS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_CNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1607_ER8wJ/"
-TS_NOTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1232_ph8wm/"
-TS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1608_pDQhj/"
+TS_NOTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_BLOSUM_PEP_KFold_0_240910_1436_N1jMC/"
+TS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_latent_128_kld_1e-2_ExpData_BLOSUM_PEP_KFold_0_240910_1436_jyGpd/"
+#TS_NOTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_NOTRIPLET_ld128_kld_1e-2_ExpData_KFold_0_240730_1232_ph8wm/"
+#TS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1608_pDQhj/"
 
 #sys exit 1
 python3 240903_MST_cuts_clustering_4VAEs.py -pt_file_os_notrp "$(ls $OS_NOTRP_DIR/*best*.pt)" -json_file_os_notrp "$(ls $OS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_notrp "$(ls $TS_NOTRP_DIR/*4500*.pt)" -json_file_ts_notrp "$(ls $TS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_os_cstrp "$(ls $OS_CSTRP_DIR/*best*.pt)" -json_file_os_cstrp "$(ls $OS_CSTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*4500*.pt)" -json_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*JSON_kwargs*.json)" -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 13 -o $EXTRA_OUTNAME
