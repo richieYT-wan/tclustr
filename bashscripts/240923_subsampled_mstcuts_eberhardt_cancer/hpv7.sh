@@ -1,2 +1,2 @@
 #! /usr/bin/bash
-sh /home/projects/vaccine/people/yatwan/tclustr/bashscripts/MSTcut_all_pipeline_4vae_subsampling_hardcoded_models.sh -f ../data/OTS/eberhardt_cancer/hpv7_mixed_qvd_ksa.txt -c A1 A2 A3 B1 B2 B3 -s c2 -l TSubtype -e TSubtype Disease Source count norm_count index_col Run -i index_col -o "hpv7_mixed_qvd_ksa"
+sh /home/projects/vaccine/people/yatwan/tclustr/bashscripts/MSTcut_all_pipeline_4vae_subsampling_hardcoded_models.sh -f ../data/OTS/eberhardt_cancer/hpv7_mixed_qvd_ksa.txt -c A1 A2 A3 B1 B2 B3 -s c2 -l TSubtype -e TSubtype Disease Source count index_col Run -i index_col -o "hpv7_mixed_qvd_ksa"
