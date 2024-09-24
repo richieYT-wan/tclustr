@@ -170,12 +170,12 @@ def args_parser():
                         help='Using per-sample (by peptide label) weighted loss')
     parser.add_argument('-leave_pep_out', dest='leave_pep_out', type=str, default=None,
                         help='Adding a leave-pep-out behaviour for triplet loss')
-    parser.add_argument('-ale', type=str, default=None,
-                        help='placeholder')
-    parser.add_argument('-ald', type=str, default=None,
-                        help='placeholder')
-    parser.add_argument('-ob', type=str, default=None,
-                        help='placeholder')
+    # parser.add_argument('-ale', type=str, default=None,
+    #                     help='placeholder')
+    # parser.add_argument('-ald', type=str, default=None,
+    #                     help='placeholder')
+    # parser.add_argument('-ob', type=str, default=None,
+    #                     help='placeholder')
     # TODO: TBD what to do with these!
     """
     TODO: Misc. 

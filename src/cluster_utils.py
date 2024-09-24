@@ -1065,7 +1065,7 @@ def get_model(folder, map_location='cpu'):
     pt = glob.glob(folder + '/*checkpoint_best*.pt')
     pt = [x for x in pt if 'interval' not in x][0]
     js = glob.glob(folder + '/*checkpoint*.json')[0]
-    model = load_model_full(pt, js, map_location='cpu')
+    model = load_model_full(pt, js, map_location=map_location)
     # Extract the vae part if the model comes from a two stage VAE
     if type(model) == TwoStageVAECLF:
         model = model.vae
@@ -1268,7 +1268,9 @@ def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_en
     try:
         # Here assumes features is the distance array...
         # So using pre-computed !!
-        s_score = silhouette_score(features, c.labels_, metric='precomputed')
+        metric='precomputed' if (features.shape==array.shape and (features.values.diagonal()==0).all())\
+                else 'cosine'
+        s_score = silhouette_score(features, c.labels_, metric=metric)
     except:
         s_score = np.nan
     try:
