@@ -13,6 +13,8 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_score, completeness_score, \
     v_measure_score, calinski_harabasz_score, davies_bouldin_score
 
+from src.cluster_utils import custom_silhouette_score
+
 
 def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_col='raw_index',
                                     weight_col=None, algorithm='kruskal'):
@@ -324,7 +326,7 @@ def get_pred_labels(G, clusters):
 
 
 def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_method, top_n=1, which='edge',
-                       distance_weighted=False, verbose=1, max_size=6):
+                       distance_weighted=False, verbose=1, max_size=6, silhouette_aggregation='micro'):
 
     # TODO : This function seems to be wrong somehow, in the returns
     #        But if we don't use it in the end maybe no need to fix ??
@@ -334,7 +336,7 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
     # Initial cut, takes the input parameters
     tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
                                                                        which, distance_weighted, verbose)
-    current_silhouette_score = get_score_at_cut(dist_array, clusters, precision=4)
+    current_silhouette_score = get_score_at_cut(dist_array, clusters, precision=4, aggregation=silhouette_aggregation)
     subgraphs = []
     # What exit condition ??
     # Silhouette score --> Report per iteration across entire graph
@@ -360,7 +362,7 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
                 edges_removed.extend(subgraph_edges_removed)
                 nodes_removed.extend(subgraph_nodes_removed)
                 subgraphs.append(subgraph_cut)
-                current_silhouette_score = get_score_at_cut(dist_array, clusters)
+                current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
                 retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
                 scores.append(current_silhouette_score)
                 purities.append(np.mean([x['purity'] for x in clusters]))
@@ -378,7 +380,7 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
     return tree_return, subgraphs, clusters, edges_removed, nodes_removed, scores, purities, retentions
 
 
-def get_score_at_cut(dist_array, clusters, which='silhouette', precision=4):
+def get_score_at_cut(dist_array, clusters, which='silhouette', precision=4, aggregation='micro'):
     """
     From the various clusters and pruned nodes, reconstruct an array of predicted label with integers representing predicted class
     Uses that and true labels and dist_matrix to compute scores
@@ -395,16 +397,17 @@ def get_score_at_cut(dist_array, clusters, which='silhouette', precision=4):
     # scoring_fct = {'silhouette':silhouette_score,
     #                'ch':calinski_harabasz_score,
     #                'db':davies_bouldin_score}
-    return round(silhouette_score(dist_array, pred_labels, metric='precomputed'),
-                 precision)
+
+    return round(custom_silhouette_score(dist_array, pred_labels,
+                                         metric='precomputed', aggregation=aggregation), precision)
 
 
 def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top', top_n=1, which='edge',
-                       distance_weighted=False, verbose=1, score_threshold=.75):
+                       distance_weighted=False, verbose=1, score_threshold=.75, silhouette_aggregation='micro'):
     # Set initial_cut_method to 'top' and initial_cut_threshold to top_n=1 to have fully iterative behaviour
     tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
                                                                        which, distance_weighted, verbose)
-    current_silhouette_score = get_score_at_cut(dist_array, clusters)
+    current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
     print('Initial mean purity, silhouette score, retention')
     print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score,
           round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
@@ -423,7 +426,7 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
                                                                                distance_weighted=distance_weighted,
                                                                                verbose=verbose)
         try:
-            current_silhouette_score = get_score_at_cut(dist_array, clusters)
+            current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
             scores.append(current_silhouette_score)
             purities.append(np.mean([x['purity'] for x in clusters]))
             retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))

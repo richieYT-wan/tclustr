@@ -277,7 +277,7 @@ class TripletLoss(LossParent):
         self.margin = margin
         self.pos_dist_weight = pos_dist_weight
         self.neg_dist_weight = neg_dist_weight
-        self.activated = weight>0
+        self.activated = weight > 0
         self.weight = weight
         self.warm_up = warm_up
         self.cool_down = cool_down
@@ -322,6 +322,7 @@ class TripletLoss(LossParent):
         super(TripletLoss, self).set_counter(counter)
         self._triplet_weight_regime()
 
+
 class CombinedVAELoss(LossParent):
     """
     This is the VAE + Triplet Loss, that is used kind of everywhere now
@@ -350,7 +351,7 @@ class CombinedVAELoss(LossParent):
         # self.triplet_activated = weight_triplet > 0
         self.triplet_loss = TripletLoss(dist_type, margin=margin, pos_dist_weight=pos_dist_weight,
                                         neg_dist_weight=neg_dist_weight, weight=weight_triplet,
-                                        warm_up = triplet_warm_up, cool_down=triplet_cool_down)
+                                        warm_up=triplet_warm_up, cool_down=triplet_cool_down)
         self.weight_triplet = weight_triplet
         self.weight_vae = weight_vae
         self.norm_factor = (self.weight_triplet + self.weight_vae)
@@ -368,6 +369,7 @@ class CombinedVAELoss(LossParent):
     # @override
     # def increment_counter(self):
     #     super(CombinedVAELoss, self).increment_counter()
+
 
 class TwoStageVAELoss(LossParent):
     # Here
@@ -813,3 +815,5 @@ def get_roc(df, score='pred', target='agg_label', binder=None, anchor_mutation=N
               "auc01": auc01,
               "npep": len(df)}
     return output
+
+

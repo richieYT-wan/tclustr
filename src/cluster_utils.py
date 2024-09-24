@@ -11,7 +11,7 @@ import torch
 from joblib import Parallel, delayed
 from matplotlib import pyplot as plt
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import auc, silhouette_score, adjusted_rand_score
+from sklearn.metrics import auc, silhouette_score, adjusted_rand_score, silhouette_samples
 from sklearn.metrics import calinski_harabasz_score as ch_score, davies_bouldin_score as db_score
 import seaborn as sns
 from sklearn.preprocessing import LabelEncoder
@@ -23,12 +23,11 @@ from src.datasets import FullTCRDataset
 from src.models import TwoStageVAECLF, FullTCRVAE
 from src.multimodal_datasets import MultimodalMarginalLatentDataset
 from src.multimodal_models import BSSVAE, JMVAE
-from src.multimodal_train_eval import predict_multimodal
 from src.networkx_utils import create_mst_from_distance_matrix, iterative_size_cut, iterative_topn_cut
 from src.sim_utils import make_dist_matrix
 from src.torch_utils import load_model_full
 from src.train_eval import predict_model
-from src.utils import get_palette, get_class_initcode_keys, mkdirs
+from src.utils import get_palette, mkdirs
 
 
 ##################################
@@ -40,41 +39,24 @@ def do_4vae_clustering_pipeline(dm_vae_os_notrp, dm_vae_ts_notrp, dm_vae_os_cstr
                                 filename='output_', title='', n_jobs=8):
     print('Running clustering pipeline for VAE_os_notrp')
     vae_os_notrp_size_results, vae_os_notrp_topn_results, vae_os_notrp_agglo_results = do_three_clustering(
-        dm_vae_os_notrp, label_col, index_col,
-        weight_col,
-        dm_name='VAE_OS_NoTRP',
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        n_jobs=n_jobs)
+        dm_vae_os_notrp, label_col, index_col, weight_col, dm_name='VAE_OS_NoTRP',
+        initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method, n_jobs=n_jobs)
     print('Running clustering pipeline for VAE_ts_notrp')
     vae_ts_notrp_size_results, vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results = do_three_clustering(
-        dm_vae_ts_notrp, label_col, index_col,
-        weight_col,
-        dm_name='VAE_TS_NoTRP',
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        n_jobs=n_jobs)
+        dm_vae_ts_notrp, label_col, index_col, weight_col, dm_name='VAE_TS_NoTRP',
+        initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method, n_jobs=n_jobs)
     print('Running clustering pipeline for VAE_os_cstrp')
     vae_os_cstrp_size_results, vae_os_cstrp_topn_results, vae_os_cstrp_agglo_results = do_three_clustering(
-        dm_vae_os_cstrp, label_col, index_col,
-        weight_col,
-        dm_name='VAE_OS_CsTRP',
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        n_jobs=n_jobs)
+        dm_vae_os_cstrp, label_col, index_col, weight_col, dm_name='VAE_OS_CsTRP',
+        initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method, n_jobs=n_jobs)
     print('Running clustering pipeline for VAE_ts_cstrp')
     vae_ts_cstrp_size_results, vae_ts_cstrp_topn_results, vae_ts_cstrp_agglo_results = do_three_clustering(
-        dm_vae_ts_cstrp, label_col, index_col,
-        weight_col,
-        dm_name='VAE_TS_CsTRP',
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        n_jobs=n_jobs)
+        dm_vae_ts_cstrp, label_col, index_col, weight_col, dm_name='VAE_TS_CsTRP',
+        initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method, n_jobs=n_jobs)
 
     print('Running clustering pipeline for TBCRalign')
     tbcr_size_results, tbcr_topn_results, tbcr_agglo_results = do_three_clustering(dm_tbcr, label_col, index_col,
-                                                                                   weight_col,
-                                                                                   dm_name='TBCRalign',
+                                                                                   weight_col, dm_name='TBCRalign',
                                                                                    initial_cut_threshold=initial_cut_threshold,
                                                                                    initial_cut_method=initial_cut_method,
                                                                                    n_jobs=n_jobs)
@@ -153,26 +135,17 @@ def do_twostage_2vae_clustering_pipeline(dm_vae_ts_notrp, dm_vae_ts_cstrp,
                                          n_jobs=8) -> object:
     print('Running clustering pipeline for VAE_ts_notrp')
     vae_ts_notrp_size_results, vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results = do_three_clustering(
-        dm_vae_ts_notrp, label_col, index_col,
-        weight_col,
-        dm_name='VAE_TS_NoTRP',
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        n_jobs=n_jobs)
+        dm_vae_ts_notrp, label_col, index_col, weight_col, dm_name='VAE_TS_NoTRP',
+        initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method, n_jobs=n_jobs)
 
     print('Running clustering pipeline for VAE_ts_cstrp')
     vae_ts_cstrp_size_results, vae_ts_cstrp_topn_results, vae_ts_cstrp_agglo_results = do_three_clustering(
-        dm_vae_ts_cstrp, label_col, index_col,
-        weight_col,
-        dm_name='VAE_TS_CsTRP',
-        initial_cut_threshold=initial_cut_threshold,
-        initial_cut_method=initial_cut_method,
-        n_jobs=n_jobs)
+        dm_vae_ts_cstrp, label_col, index_col, weight_col, dm_name='VAE_TS_CsTRP',
+        initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method, n_jobs=n_jobs)
 
     print('Running clustering pipeline for TBCRalign')
     tbcr_size_results, tbcr_topn_results, tbcr_agglo_results = do_three_clustering(dm_tbcr, label_col, index_col,
-                                                                                   weight_col,
-                                                                                   dm_name='TBCRalign',
+                                                                                   weight_col, dm_name='TBCRalign',
                                                                                    initial_cut_threshold=initial_cut_threshold,
                                                                                    initial_cut_method=initial_cut_method,
                                                                                    n_jobs=n_jobs)
@@ -233,15 +206,13 @@ def do_full_clustering_pipeline(dm_vae, dm_tbcr, dm_tcrdist, label_col='peptide'
                                 filename='output_', title='', n_jobs=8):
     print('Running clustering pipeline for VAE')
     vae_size_results, vae_topn_results, vae_agglo_results = do_three_clustering(dm_vae, label_col, index_col,
-                                                                                weight_col,
-                                                                                dm_name='VAE',
+                                                                                weight_col, dm_name='VAE',
                                                                                 initial_cut_threshold=initial_cut_threshold,
                                                                                 initial_cut_method=initial_cut_method,
                                                                                 n_jobs=n_jobs)
     print('Running clustering pipeline for TBCRalign')
     tbcr_size_results, tbcr_topn_results, tbcr_agglo_results = do_three_clustering(dm_tbcr, label_col, index_col,
-                                                                                   weight_col,
-                                                                                   dm_name='TBCRalign',
+                                                                                   weight_col, dm_name='TBCRalign',
                                                                                    initial_cut_threshold=initial_cut_threshold,
                                                                                    initial_cut_method=initial_cut_method,
                                                                                    n_jobs=n_jobs)
@@ -287,7 +258,7 @@ def get_optimal_point(results):
 
 
 def do_three_clustering(dist_matrix, label_col, index_col=None, weight_col=None, dm_name='', initial_cut_threshold=1,
-                        initial_cut_method='top', n_jobs=8):
+                        initial_cut_method='top', n_jobs=8, silhouette_aggregation='micro'):
     if index_col not in dist_matrix.columns:
         if index_col is None:
             index_col = 'index_col'
@@ -298,18 +269,19 @@ def do_three_clustering(dist_matrix, label_col, index_col=None, weight_col=None,
     # Size-cut
     size_tree, size_subgraphs, size_clusters, edges_cut, nodes_cut, size_scores, size_purities, size_retentions = iterative_size_cut(
         values_array, original_tree, initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method,
-        top_n=1, which='edge', distance_weighted=True, verbose=0, max_size=4)
+        top_n=1, which='edge', distance_weighted=True, verbose=0, max_size=4, silhouette_aggregation=silhouette_aggregation)
     # TopN-cut
     topn_tree, topn_subgraphs, topn_clusters, edges_removed, nodes_removed, topn_scores, topn_purities, topn_retentions = iterative_topn_cut(
         values_array, original_tree, initial_cut_threshold=initial_cut_threshold, initial_cut_method=initial_cut_method,
-        top_n=1, which='edge', distance_weighted=True, verbose=0, score_threshold=.75)
+        top_n=1, which='edge', distance_weighted=True, verbose=0, score_threshold=.75, silhouette_aggregation=silhouette_aggregation)
     # Agglo and get the best threshold and redo the clustering to get the best results
     agglo_output = cluster_all_thresholds(values_array, values_array, labels, encoded_labels, label_encoder,
-                                          n_points=300, n_jobs=n_jobs)
+                                          n_points=300, silhouette_aggregation=silhouette_aggregation, n_jobs=n_jobs,)
     best_agglo = agglo_output.loc[agglo_output['silhouette'].idxmax()]
     agglo_single_summary, agglo_single_df, agglo_single_c = cluster_single_threshold(values_array, values_array, labels,
                                                                                      encoded_labels, label_encoder,
                                                                                      threshold=best_agglo['threshold'],
+                                                                                     silhouette_aggregation=silhouette_aggregation,
                                                                                      return_df_and_c=True)
 
     size_results = {'tree': size_tree, 'clusters': size_clusters,
@@ -640,8 +612,8 @@ def do_baseline(baseline_distmatrix, identifier='baseline', label_col='peptide',
     encoder = LabelEncoder()
     labels = baseline_distmatrix[label_col].values
     encoded_labels = encoder.fit_transform(labels)
-    results = cluster_all_thresholds(dist_array, torch.rand([len(dist_array), 1]),
-                                     labels, encoded_labels, encoder, n_points=n_points)
+    results = cluster_all_thresholds(dist_array, torch.rand([len(dist_array), 1]), labels, encoded_labels, encoder,
+                                     n_points=n_points)
     results['input_type'] = identifier
     return results
 
@@ -709,9 +681,10 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
 
 
 def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clustersize=False,
+                            add_best_silhouette=False,
                             figsize=(9, 9), legend=True, outdir=None):
     # plotting options
-    sns.set_palette(palette, n_colors=len(runs.input_type.unique()))
+    sns.set_palette(palette, n_colors=len(runs.input_type.unique())-2)
     f, a = plt.subplots(1, 1, figsize=figsize)
     a.set_xlim([0, 1])
     a.set_ylim([0, 1])
@@ -741,16 +714,30 @@ def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clus
             a.plot(retentions, purities, label=input_type.lstrip('_'), ls=':', c='g', lw=1)
             if add_clustersize:
                 ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='x', lw=0.25, s=6, c='g')
+            if add_best_silhouette:
+                best_silhouette = query.loc[query['silhouette'].idxmax()]
+            a.scatter(x=best_silhouette['retention'], y=best_silhouette['mean_purity'], marker='x', s=11, lw=1.2, c='g',
+                          label=f"Best SI: {input_type.lstrip('_')}")
 
         elif input_type == "tcrdist3":
             a.plot(retentions, purities, label=input_type.lstrip('_'), ls=':', c='m', lw=1)
             if add_clustersize:
                 ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='.', lw=0.25, s=6, c='m')
+            if add_best_silhouette:
+                best_silhouette = query.loc[query['silhouette'].idxmax()]
+            a.scatter(x=best_silhouette['retention'], y=best_silhouette['mean_purity'], marker='x', s=11, lw=1.2,c='m',
+                          label=f"Best SI: {input_type.lstrip('_')}")
 
         else:
-            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='--', lw=1.1)
+            a.plot(retentions, purities, label=input_type.lstrip('_'), ls='--', lw=.75)
+            if add_best_silhouette:
+                best_silhouette = query.loc[query['silhouette'].idxmax()]
+            a.scatter(x=best_silhouette['retention'], y=best_silhouette['mean_purity'], marker='x', s=11, lw=1.2,
+                          label=f"Best SI: {input_type.lstrip('_')}")
+
             if add_clustersize:
                 ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='*', lw=0.25, s=6)
+
 
     a.axhline(0.6, label='60% purity cut-off', ls=':', lw=.75, c='m')
     a.axhline(0.7, label='70% purity cut-off', ls=':', lw=.75, c='c')
@@ -834,8 +821,8 @@ def do_agg_clustering_best(input_dm, other_dm_labelled, index_col, label_col='pe
     label_encoder = LabelEncoder()
     encoded_labels = label_encoder.fit(labels)
     agg_array = 1 - np.multiply(1 - input_da, 1 - baseline_da)
-    results = cluster_all_thresholds(agg_array, torch.rand([len(agg_array), 1]),
-                                     labels, encoded_labels, label_encoder, n_points=n_points)
+    results = cluster_all_thresholds(agg_array, torch.rand([len(agg_array), 1]), labels, encoded_labels, label_encoder,
+                                     n_points=n_points)
     return results
 
 
@@ -869,29 +856,29 @@ def pipeline_best_model_clustering(model_folder, input_df, name, n_points=500):
 
 
 def cluster_single_threshold(dist_array, features, labels, encoded_labels, label_encoder, threshold,
-                             return_df_and_c=False):
+                             silhouette_aggregation='micro', return_df_and_c=False):
     c = AgglomerativeClustering(n_clusters=None, metric='precomputed', distance_threshold=threshold, linkage='complete')
     c.fit(dist_array)
     if return_df_and_c:
-        return *get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder,
+        return *get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder, silhouette_aggregation,
                                 return_df=return_df_and_c), c
     else:
-        return get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder)
+        return get_all_metrics(threshold, features, c, dist_array, labels, encoded_labels, label_encoder, silhouette_aggregation)
 
 
 # Here, do a run ith only the best
-def cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder,
-                           decimals=5, n_points=500, n_jobs=1):
+def cluster_all_thresholds(dist_array, features, labels, encoded_labels, label_encoder, decimals=5, n_points=500,
+                           silhouette_aggregation='micro', n_jobs=1):
     # Getting clustering at all thresholds
     limits = get_linspace(dist_array, decimals, n_points)
     if n_jobs > 1:
         wrapper = partial(cluster_single_threshold, dist_array=dist_array, features=features, labels=labels,
-                          encoded_labels=encoded_labels, label_encoder=label_encoder)
+                          encoded_labels=encoded_labels, label_encoder=label_encoder, silhouette_aggregation=silhouette_aggregation)
         results = Parallel(n_jobs=n_jobs)(delayed(wrapper)(threshold=t) for t in tqdm(limits))
     else:
         results = []
         for t in tqdm(limits):
-            results.append(cluster_single_threshold(dist_array, features, labels, encoded_labels, label_encoder, t))
+            results.append(cluster_single_threshold(dist_array, features, labels, encoded_labels, label_encoder, t, silhouette_aggregation))
     results = pd.DataFrame(results).sort_values('threshold')
     results['retention'] = (dist_array.shape[0] - results['n_singletons']) / dist_array.shape[0]
     return results
@@ -1262,15 +1249,17 @@ def get_agglo_cluster_df(c, dist_matrix, res_df, index_col, label_col, rest_cols
     return subset.sort_values('pred_label')
 
 
-def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_encoder, return_df=False):
+def get_all_metrics(t, features, c, array, true_labels, encoded_labels, label_encoder, silhouette_aggregation='micro',
+                    return_df=False):
     n_cluster = np.sum((np.bincount(c.labels_) > 1))
     n_singletons = (np.bincount(c.labels_) == 1).sum()
     try:
         # Here assumes features is the distance array...
         # So using pre-computed !!
-        metric='precomputed' if (features.shape==array.shape and (features.values.diagonal()==0).all())\
-                else 'cosine'
-        s_score = silhouette_score(features, c.labels_, metric=metric)
+        # metric='precomputed' if (features.shape==array.shape and (features.values.diagonal()==0).all())\
+        #         else 'cosine'
+        # s_score = silhouette_score(array, c.labels_, metric='precomputed')
+        s_score = custom_silhouette_score(array, c.labels_, metric='precomputed', aggregation=silhouette_aggregation)
     except:
         s_score = np.nan
     try:
@@ -1329,5 +1318,81 @@ def get_bounds(array, decimals=5):
     return np.floor(lower_bound * factor) / factor, np.ceil(upper_bound * factor) / factor
 
 
-def get_linspace(array, decimals=5, n_points=1500):
+def get_linspace(array, decimals=5, n_points=500):
+    # Here maybe take something else instead of min, max but min, X quantile (excluding 0)
     return np.round(np.linspace(*get_bounds(array, decimals), n_points), decimals)
+
+
+def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregation='micro'):
+    """
+    Implements the silhouette score to do either micro (all samples) or macro (per cluster) averaging
+    Args:
+        input_matrix:
+        labels:
+        metric:
+        aggregation:
+
+    Returns:
+
+    """
+    if aggregation == 'micro':
+        score = silhouette_score(input_matrix, labels, metric=metric)
+    elif aggregation == 'macro':
+        # Per sample silhouette score
+        all_scores = silhouette_samples(input_matrix, labels, metric=metric)
+        macro_averages = []
+        # per cluster averaging
+        for label in np.unique(labels):
+            indices = np.where(labels == label)[0]
+            macro_averages.append(np.mean(all_scores[indices]))
+        score = np.mean(macro_averages)
+    else:
+        raise ValueError('Aggregation must be "micro" or "macro"')
+
+    return score
+
+
+import numpy as np
+
+
+def find_true_maximum(scores, patience):
+    """
+    Efficiently finds the correct maximum score based on a patience-based early stopping criterion,
+    handling NaN values in the scores array.
+
+    Parameters:
+    - scores: list or array-like, the sequence of scores for each iteration.
+    - patience: int, the number of iterations to wait for an improvement before stopping.
+
+    Returns:
+    - max_score: float, the maximum score ignoring artificial spikes due to malfunctions.
+    - max_index: int, the index of the detected maximum score.
+    """
+    max_score = float('-inf')  # Initialize to a very low value
+    max_index = -1
+    patience_counter = 0
+
+    for i, score in enumerate(scores):
+        # Skip NaN values
+        if np.isnan(score):
+            continue
+
+        # If the current score improves the maximum, update max_score and reset patience
+        if score > max_score:
+            max_score = score
+            max_index = i
+            patience_counter = 0  # Reset patience because we found a new max
+
+        # If the score does not improve, increase the patience counter
+        else:
+            patience_counter += 1
+
+        # If patience limit is reached, break and return the best score seen so far
+        if patience_counter >= patience:
+            break
+
+    # If no valid maximum was found (e.g., all NaNs), handle gracefully
+    if max_index == -1:
+        return None, None
+
+    return max_score, max_index
