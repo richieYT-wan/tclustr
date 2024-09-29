@@ -27,17 +27,9 @@ chainarg="full"
 # Pre-set the name with a random id, then parse the -o if exists
 OUTNAME="MST_4VAE_subsampling_${random_id}"
 OUTPUTDIRECTORY=${OUTNAME}
+SILHOUETTE_AGGREGATION="micro"
 # HANDLE SINGLE LETTER ARGS
-
-# Here "f" is the pre-subsampled pre-mixed covid-healthy file
-# made with
-# for i in range(52):
-  #    fr = pd.read_csv(f'../data/OTS/francis_covid/francis_{i:04}.txt', index_col=0)
-  #    for seed in range(100):
-  #        sub = garner_3.sample(n=len(fr), random_state=seed)
-  #        cat = pd.concat([fr, sub]).reset_index(drop=True)
-  #        cat.to_csv(f'../data/OTS/subsampled_francis_garner/subsampled_francis_{i:03}_seed_{seed:03}.txt', index=False)
-while getopts ":f:c:s:l:e:o:i:" opt; do
+while getopts ":f:c:s:l:e:o:i:a:" opt; do
   case ${opt} in
     f )
       INPUTFILE=$OPTARG
@@ -82,6 +74,9 @@ while getopts ":f:c:s:l:e:o:i:" opt; do
       ;;
     i )
       INDEXCOL="$OPTARG"
+      ;;
+    a )
+      SILHOUETTE_AGGREGATION="$OPTARG"
       ;;
     \? )
       echo "Usage: $0 -f <INPUTFILE> -o <OUTPUTDIRECTORY> -c <CHAINS> (ex: A1 A2 A3 B1 B2 B3) -s <SERVER> (c2/htc) -l <LABELCOL> -e <EXTRACOLS> -i <INDEXCOL>"
@@ -146,7 +141,7 @@ TS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_lat
 #TS_CSTRP_DIR="${HOMEDIR}output/240618_NestedKCV_CNNVAE/Nested_TwoStageCNNVAE_latent_128_kld_1e-2_ExpData_KFold_0_240618_1608_pDQhj/"
 
 #sys exit 1
-python3 240903_MST_cuts_clustering_4VAEs.py -pt_file_os_notrp "$(ls $OS_NOTRP_DIR/*best*.pt)" -json_file_os_notrp "$(ls $OS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_notrp "$(ls $TS_NOTRP_DIR/*4500*.pt)" -json_file_ts_notrp "$(ls $TS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_os_cstrp "$(ls $OS_CSTRP_DIR/*best*.pt)" -json_file_os_cstrp "$(ls $OS_CSTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*4500*.pt)" -json_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*JSON_kwargs*.json)" -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 13 -o $EXTRA_OUTNAME
+python3 240903_MST_cuts_clustering_4VAEs.py -pt_file_os_notrp "$(ls $OS_NOTRP_DIR/*best*.pt)" -json_file_os_notrp "$(ls $OS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_notrp "$(ls $TS_NOTRP_DIR/*4500*.pt)" -json_file_ts_notrp "$(ls $TS_NOTRP_DIR/*JSON_kwargs*.json)" -pt_file_os_cstrp "$(ls $OS_CSTRP_DIR/*best*.pt)" -json_file_os_cstrp "$(ls $OS_CSTRP_DIR/*JSON_kwargs*.json)" -pt_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*4500*.pt)" -json_file_ts_cstrp "$(ls $TS_CSTRP_DIR/*JSON_kwargs*.json)" -f $INPUTFILE -tcrdist $tcrdistfile -tbcralign $tbcrfile -od ${OUTPUTDIRECTORY} -rid 'clstr' -index_col $INDEXCOL -rest_cols "${EXTRACOLS[@]}" -label_col ${LABELCOL} -n_jobs 13 -o $EXTRA_OUTNAME -s_agg $SILHOUETTE_AGGREGATION
 
 endtime=$(date +"%y%m%d_%H%M%S")
 # Record the end time

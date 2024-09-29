@@ -115,6 +115,8 @@ def args_parser():
                         help='How many points to do for the bounds limits')
     parser.add_argument('-link', '--linkage', dest='linkage', type=str, default='complete',
                         help='Which linkage to use for AgglomerativeClustering')
+    parser.add_argument('-s_agg', '--silhouette_aggregation', default='micro', dest='silhouette_aggregation',
+                        help='whether to use micro or macro for the silhouette score aggregation')
     """
     TODO: Misc. 
     """
@@ -216,16 +218,21 @@ def main():
     vae_os_cstrp_size_results, vae_os_cstrp_topn_results, vae_os_cstrp_agglo_results, \
     vae_ts_cstrp_size_results, vae_ts_cstrp_topn_results, vae_ts_cstrp_agglo_results, \
     tbcr_size_results, tbcr_topn_results, tbcr_agglo_results, \
-    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_4vae_clustering_pipeline(dm_vae_os_notrp, dm_vae_ts_notrp,
-                                                                                                    dm_vae_os_cstrp, dm_vae_ts_cstrp,
+    tcrdist_size_results, tcrdist_topn_results, tcrdist_agglo_results = do_4vae_clustering_pipeline(dm_vae_os_notrp,
+                                                                                                    dm_vae_ts_notrp,
+                                                                                                    dm_vae_os_cstrp,
+                                                                                                    dm_vae_ts_cstrp,
                                                                                                     dm_tbcr, dm_tcrdist,
                                                                                                     label_col=label_col,
                                                                                                     index_col=index_col,
                                                                                                     weight_col=weight_col,
                                                                                                     outdir=outdir,
-                                                                                                    filename=args['out'],
+                                                                                                    filename=args[
+                                                                                                        'out'],
                                                                                                     title=args['out'],
-                                                                                                    n_jobs=args['n_jobs'])
+                                                                                                    n_jobs=args[
+                                                                                                        'n_jobs'],
+                                                                                                    silhouette_aggregation=args['silhouette_aggregation'])
     for result in [vae_os_notrp_size_results, vae_os_notrp_topn_results, vae_os_notrp_agglo_results,
                    vae_ts_notrp_size_results, vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results,
                    vae_os_cstrp_size_results, vae_os_cstrp_topn_results, vae_os_cstrp_agglo_results,

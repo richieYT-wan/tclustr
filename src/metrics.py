@@ -9,7 +9,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score, \
-    precision_score, precision_recall_curve, auc, average_precision_score, recall_score
+    precision_score, precision_recall_curve, auc, average_precision_score, recall_score, silhouette_score, \
+    silhouette_samples
 
 
 class LossParent(nn.Module):
@@ -817,3 +818,30 @@ def get_roc(df, score='pred', target='agg_label', binder=None, anchor_mutation=N
     return output
 
 
+def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregation='micro'):
+    """
+    Implements the silhouette score to do either micro (all samples) or macro (per cluster) averaging
+    Args:
+        input_matrix:
+        labels:
+        metric:
+        aggregation:
+
+    Returns:
+
+    """
+    if aggregation == 'micro':
+        score = silhouette_score(input_matrix, labels, metric=metric)
+    elif aggregation == 'macro':
+        # Per sample silhouette score
+        all_scores = silhouette_samples(input_matrix, labels, metric=metric)
+        macro_averages = []
+        # per cluster averaging
+        for label in np.unique(labels):
+            indices = np.where(labels == label)[0]
+            macro_averages.append(np.mean(all_scores[indices]))
+        score = np.mean(macro_averages)
+    else:
+        raise ValueError('Aggregation must be "micro" or "macro"')
+
+    return score

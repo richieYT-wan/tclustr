@@ -13,7 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_score, completeness_score, \
     v_measure_score, calinski_harabasz_score, davies_bouldin_score
 
-from src.cluster_utils import custom_silhouette_score
+from src.metrics import custom_silhouette_score
 
 
 def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_col='raw_index',
@@ -415,6 +415,8 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
     scores = [current_silhouette_score]
     purities = [np.mean([x['purity'] for x in clusters])]
     retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
+    mean_cluster_sizes = [np.mean([x['cluster_size'] for x in clusters])]
+    n_clusters = [len(clusters)]
     best_silhouette_score = -1
     # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
     best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
@@ -430,6 +432,8 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
             scores.append(current_silhouette_score)
             purities.append(np.mean([x['purity'] for x in clusters]))
             retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+            mean_cluster_sizes.append(np.mean([x['cluster_size'] for x in clusters]))
+            n_clusters.append(len(clusters))
             edges_removed.extend(edges_trimmed)
             nodes_removed.extend(nodes_trimmed)
             # print(iter, current_silhouette_score, best_silhouette_score)
@@ -444,4 +448,4 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
         # print(iter, np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
         # iter += 1
     subgraphs = [nx.subgraph(best_tree, c['members']) for c in best_clusters]
-    return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions
+    return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters

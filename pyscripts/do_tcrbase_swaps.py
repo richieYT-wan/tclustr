@@ -225,6 +225,7 @@ def args_parser():
                         help='Torch manual seed. Default = 13')
     parser.add_argument('-reset', dest='reset', type=str2bool, default=False,
                         help='Whether to reset the encoder\'s weight for a blank run')
+    parser.add_argument('-n_jobs', dest='n_jobs', type=int, default=6)
     return parser.parse_args()
 
 
@@ -339,7 +340,7 @@ def main():
 
     wrapper_ = partial(wrapper, preds=concat, args=args, unique_filename=unique_filename, outdir=outdir)
     # Then, on a per-peptide basis, do the TCRbase method
-    text = Parallel(n_jobs=6)(
+    text = Parallel(n_jobs=args['n_jobs'])(
         delayed(wrapper_)(peptide=peptide) for peptide in tqdm(concat.peptide.unique(), desc='peptide'))
 
     text = ''.join(text)
