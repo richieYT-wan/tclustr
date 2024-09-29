@@ -346,7 +346,8 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
     scores = [current_silhouette_score]
     purities = [np.mean([x['purity'] for x in clusters])]
     retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
-
+    mean_cluster_sizes = [np.mean([x['cluster_size'] for x in clusters])]
+    n_clusters = [len(clusters)]
     while any([x['cluster_size'] >= max_size for x in clusters]):
         for i, c in enumerate(clusters):
             if c['cluster_size'] >= max_size:
@@ -366,6 +367,8 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
                 retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
                 scores.append(current_silhouette_score)
                 purities.append(np.mean([x['purity'] for x in clusters]))
+                mean_cluster_sizes.append(np.mean([x['cluster_size'] for x in clusters]))
+                n_clusters.append(len(clusters))
                 # print(iter, np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
                 # iter+=1
         else:
@@ -376,8 +379,7 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
     # Combine all subgraphs
     for subgraph in subgraphs:
         tree_return = nx.compose(tree_return, subgraph)
-
-    return tree_return, subgraphs, clusters, edges_removed, nodes_removed, scores, purities, retentions
+    return tree_return, subgraphs, clusters, edges_removed, nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters
 
 
 def get_score_at_cut(dist_array, clusters, which='silhouette', precision=4, aggregation='micro'):
