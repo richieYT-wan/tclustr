@@ -1,10 +1,10 @@
-touch $1/all_error_logs.txt
+#touch $1/all_error_logs.txt
 mkdir $1/treated_logs/
 for f in $(ls $1/*.sh.e*);  do
   name="${f%.sh.*}";
   job_id="${f##*.sh.e}";
   file_content=$(cat "${f}");
-  if echo "$file_content" | grep -qi "error";
+  if echo "$file_content" | grep -qi "error\|not found";
   then
     error_bool="True";
     tail_file=$(tail -n 5 "${f}");

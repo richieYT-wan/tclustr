@@ -1074,7 +1074,7 @@ def get_model(folder, map_location='cpu'):
     return model
 
 
-def get_latent_df(model, df, dataset_params: dict = None):
+def get_latent_df(model, df, dataset_params: dict = None, batch_size=512):
     # Init dataset and pred fct depending on model type
     dataset_params = dict(max_len_a1=7, max_len_a2=8, max_len_a3=22,
                           max_len_b1=6, max_len_b2=7, max_len_b3=23, max_len_pep=0,
@@ -1100,13 +1100,13 @@ def get_latent_df(model, df, dataset_params: dict = None):
     if type(model) == FullTCRVAE:
         print(dataset_params)
         dataset = FullTCRDataset(df, **dataset_params)
-        dataloader = dataset.get_dataloader(512, SequentialSampler)
+        dataloader = dataset.get_dataloader(batch_size, SequentialSampler)
         latent_df = predict_model(model, dataset, dataloader)
 
     elif type(model) == CNNVAE:
         dataset_params['conv'] = True
         dataset = FullTCRDataset(df, **dataset_params)
-        dataloader = dataset.get_dataloader(512, SequentialSampler)
+        dataloader = dataset.get_dataloader(batch_size, SequentialSampler)
         latent_df = predict_model(model, dataset, dataloader)
 
     # TODO: This part probly not properly handled
