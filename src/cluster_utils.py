@@ -694,10 +694,9 @@ def run_interval_clustering(model_folder, input_df, index_col, identifier='VAEmo
 
 
 def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clustersize=False,
-                            add_best_silhouette=False, hue_column='input_type',
-                            figsize=(9, 9), legend=True, outdir=None):
+                            add_best_silhouette=False, hue='input_type', figsize=(9, 9), legend=True, outdir=None):
     # plotting options
-    sns.set_palette(palette, n_colors=len(runs[hue_column].unique())-2)
+    sns.set_palette(palette, n_colors=len(runs[hue].unique()))# - 2)
     f, a = plt.subplots(1, 1, figsize=figsize)
     a.set_xlim([0, 1])
     a.set_ylim([0, 1])
@@ -716,8 +715,8 @@ def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clus
         ax2 = a.twinx()  # instantiate a second axes that shares the same x-axis
         ax2.set_yscale('log', base=2)
         ax2.set_ylabel('Mean Cluster Size (Log2)', fontweight='semibold', fontsize=14)
-    for input_type in runs[hue_column].unique():
-        query = runs.query(f'{hue_column}==@input_type').reset_index()
+    for input_type in runs[hue].unique():
+        query = runs.query(f'{hue}==@input_type').reset_index()
         retentions = query['retention'][1:-1].values
         purities = query['mean_purity'][1:-1].values
         if add_clustersize:
@@ -740,14 +739,14 @@ def plot_retention_purities(runs, title=None, fn=None, palette='tab10', add_clus
                 ax2.scatter(retentions, cluster_sizes, label=input_type.lstrip('_'), marker='.', lw=0.25, s=6, c='y')
             if add_best_silhouette:
                 best_silhouette = query.loc[find_true_maximum(query['silhouette'].values, patience=50)[1]]
-            a.scatter(x=best_silhouette['retention'], y=best_silhouette['mean_purity'], marker=marker, s=11, lw=1.2,c='y',
+                a.scatter(x=best_silhouette['retention'], y=best_silhouette['mean_purity'], marker=marker, s=11, lw=1.2,c='y',
                           label=f"Best SI: {input_type.lstrip('_')}")
 
         else:
             a.plot(retentions, purities, label=input_type.lstrip('_'), ls=ls, lw=lw)
             if add_best_silhouette:
                 best_silhouette = query.loc[find_true_maximum(query['silhouette'].values, patience=50)[1]]
-            a.scatter(x=best_silhouette['retention'], y=best_silhouette['mean_purity'], marker=marker, s=11, lw=1.2,
+                a.scatter(x=best_silhouette['retention'], y=best_silhouette['mean_purity'], marker=marker, s=11, lw=1.2,
                           label=f"Best SI: {input_type.lstrip('_')}")
 
             if add_clustersize:
