@@ -10,6 +10,7 @@ EXTRACOLS=("original_peptide" "binder" "partition" "original_index")
 TBCRALIGN="$HTCPATH"
 chainarg="full"
 OUTPUTDIRECTORY=""
+HOMEDIR="/home/projects/vaccine/people/yatwan/tclustr/"
 # args : 1 = mainfolder ; 2 = outfolder ; 3 = n_epochs ; 4 = grep
 while getopts ":f:c:s:l:e:o:" opt; do
   case ${opt} in
@@ -31,8 +32,10 @@ while getopts ":f:c:s:l:e:o:" opt; do
     s )
       if [ "$OPTARG" == "htc" ]; then
         TBCRALIGN="$HTCPATH"
+        HOMEDIR="/home/projects2/riwa/tclustr/"
       elif [ "$OPTARG" == "c2" ]; then
         TBCRALIGN="$C2PATH"
+        HOMEDIR="/home/projects/vaccine/people/yatwan/tclustr/"
       fi
       ;;
     e )
@@ -59,7 +62,7 @@ done
 # Shift the processed options so that $1, $2, etc. now refer to non-option arguments
 shift $((OPTIND - 1))
 
-OUTDIR="$(realpath "$(pwd)/../output/${OUTPUTDIRECTORY}/")/"
+OUTDIR="${HOMEDIR}/output/${OUTPUTDIRECTORY}/"
 mkdir -pv $OUTDIR
 # Extract the basename without the extension using parameter expansion
 # Here assume we use the full TCRs

@@ -101,9 +101,7 @@ BASHDIR="${HOMEDIR}bashscripts/"
 # that's where all the outputs will be saved. We just need "OUTPUTDIRECTORY"
 # because all the other scripts handle the "../output/${OUTPUTDIRECTORY}" by default
 OUTDIR="${HOMEDIR}output/${OUTPUTDIRECTORY}/"
-final_outdir="${HOMEDIR}output/240911_RedoTwoStageOnly_MST_cut_francis_garner_subsampled/"
 mkdir -pv $OUTDIR
-mkdir -pv $final_outdir
 
 source ${CONDA}
 source activate tcrdist3
