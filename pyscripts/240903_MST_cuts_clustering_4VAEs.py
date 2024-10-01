@@ -213,6 +213,7 @@ def main():
     # Given the full pipeline (MSTcut_all_pipeline.sh) we should run --> do_tbcralign.sh, do_tcrdist.py, then the current script
     dm_tbcr, _ = resort_baseline(pd.read_csv(args['tbcralign_file'], index_col=0), dm_vae_os_notrp, index_col, rest_cols)
     dm_tcrdist, _ = resort_baseline(pd.read_csv(args['tcrdist_file'], index_col=0), dm_vae_os_notrp, index_col, rest_cols)
+    initial_cut_threshold = int(0.175*len(dm_tbcr))
     vae_os_notrp_size_results, vae_os_notrp_topn_results, vae_os_notrp_agglo_results, \
     vae_ts_notrp_size_results, vae_ts_notrp_topn_results, vae_ts_notrp_agglo_results, \
     vae_os_cstrp_size_results, vae_os_cstrp_topn_results, vae_os_cstrp_agglo_results, \
@@ -226,6 +227,7 @@ def main():
                                                                                                     label_col=label_col,
                                                                                                     index_col=index_col,
                                                                                                     weight_col=weight_col,
+                                                                                                    initial_cut_threshold=initial_cut_threshold,
                                                                                                     outdir=outdir,
                                                                                                     filename=args[
                                                                                                         'out'],
