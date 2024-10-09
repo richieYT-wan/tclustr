@@ -451,3 +451,54 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
         # iter += 1
     subgraphs = [nx.subgraph(best_tree, c['members']) for c in best_clusters]
     return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters
+
+
+def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top', top_n=1, which='edge',
+                       distance_weighted=False, verbose=1, score_threshold=.75, silhouette_aggregation='micro'):
+    # Set initial_cut_method to 'top' and initial_cut_threshold to top_n=1 to have fully iterative behaviour
+    tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
+                                                                       which, distance_weighted, verbose)
+    current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
+    print('Initial mean purity, silhouette score, retention')
+    print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score,
+          round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+
+    scores = [current_silhouette_score]
+    purities = [np.mean([x['purity'] for x in clusters])]
+    retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
+    mean_cluster_sizes = [np.mean([x['cluster_size'] for x in clusters])]
+    all_cluster_sizes = [[x['cluster_size'] for x in clusters]]
+    n_clusters = [len(clusters)]
+    best_silhouette_score = -1
+    # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
+    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
+    # Make a copy before starting the iteration to re-use the variable
+    tree_trimmed = tree_cut.copy()
+    while current_silhouette_score <= score_threshold or retentions[-1] > 0:
+        tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed, cut_threshold=top_n,
+                                                                               cut_method='top', which=which,
+                                                                               distance_weighted=distance_weighted,
+                                                                               verbose=verbose)
+        try:
+            current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
+            scores.append(current_silhouette_score)
+            purities.append(np.mean([x['purity'] for x in clusters]))
+            retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+            mean_cluster_sizes.append(np.mean([x['cluster_size'] for x in clusters]))
+            all_cluster_sizes.append([x['cluster_size'] for x in clusters])
+            n_clusters.append(len(clusters))
+            edges_removed.extend(edges_trimmed)
+            nodes_removed.extend(nodes_trimmed)
+            # print(iter, current_silhouette_score, best_silhouette_score)
+            if current_silhouette_score > best_silhouette_score:
+                best_silhouette_score = current_silhouette_score
+                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
+        except ValueError:
+            # Fake an exit condition when we reach the error where we only have singletons
+            current_silhouette_score = score_threshold + 1
+            break
+
+        # print(iter, np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
+        # iter += 1
+    subgraphs = [nx.subgraph(best_tree, c['members']) for c in best_clusters]
+    return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters, all_cluster_sizes
