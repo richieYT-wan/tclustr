@@ -274,7 +274,7 @@ class TripletLoss(LossParent):
                          'l1': torch.cdist}[dist_type]
         self.p = 1 if dist_type == 'l1' else 2 if dist_type == 'l2' else None
         if margin is None:
-            margin = 0.1 if dist_type == 'cosine' else 1.0
+            margin = 0.15 if dist_type == 'cosine' else 1.0
         self.margin = margin
         self.pos_dist_weight = pos_dist_weight
         self.neg_dist_weight = neg_dist_weight
@@ -818,6 +818,77 @@ def get_roc(df, score='pred', target='agg_label', binder=None, anchor_mutation=N
     return output
 
 
+# def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregation='micro'):
+#     """
+#     Implements the silhouette score to do either micro (all samples) or macro (per cluster) averaging
+#     Args:
+#         input_matrix:
+#         labels:
+#         metric:
+#         aggregation:
+#
+#     Returns:
+#
+#     """
+#     if aggregation == 'micro':
+#         score = silhouette_score(input_matrix, labels, metric=metric)
+#     elif aggregation == 'macro':
+#         # Per sample silhouette score
+#         all_scores = silhouette_samples(input_matrix, labels, metric=metric)
+#         macro_averages = []
+#         # per cluster averaging
+#         for label in np.unique(labels):
+#             indices = np.where(labels == label)[0]
+#             macro_averages.append(np.mean(all_scores[indices]))
+#         score = np.mean(macro_averages)
+#
+#     elif aggregation == 'size_weighted':
+#         all_scores = silhouette_samples(input_matrix, labels, metric=metric)
+#
+#         # Step 2: Identify unique clusters and their sizes
+#         unique_labels, cluster_sizes = np.unique(labels, return_counts=True)
+#
+#         # Step 3: Compute the silhouette score for each cluster
+#         cluster_silhouette_values = np.array([
+#             np.mean(all_scores[labels == label]) for label in unique_labels
+#         ])
+#
+#         # Step 4: Multiply the average silhouette score by the cluster size (vectorized)
+#         weighted_silhouette = np.dot(cluster_silhouette_values, cluster_sizes)
+#
+#         # Step 5: Compute the overall weighted silhouette score
+#         score = weighted_silhouette / np.sum(cluster_sizes)
+#
+#     elif aggregation == 'size_log2':
+#         all_scores = silhouette_samples(input_matrix, labels, metric=metric)
+#         # Step 2: Identify unique clusters and their sizes
+#         unique_labels, cluster_sizes = np.unique(labels, return_counts=True)
+#         cluster_weights = np.log2(cluster_sizes)+1
+#         # normalizes the weights to have em in 0,1
+#         cluster_weights = cluster_weights / np.sum(cluster_weights)
+#         # Compute the silhouette score for each cluster (is this almost macro aggregation??)
+#         cluster_avg_silhouettes = np.array([np.mean(all_scores[labels == label]) for label in unique_labels])
+#         # Step 5: Calculate the weighted silhouette score using vectorized operations
+#         score = np.sum(cluster_avg_silhouettes * cluster_weights)
+#
+#         # weighted_sum = 0
+#         # for label, size in zip(unique_labels, cluster_sizes):
+#         #     # Get the silhouette scores for the current cluster
+#         #     cluster_silhouette_values = all_scores[labels == label]
+#         #     # Compute the average silhouette score for the current cluster
+#         #     cluster_avg_silhouette = np.mean(cluster_silhouette_values)
+#         #
+#         #     # Multiply the average silhouette score by the normalized weight
+#         #     weighted_sum += cluster_avg_silhouette * weight
+#     else:
+#         raise ValueError('Aggregation must be "micro" or "macro" or "size_weighted" or "size_log2"')
+#
+#     return score
+
+import numpy as np
+from sklearn.metrics import silhouette_score, silhouette_samples
+
+
 def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregation='micro'):
     """
     Implements the silhouette score to do either micro (all samples) or macro (per cluster) averaging
@@ -828,20 +899,53 @@ def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregat
         aggregation:
 
     Returns:
-
+        silhouette score based on the selected aggregation method
     """
     if aggregation == 'micro':
+        # Micro-average: Standard silhouette score across all samples
         score = silhouette_score(input_matrix, labels, metric=metric)
+
     elif aggregation == 'macro':
-        # Per sample silhouette score
+        # Macro-average: Average silhouette score per cluster, then average across clusters
         all_scores = silhouette_samples(input_matrix, labels, metric=metric)
         macro_averages = []
-        # per cluster averaging
+
         for label in np.unique(labels):
             indices = np.where(labels == label)[0]
             macro_averages.append(np.mean(all_scores[indices]))
+
         score = np.mean(macro_averages)
+
+    elif aggregation == 'size_weighted':
+        # Size-weighted average: Weight each cluster's silhouette score by its size
+        all_scores = silhouette_samples(input_matrix, labels, metric=metric)
+        unique_labels, cluster_sizes = np.unique(labels, return_counts=True)
+
+        # Compute the average silhouette score per cluster
+        cluster_avg_silhouettes = np.array([np.mean(all_scores[labels == label]) for label in unique_labels])
+
+        # Weight each cluster's silhouette score by its size
+        weighted_silhouette = np.dot(cluster_avg_silhouettes, cluster_sizes)
+
+        # Normalize by the total number of samples
+        score = weighted_silhouette / np.sum(cluster_sizes)
+
+    elif aggregation == 'size_log2':
+        # Size-log2 weighted average: Weight each cluster's silhouette score by log2(size) + 1
+        all_scores = silhouette_samples(input_matrix, labels, metric=metric)
+        unique_labels, cluster_sizes = np.unique(labels, return_counts=True)
+
+        # Compute the log2(size) + 1 weight for each cluster
+        cluster_weights = np.log2(cluster_sizes) + 1
+
+        # Compute the average silhouette score per cluster
+        cluster_avg_silhouettes = np.array([np.mean(all_scores[labels == label]) for label in unique_labels])
+
+        # Compute the weighted sum (without normalizing the weights)
+        score = np.sum(cluster_avg_silhouettes * cluster_weights) / np.sum(cluster_weights)
+    elif aggregation == 'none':
+        return silhouette_samples(input_matrix, labels, metric=metric)
     else:
-        raise ValueError('Aggregation must be "micro" or "macro"')
+        raise ValueError('Aggregation must be "micro", "macro", "size_weighted", or "size_log2", "none"')
 
     return score

@@ -10,7 +10,7 @@ import pandas as pd
 import torch
 from joblib import Parallel, delayed
 from matplotlib import pyplot as plt
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.metrics import auc, adjusted_rand_score
 from sklearn.metrics import calinski_harabasz_score as ch_score, davies_bouldin_score as db_score
 import seaborn as sns
@@ -1378,3 +1378,125 @@ def find_true_maximum(scores, patience):
         return None, None
 
     return max_score, max_index
+
+
+### KMeans stuff
+def kmeans_all_thresholds(features, labels, encoded_labels, label_encoder, silhouette_aggregate='micro', n_jobs=1):
+    # Getting clustering at all thresholds, from 2 clusters to every clusters being duplets
+    limits = np.arange(2, len(features))
+    if n_jobs > 1:
+        wrapper = partial(kmeans_single_threshold, features=features, labels=labels,
+                          silhouette_aggregate=silhouette_aggregate,
+                          encoded_labels=encoded_labels, label_encoder=label_encoder)
+        results = Parallel(n_jobs=n_jobs)(delayed(wrapper)(k=k) for k in tqdm(limits))
+    else:
+        results = []
+        for t in tqdm(limits):
+            results.append(
+                kmeans_single_threshold(features, labels, encoded_labels, label_encoder, t, silhouette_aggregate))
+    results = pd.DataFrame(results).sort_values('threshold')
+    results['retention'] = (len(labels) - results['n_singletons']) / len(labels)
+    return results
+
+
+def kmeans_single_threshold(features, labels, encoded_labels, label_encoder, k, silhouette_aggregate,
+                            return_df_and_c=False):
+    max_iter = 75 if k >= len(features) // 2 else 300
+    c = KMeans(n_clusters=k, max_iter=max_iter)
+    c.fit(features)
+    if return_df_and_c:
+        return *get_kmeans_metrics(k, features, c, labels, encoded_labels, label_encoder, silhouette_aggregate,
+                                   return_df=return_df_and_c), c
+    else:
+        return get_kmeans_metrics(k, features, c, labels, encoded_labels, label_encoder, silhouette_aggregate)
+
+
+def get_km_purity_mixity(cluster_label: int,
+                      true_labels: list,
+                      pred_labels: list,
+                      label_encoder):
+    """
+        For a given cluster label (int) returned by clustering.labels_,
+        Return the purity, mixity, coherence, cluster_size, and scale (==cluster_size/total_size)
+        scale should be used to get a weighted average metric at the end
+    """
+    indices = np.where(pred_labels == cluster_label)[0]
+    cluster_size = len(indices)
+    if cluster_size <= 1:
+        # return np.nan, np.nan, np.nan, 1, 1/len(true_labels)
+        return {'purity': np.nan, 'cluster_size': 1}
+
+    # Query the subset of the true labels belonging to this cluster using indices
+    # Convert to int label encodings in order to use np.bincount to get purity and mixity
+
+    subset = true_labels[indices]
+    encoded_subset = label_encoder.transform(subset)
+    counts = {i: k for i, k in enumerate(np.bincount(encoded_subset)) if k > 0}
+    majority_label = label_encoder.inverse_transform([sorted(counts.items(), key=lambda x: x[1], reverse=True)[0][0]])[
+        0]
+    purity = get_purity(counts)
+    # mixity = get_mixity(counts)
+    # index the distance matrix and return the mean distance within this cluster (i.e. coherence)
+
+    # return purity, mixity, coherence, cluster_size, cluster_size / len(true_labels)
+    return {'purity': purity, 'cluster_size': cluster_size, 'majority_label': majority_label}
+
+
+def kmeans_pipeline(model, df, model_name, dataset_name, partition, silhouette_aggregate='micro', n_jobs=8):
+    latent = get_latent_df(model, df)
+    features = latent[[z for z in latent.columns if z.startswith('z_')]]
+    labels = latent['peptide'].values
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
+    out = kmeans_all_thresholds(features, labels, encoded_labels, label_encoder, silhouette_aggregate, n_jobs)
+    out['input_type'] = model_name
+    out['dataset'] = dataset_name
+    out['partition'] = partition
+    return out
+
+
+def get_kmeans_metrics(t, features, c, true_labels, encoded_labels, label_encoder, aggregate='micro', return_df=False):
+    n_cluster = np.sum((np.bincount(c.labels_) > 1))
+    n_singletons = (np.bincount(c.labels_) == 1).sum()
+    s_score = custom_silhouette_score(features, c.labels_, metric='cosine', aggregation=aggregate)
+    try:
+        c_score = ch_score(features, c.labels_)
+    except:
+        c_score = np.nan
+    try:
+        d_score = db_score(features, c.labels_)
+    except:
+        d_score = np.nan
+    try:
+        ari_score = adjusted_rand_score(encoded_labels, c.labels_)
+    except:
+        ari_score = np.nan
+
+    df_out = pd.concat(
+        [pd.DataFrame(get_km_purity_mixity(label_i, true_labels, c.labels_, label_encoder), index=[0])
+         for label_i in set(c.labels_)]).reset_index(drop=True).reset_index().rename(columns={'index': 'pred_label'})
+    nc_07 = len(df_out.query('purity>=0.7'))
+    if return_df:
+        return {'threshold': t,
+                'n_cluster': n_cluster, 'n_singletons': n_singletons,
+                'n_cluster_over_70p': nc_07,
+                'mean_purity': df_out['purity'].mean(),
+                'min_purity': df_out['purity'].min(),
+                'max_purity': df_out['purity'].max(),
+                'mean_cluster_size': df_out['cluster_size'].mean(),
+                'min_cluster_size': df_out['cluster_size'].min(),
+                'max_cluster_size': df_out['cluster_size'].max(),
+                'silhouette': s_score,
+                'ch_index': c_score, 'db_index': d_score, 'ARI': ari_score}, df_out
+    else:
+        return {'threshold': t,
+                'n_cluster': n_cluster, 'n_singletons': n_singletons,
+                'n_cluster_over_70p': nc_07,
+                'mean_purity': df_out['purity'].mean(),
+                'min_purity': df_out['purity'].min(),
+                'max_purity': df_out['purity'].max(),
+                'mean_cluster_size': df_out['cluster_size'].mean(),
+                'min_cluster_size': df_out['cluster_size'].min(),
+                'max_cluster_size': df_out['cluster_size'].max(),
+                'silhouette': s_score,
+                'ch_index': c_score, 'db_index': d_score, 'ARI': ari_score}

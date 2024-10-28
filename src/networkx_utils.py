@@ -220,6 +220,49 @@ def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_w
     return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
+
+def silhouette_rank_cut(tree, cut_threshold, cut_method='threshold', distance_weighted=False):
+    """
+
+    Args:
+        tree:
+        cut_threshold:
+        cut_method:
+        distance_weighted: Here it means "weighted" for distance weighted edge betweenness
+
+    Returns:
+
+    """
+    assert cut_method in ['threshold',
+                          'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
+    assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
+            cut_method == 'top' and type(cut_threshold) == int), \
+        '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
+    # deep copy the tree to preserve it in case we need the original tree for other things
+    tree_cut = tree.copy()
+    edge_betweenness = nx.edge_betweenness_centrality(tree_cut)
+
+    # Weight of an edge here is the distance between two nodes
+    if distance_weighted:
+        edge_betweenness = {k: tree_cut.edges[k]['weight'] * v for k, v in edge_betweenness.items()}
+    # sorted for printing purposes
+    sorted_edges = sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True)
+
+    if cut_method == "threshold":
+        edges_to_remove = [x for x in sorted_edges if x[1] > cut_threshold]
+    elif cut_method == "top":
+        edges_to_remove = sorted_edges[:cut_threshold]
+    # Remove edges (x[1] is the centrality), computes the disconnected nodes and remove them (discard singletons)
+    # OR should the singletons be kept in the graph and put in new "clusters" ?
+    tree_cut.remove_edges_from([x[0] for x in edges_to_remove])
+    nodes_to_remove = list(nx.isolates(tree_cut))
+    tree_cut.remove_nodes_from(nodes_to_remove)
+    clusters = sorted([get_cluster_stats_from_graph(tree_cut, x) for x in nx.connected_components(tree_cut)],
+                      key=lambda x: x['cluster_size'], reverse=True)
+
+    return tree_cut, clusters, edges_to_remove, nodes_to_remove
+
+
 def node_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_weighted=False):
     assert cut_method in ['threshold',
                           'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
@@ -308,9 +351,9 @@ def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge', d
     return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
-def get_pred_labels(G, clusters):
+def get_pred_labels(dist_array, clusters):
     # Initialize pred_labels with -1
-    pred_labels = np.full(len(G), -1, dtype=np.int16)
+    pred_labels = np.full(len(dist_array), -1, dtype=np.int16)
     # Assign cluster labels
     for i, c in enumerate(clusters):
         pred_labels[np.array(list(c['members']))] = i
@@ -391,15 +434,8 @@ def get_score_at_cut(dist_array, clusters, which='silhouette', precision=4, aggr
         clusters:
         pruned_nodes:
     Returns:
-
     """
     pred_labels = get_pred_labels(dist_array, clusters)
-    # TODO : CH and DB require the actual fucking feature (i.e. the latent) wtf
-    # assert which in ['silhouette', 'ch', 'db'], 'Wrong scoring method! Should be "silhouette", "db" or "ch"'
-    # scoring_fct = {'silhouette':silhouette_score,
-    #                'ch':calinski_harabasz_score,
-    #                'db':davies_bouldin_score}
-
     return round(custom_silhouette_score(dist_array, pred_labels,
                                          metric='precomputed', aggregation=aggregation), precision)
 
