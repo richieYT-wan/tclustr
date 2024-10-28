@@ -61,7 +61,7 @@ class MultimodalLossParent(LossParent):
             reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
 
         # Here, take the mean before checking for positional encoding because we have un-reduced loss
-        # and scale it by the "weight_seq" (versus weight_kld)
+        # and silhouette_scale it by the "weight_seq" (versus weight_kld)
         reconstruction_loss = self.weight_seq * reconstruction_loss.mean()
 
         # check if we use positional encoding, if yes we add the loss
@@ -387,7 +387,7 @@ class BSSVAELoss(MultimodalLossParent):
     #         reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
     #
     #     # Here, take the mean before checking for positional encoding because we have un-reduced loss
-    #     # and scale it by the "weight_seq" (versus weight_kld)
+    #     # and silhouette_scale it by the "weight_seq" (versus weight_kld)
     #     reconstruction_loss = self.weight_seq * reconstruction_loss.mean()
     #
     #     # check if we use positional encoding, if yes we add the loss
@@ -464,7 +464,7 @@ class BSSVAELoss(MultimodalLossParent):
     #             self.base_weight_kld_n / 4)
     #
     # @staticmethod
-    # def _tanh_annealing(counter, base_weight, scale, warm_up, shift=None):
+    # def _tanh_annealing(counter, base_weight, silhouette_scale, warm_up, shift=None):
     #     """
     #     epoch_shift sets the epoch at which weight==weight/2, should be set at warm_up//2
     #     Only updates self.weight_kld as current weight, doesn't return anything
@@ -472,7 +472,7 @@ class BSSVAELoss(MultimodalLossParent):
     #     using 1+tanh(speed * (epoch - shift))
     #     Args:
     #         base_weight: base total weight
-    #         scale: ramp-up speed ~ range [0.05, 0.5]
+    #         silhouette_scale: ramp-up speed ~ range [0.05, 0.5]
     #         epoch_shift:
     #
     #     Returns:
@@ -481,7 +481,7 @@ class BSSVAELoss(MultimodalLossParent):
     #
     #     shift = 2 * warm_up / 3 if shift is None else shift
     #     return base_weight * (
-    #             1 + math.tanh(scale * (counter - shift))) / 2
+    #             1 + math.tanh(silhouette_scale * (counter - shift))) / 2
     #     #
     #     # return self.base_weight_kld_n * (
     #     #         1 + math.tanh(self.kld_tanh_scale * (self.counter - 2 * self.kld_warm_up / 3))) / 2

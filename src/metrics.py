@@ -122,7 +122,7 @@ class VAELoss(LossParent):
             reconstruction_loss = reconstruction_loss.mul(self.positional_weights)
 
         # Here, take the mean before checking for positional encoding because we have un-reduced loss
-        # and scale it by the "weight_seq" (versus weight_kld)
+        # and silhouette_scale it by the "weight_seq" (versus weight_kld)
         reconstruction_loss = self.weight_seq * reconstruction_loss.mean()
 
         # check if we use positional encoding, if yes we add the loss
@@ -889,7 +889,7 @@ import numpy as np
 from sklearn.metrics import silhouette_score, silhouette_samples
 
 
-def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregation='micro'):
+def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregation='micro', precision=4):
     """
     Implements the silhouette score to do either micro (all samples) or macro (per cluster) averaging
     Args:
@@ -897,6 +897,7 @@ def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregat
         labels:
         metric:
         aggregation:
+        precision:
 
     Returns:
         silhouette score based on the selected aggregation method
@@ -948,4 +949,4 @@ def custom_silhouette_score(input_matrix, labels, metric='precomputed', aggregat
     else:
         raise ValueError('Aggregation must be "micro", "macro", "size_weighted", or "size_log2", "none"')
 
-    return score
+    return round(score, precision)

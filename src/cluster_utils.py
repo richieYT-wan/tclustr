@@ -1211,8 +1211,8 @@ def get_purity_mixity_coherence(cluster_label: int,
                                 label_encoder):
     """
         For a given cluster label (int) returned by clustering.labels_,
-        Return the purity, mixity, coherence, cluster_size, and scale (==cluster_size/total_size)
-        scale should be used to get a weighted average metric at the end
+        Return the purity, mixity, coherence, cluster_size, and silhouette_scale (==cluster_size/total_size)
+        silhouette_scale should be used to get a weighted average metric at the end
     """
     indices = np.where(pred_labels == cluster_label)[0]
     cluster_size = len(indices)
@@ -1417,8 +1417,8 @@ def get_km_purity_mixity(cluster_label: int,
                       label_encoder):
     """
         For a given cluster label (int) returned by clustering.labels_,
-        Return the purity, mixity, coherence, cluster_size, and scale (==cluster_size/total_size)
-        scale should be used to get a weighted average metric at the end
+        Return the purity, mixity, coherence, cluster_size, and silhouette_scale (==cluster_size/total_size)
+        silhouette_scale should be used to get a weighted average metric at the end
     """
     indices = np.where(pred_labels == cluster_label)[0]
     cluster_size = len(indices)

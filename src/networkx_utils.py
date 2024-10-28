@@ -1,18 +1,14 @@
 ### IMPORTS AND STATIC STUFF ###
 from copy import deepcopy
-
 import networkx as nx
 from pprint import pprint
-
-import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.patches import Patch
 import seaborn as sns
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_score, completeness_score, \
-    v_measure_score, calinski_harabasz_score, davies_bouldin_score
-
+from tqdm.auto import tqdm
+from collections import OrderedDict
 from src.metrics import custom_silhouette_score
 
 
@@ -111,13 +107,19 @@ def get_color_map(distance_matrix, label_col='peptide', palette='tab10'):
     return color_map
 
 
-def plot_mst_spring(tree, color_map, label_col='peptide', title=None, figsize=(8, 8),
+def plot_mst_spring(tree, color_map=None, title=None, figsize=(8, 8),
                     iterations=300, threshold=1e-5, scale=0.9, k=0.05, dim=2, seed=131):
     sns.set_style('darkgrid')
     # Visualize the graph and the minimum spanning tree
     f, a = plt.subplots(1, 1, figsize=figsize)
     pos = nx.spring_layout(tree, iterations=iterations, threshold=threshold, seed=seed, scale=scale, k=k, dim=dim)
+    if color_map is None:
+        unique_labels = list({tree.nodes[node]['label'] for node in tree.nodes()})
+        palette = sns.color_palette("tab10", len(unique_labels))  # Use HSV for distinct colors
+        color_map = {label: color for label, color in zip(unique_labels, palette)}
+
     node_colors = [color_map[tree.nodes[node]['label']] for node in tree.nodes()]
+
     nx.draw_networkx_nodes(tree, pos, node_color=node_colors, node_size=52.5,
                            ax=a)  # nx.draw_networkx_edges(G, pos, edge_color="grey")
     nx.draw_networkx_labels(tree, pos, font_size=4, font_color='w', font_weight='semibold', font_family="monospace")
@@ -150,7 +152,7 @@ def get_cluster_stats_from_graph(graph, nodes_list):
     labels = [x['label'] for x in cluster]
     if weighted:
         # assumes we have a "weight" parameter in the node data
-        weights = [x['weight'] for x in cluster] # ex here could be the normalized count
+        weights = [x['weight'] for x in cluster]  # ex here could be the normalized count
         counts = {label: sum(weight for l, weight in zip(labels, weights) if l == label) for label in set(labels)}
 
     else:
@@ -178,9 +180,9 @@ def get_nodes_stats(G, node):
             'mean_edge_centrality': np.mean(list(filtered_centralities.values()))}
 
 
-def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_weighted=False):
+def silhouette_rank_cut(tree, dist_array,
+                        cut_threshold=1, cut_method='top', scale_aggregation='mean'):
     """
-
     Args:
         tree:
         cut_threshold:
@@ -197,14 +199,12 @@ def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_w
         '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
     # deep copy the tree to preserve it in case we need the original tree for other things
     tree_cut = tree.copy()
-    edge_betweenness = nx.edge_betweenness_centrality(tree_cut)
-
-    # Weight of an edge here is the distance between two nodes
-    if distance_weighted:
-        edge_betweenness = {k: tree_cut.edges[k]['weight'] * v for k, v in edge_betweenness.items()}
-    # sorted for printing purposes
-    sorted_edges = sorted(edge_betweenness.items(), key=lambda item: item[1], reverse=True)
-
+    # Get the tree and its stats
+    initial_clusters = sorted([get_cluster_stats_from_graph(tree_cut, x) for x in nx.connected_components(tree_cut)],
+                              key=lambda x: x['cluster_size'], reverse=True)
+    current_silhouette_samples = get_score_at_cut(dist_array, initial_clusters, aggregation='none')
+    silhouette_scale = 1 - current_silhouette_samples
+    sorted_edges = rank_edges(tree_cut, silhouette_scale, agg=scale_aggregation)
     if cut_method == "threshold":
         edges_to_remove = [x for x in sorted_edges if x[1] > cut_threshold]
     elif cut_method == "top":
@@ -220,8 +220,114 @@ def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_w
     return tree_cut, clusters, edges_to_remove, nodes_to_remove
 
 
+def silhouette_betweenness_cut(tree, dist_array,
+                               cut_threshold=1, cut_method='top', scale_aggregation='mean'):
+    """
+    Args:
+        tree:
+        cut_threshold:
+        cut_method:
+        distance_weighted: Here it means "weighted" for distance weighted edge betweenness
 
-def silhouette_rank_cut(tree, cut_threshold, cut_method='threshold', distance_weighted=False):
+    Returns:
+
+    """
+    assert cut_method in ['threshold',
+                          'top'], f'`cut_method` must be either "threshold" or "top". Got {cut_method} instead'
+    assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
+            cut_method == 'top' and type(cut_threshold) == int), \
+        '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
+    # deep copy the tree to preserve it in case we need the original tree for other things
+    tree_cut = tree.copy()
+    # Get the tree and its stats
+    initial_clusters = sorted([get_cluster_stats_from_graph(tree_cut, x) for x in nx.connected_components(tree_cut)],
+                              key=lambda x: x['cluster_size'], reverse=True)
+    current_silhouette_samples = get_score_at_cut(dist_array, initial_clusters, aggregation='none')
+    silhouette_scale = 1 - current_silhouette_samples
+    sorted_edges = rank_betweenness(tree_cut, silhouette_scale, agg=scale_aggregation)
+    if cut_method == "threshold":
+        edges_to_remove = [x for x in sorted_edges if x[1] > cut_threshold]
+    elif cut_method == "top":
+        edges_to_remove = sorted_edges[:cut_threshold]
+    # Remove edges (x[1] is the centrality), computes the disconnected nodes and remove them (discard singletons)
+    # OR should the singletons be kept in the graph and put in new "clusters" ?
+    tree_cut.remove_edges_from([x[0] for x in edges_to_remove])
+    nodes_to_remove = list(nx.isolates(tree_cut))
+    tree_cut.remove_nodes_from(nodes_to_remove)
+    clusters = sorted([get_cluster_stats_from_graph(tree_cut, x) for x in nx.connected_components(tree_cut)],
+                      key=lambda x: x['cluster_size'], reverse=True)
+
+    return tree_cut, clusters, edges_to_remove, nodes_to_remove
+
+
+def get_per_cluster_score_labels_update(dist_array, clusters):
+    """
+    TODO : 241028
+           This is not yet used ; For now let's look at a global SI-weighted edge cut instead of a more
+           complicated cluster-ranked intra-cluster cuts
+    Args:
+        dist_array:
+        clusters:
+
+    Returns:
+
+    """
+    pred_labels = get_pred_labels(dist_array, clusters)
+    current_score = get_score_at_cut(dist_array, clusters, aggregation='none')
+    # this is a per-cluster avg for each cluster in pred_labels_5
+    per_cluster_score = [current_score[np.where(pred_labels == label)[0]].mean() for label in np.unique(pred_labels)]
+    updated_clusters = [
+        dict(OrderedDict([('score', s), *d.items()])) for d, s in zip(clusters, per_cluster_score)]
+    list_of_metrics = [
+        {
+            'max_dist': dist_array[idx][:, idx].max(),
+            'med_dist': np.median(dist_array[idx][:, idx][dist_array[idx][:, idx] != 0]),
+            'avg_dist': dist_array[idx][:, idx][dist_array[idx][:, idx] != 0].mean()
+        }
+        for label in np.unique(pred_labels)
+        for idx in [np.where(pred_labels == label)[0]]
+    ]
+    updated_clusters = [
+        dict(OrderedDict([(k, v) for k, v in metrics.items()] + list(cluster.items())))
+        for cluster, metrics in zip(updated_clusters, list_of_metrics)]
+    silhouette_scale = 1 - current_score
+    return updated_clusters, current_score, pred_labels, silhouette_scale
+
+
+def rank_edges(tree, silhouette_scale, agg='mean'):
+    # Here, silhouette_scale is 1-silhouette_sample
+    # for now, define either sum or mean for the aggregation of the silhouette_scale
+    # That is the same thing lol (use mean to keep values close to 0 and 1)
+    assert agg in ['mean', 'max'], f'agg must be "mean" or "max"'
+    edge_list = list(tree.edges(data=True))
+    fc = {'mean': np.mean, 'max': np.max}
+    ranked_edge_list = sorted(
+        {(x[0], x[1]): x[2]['weight'] * fc[agg](silhouette_scale[[x[0], x[1]]]) for x in edge_list}.items(),
+        key=lambda item: item[1], reverse=True)
+    return ranked_edge_list
+
+
+def rank_betweenness(tree, silhouette_scale, agg='mean'):
+    # Here, silhouette_scale is 1-silhouette_sample
+    # for now, define either sum or mean for the aggregation of the silhouette_scale
+    # That is the same thing lol (use mean to keep values close to 0 and 1)
+    assert agg in ['mean', 'max'], f'agg must be "mean" or "max"'
+    fc = {'mean': np.mean, 'max': np.max}
+    edge_betweenness = nx.edge_betweenness_centrality(tree)
+    # Silhouette + distance weighted betweenness?
+    edge_betweenness = {k: tree.edges[k]['weight'] * fc[agg](silhouette_scale[[k[0], k[1]]]) * v
+                        for k, v in edge_betweenness.items()
+                        }
+
+    edge_list = list(tree.edges(data=True))
+    fc = {'mean': np.mean, 'max': np.max}
+    ranked_edge_list = sorted(
+        {(x[0], x[1]): x[2]['weight'] * fc[agg](silhouette_scale[[x[0], x[1]]]) for x in edge_list}.items(),
+        key=lambda item: item[1], reverse=True)
+    return ranked_edge_list
+
+
+def edge_betweenness_cut(tree, cut_threshold, cut_method='threshold', distance_weighted=False):
     """
 
     Args:
@@ -370,10 +476,6 @@ def get_pred_labels(dist_array, clusters):
 
 def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_method, top_n=1, which='edge',
                        distance_weighted=False, verbose=1, max_size=6, silhouette_aggregation='micro'):
-
-    # TODO : This function seems to be wrong somehow, in the returns
-    #        But if we don't use it in the end maybe no need to fix ??
-
     # From a tree take the top N ?? and continue cutting until the subgraphs all reach a certain size or ?
     # Or if the weighted mean edge distance is some threshold ??
     # Initial cut, takes the input parameters
@@ -425,19 +527,18 @@ def iterative_size_cut(dist_array, tree, initial_cut_threshold, initial_cut_meth
     return tree_return, subgraphs, clusters, edges_removed, nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters
 
 
-def get_score_at_cut(dist_array, clusters, which='silhouette', precision=4, aggregation='micro'):
+def get_score_at_cut(dist_array, clusters, precision=4, aggregation='micro'):
     """
     From the various clusters and pruned nodes, reconstruct an array of predicted label with integers representing predicted class
     Uses that and true labels and dist_matrix to compute scores
     Args:
-        which:
         clusters:
         pruned_nodes:
     Returns:
     """
     pred_labels = get_pred_labels(dist_array, clusters)
-    return round(custom_silhouette_score(dist_array, pred_labels,
-                                         metric='precomputed', aggregation=aggregation), precision)
+    return custom_silhouette_score(dist_array, pred_labels,
+                                   metric='precomputed', aggregation=aggregation, precision=precision)
 
 
 def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top', top_n=1, which='edge',
@@ -457,7 +558,8 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
     n_clusters = [len(clusters)]
     best_silhouette_score = -1
     # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
-    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
+    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(
+        edges_removed), deepcopy(nodes_removed)
     # Make a copy before starting the iteration to re-use the variable
     tree_trimmed = tree_cut.copy()
     while current_silhouette_score <= score_threshold or retentions[-1] > 0:
@@ -477,7 +579,8 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
             # print(iter, current_silhouette_score, best_silhouette_score)
             if current_silhouette_score > best_silhouette_score:
                 best_silhouette_score = current_silhouette_score
-                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
+                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(
+                    edges_removed), deepcopy(nodes_removed)
         except ValueError:
             # Fake an exit condition when we reach the error where we only have singletons
             current_silhouette_score = score_threshold + 1
@@ -489,8 +592,9 @@ def iterative_topn_cut(dist_array, tree, initial_cut_threshold=1, initial_cut_me
     return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters
 
 
-def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top', top_n=1, which='edge',
-                       distance_weighted=False, verbose=1, score_threshold=.75, silhouette_aggregation='micro'):
+def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top', cut_threshold=1,
+                               which='edge', distance_weighted=True, verbose=0, score_threshold=1,
+                               silhouette_aggregation='micro'):
     # Set initial_cut_method to 'top' and initial_cut_threshold to top_n=1 to have fully iterative behaviour
     tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
                                                                        which, distance_weighted, verbose)
@@ -507,11 +611,14 @@ def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initia
     n_clusters = [len(clusters)]
     best_silhouette_score = -1
     # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
-    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
+    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(
+        edges_removed), deepcopy(nodes_removed)
     # Make a copy before starting the iteration to re-use the variable
     tree_trimmed = tree_cut.copy()
-    while current_silhouette_score <= score_threshold or retentions[-1] > 0:
-        tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed, cut_threshold=top_n,
+    # while current_silhouette_score <= score_threshold or retentions[-1] > 0:
+    for _ in tqdm(range(len(best_tree.edges()) - 1), desc='cuts', leave=True, position=0):
+        tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed,
+                                                                               cut_threshold=cut_threshold,
                                                                                cut_method='top', which=which,
                                                                                distance_weighted=distance_weighted,
                                                                                verbose=verbose)
@@ -528,7 +635,8 @@ def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initia
             # print(iter, current_silhouette_score, best_silhouette_score)
             if current_silhouette_score > best_silhouette_score:
                 best_silhouette_score = current_silhouette_score
-                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(edges_removed), deepcopy(nodes_removed)
+                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(
+                    edges_removed), deepcopy(nodes_removed)
         except ValueError:
             # Fake an exit condition when we reach the error where we only have singletons
             current_silhouette_score = score_threshold + 1
@@ -536,5 +644,53 @@ def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initia
 
         # print(iter, np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
         # iter += 1
+    subgraphs = [nx.subgraph(best_tree, c['members']) for c in best_clusters]
+    return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters, all_cluster_sizes
+
+
+def iterative_SIrank_cut_logsize(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top',
+                                 cut_threshold=1, cut_method='top', scale_aggregation='max',
+                                 silhouette_aggregation='micro'):
+    # Start with a betweenness cut in order to have some initial cluster silhouette score
+    tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold, initial_cut_method,
+                                                                       which='edge', distance_weighted=True, verbose=0)
+    current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
+
+    scores = [current_silhouette_score]
+    purities = [np.mean([x['purity'] for x in clusters])]
+    retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
+    mean_cluster_sizes = [np.mean([x['cluster_size'] for x in clusters])]
+    all_cluster_sizes = [[x['cluster_size'] for x in clusters]]
+    n_clusters = [len(clusters)]
+    best_silhouette_score = -1
+    # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
+    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(
+        edges_removed), deepcopy(nodes_removed)
+    # Make a copy before starting the iteration to re-use the variable
+    tree_trimmed = tree_cut.copy()
+    # TODO: For now, do range(size(array)) to cut everything down to the last edge
+    for _ in tqdm(range(len(best_tree.edges()) - 1), desc='cuts', leave=True, position=0):
+        tree_trimmed, clusters, edges_trimmed, nodes_trimmed = silhouette_rank_cut(tree_trimmed, dist_array,
+                                                                                   cut_threshold,
+                                                                                   cut_method,
+                                                                                   scale_aggregation=scale_aggregation)
+
+        try:
+            current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
+            scores.append(current_silhouette_score)
+            purities.append(np.mean([x['purity'] for x in clusters]))
+            retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+            mean_cluster_sizes.append(np.mean([x['cluster_size'] for x in clusters]))
+            all_cluster_sizes.append([x['cluster_size'] for x in clusters])
+            n_clusters.append(len(clusters))
+            edges_removed.extend(edges_trimmed)
+            nodes_removed.extend(nodes_trimmed)
+            # print(iter, current_silhouette_score, best_silhouette_score)
+            if current_silhouette_score > best_silhouette_score:
+                best_silhouette_score = current_silhouette_score
+                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(
+                    edges_removed), deepcopy(nodes_removed)
+        except:
+            break
     subgraphs = [nx.subgraph(best_tree, c['members']) for c in best_clusters]
     return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters, all_cluster_sizes

@@ -533,7 +533,7 @@ class StandardizerSequence(nn.Module):
         with torch.no_grad():
             # Flatten to 2d if needed
             x = self.view_3d_to_2d(x)
-            # Return to original scale by multiplying with sigma and adding mu
+            # Return to original silhouette_scale by multiplying with sigma and adding mu
             x = x * self.sigma + self.mu
             # Return to 3d if needed
             return self.view_2d_to_3d(x)
