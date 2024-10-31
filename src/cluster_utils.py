@@ -1123,7 +1123,7 @@ def get_latent_df(model, df, dataset_params: dict = None, batch_size=512):
 
 
 def get_distances_labels_from_latent(latent_df, label_col='peptide', seq_cols=('A1', 'A2', 'A3', 'B1', 'B2', 'B3'),
-                                     index_col='original_index', rest_cols=None, low_memory=False):
+                                     index_col='raw_indexß', rest_cols=None, low_memory=False):
     # Columns for making distmatrix
     if rest_cols is None:
         rest_cols = list(
