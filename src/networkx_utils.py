@@ -199,7 +199,7 @@ def silhouette_rank_cut(tree, dist_array, which='edge',
     assert (cut_method == 'threshold' and type(cut_threshold) == float) or (
             cut_method == 'top' and type(cut_threshold) == int), \
         '`cut_threshold` should of type either int or float (for cut_method=="threshold" or cut_method=="top")'
-    assert which in ['betweenness', 'edge'], f'got {which} ??'
+    assert which in ['betweenness', 'edge'], f'got {which} ?? instead of betweenness or rank'
     # deep copy the tree to preserve it in case we need the original tree for other things
     tree_cut = tree.copy()
     # Get the tree and its stats
@@ -207,9 +207,9 @@ def silhouette_rank_cut(tree, dist_array, which='edge',
                               key=lambda x: x['cluster_size'], reverse=True)
     current_silhouette_samples = get_score_at_cut(dist_array, initial_clusters, aggregation='none')
     silhouette_scale = 1 - current_silhouette_samples
-    if which=='edge':
+    if which == 'edge':
         sorted_edges = rank_edges(tree_cut, silhouette_scale, agg=scale_aggregation)
-    elif which=='betweenness':
+    elif which == 'betweenness':
         sorted_edges = rank_betweenness(tree_cut, silhouette_scale, agg=scale_aggregation)
     else:
         print('wtf')
@@ -270,7 +270,7 @@ def rank_edges(tree, silhouette_scale, agg='mean'):
     edge_list = list(tree.edges(data=True))
     fc = {'mean': np.mean, 'max': np.max}
     return sorted(
-            {(x[0], x[1]): x[2]['weight'] * fc[agg](silhouette_scale[[x[0], x[1]]]) for x in edge_list}.items(),
+        {(x[0], x[1]): x[2]['weight'] * fc[agg](silhouette_scale[[x[0], x[1]]]) for x in edge_list}.items(),
         key=lambda item: item[1], reverse=True)
 
 
@@ -421,7 +421,7 @@ def betweenness_cut(tree, cut_threshold, cut_method='threshold', which='edge', d
 
 def get_pred_labels(dist_array, clusters):
     # Initialize pred_labels with -1
-    pred_labels = np.full(len(dist_array), -1, dtype=np.int16)
+    pred_labels = np.full(dist_array.shape[0], -1, dtype=np.int16)
     # Assign cluster labels
     for i, c in enumerate(clusters):
         pred_labels[np.array(list(c['members']))] = i
@@ -566,14 +566,14 @@ def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initia
     current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
     print('Initial mean purity, silhouette score, retention')
     print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score,
-          round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+          round(sum([x['cluster_size'] for x in clusters]) / dist_array.shape[0], 4))
 
     scores = [current_silhouette_score]
     purities = [np.mean([x['purity'] for x in clusters])]
-    retentions = [round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4)]
+    retentions = [round(sum([x['cluster_size'] for x in clusters]) / dist_array.shape[0], 4)]
     mean_cluster_sizes = [np.mean([x['cluster_size'] for x in clusters])]
     all_cluster_sizes = [[x['cluster_size'] for x in clusters]]
-    clusters_above = [[x for x in clusters if x['cluster_size']>min_size and x['purity']>min_purity]]
+    clusters_above = [[x for x in clusters if x['cluster_size'] > min_size and x['purity'] > min_purity]]
     n_clusters = [len(clusters)]
     best_silhouette_score = -1
     # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
@@ -592,7 +592,7 @@ def iterative_topn_cut_logsize(dist_array, tree, initial_cut_threshold=1, initia
             current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
             scores.append(current_silhouette_score)
             purities.append(np.mean([x['purity'] for x in clusters]))
-            retentions.append(round(sum([x['cluster_size'] for x in clusters]) / len(dist_array), 4))
+            retentions.append(round(sum([x['cluster_size'] for x in clusters]) / dist_array.shape[0], 4))
             mean_cluster_sizes.append(np.mean([x['cluster_size'] for x in clusters]))
             all_cluster_sizes.append([x['cluster_size'] for x in clusters])
             n_clusters.append(len(clusters))
@@ -632,7 +632,7 @@ def iterative_SIrank_cut_logsize(dist_array, tree, initial_cut_threshold=1, init
     mean_cluster_sizes = [np.mean([x['cluster_size'] for x in clusters])]
     all_cluster_sizes = [[x['cluster_size'] for x in clusters]]
     n_clusters = [len(clusters)]
-    clusters_above = [[x for x in clusters if x['cluster_size']>min_size and x['purity']>min_purity]]
+    clusters_above = [[x for x in clusters if x['cluster_size'] > min_size and x['purity'] > min_purity]]
 
     best_silhouette_score = -1
     # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
@@ -694,15 +694,15 @@ def twophase_cuts(tree, dist_array, phase1_proportion=0.1, initial_cut_threshold
     Returns:
 
     """
-    assert phase1_proportion<=0.98, 'wtf man'
+    assert phase1_proportion <= 0.95, 'wtf man'
     # Initialise with a first cut (if nx connected_components == 1)
     tree_cut = tree.copy()
     if len(list(nx.connected_components(tree))) == 1:
         while len(list(nx.connected_components(tree_cut))) == 1:
             tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree_cut, initial_cut_threshold,
-                                                                           initial_cut_method,
-                                                                           which='edge', distance_weighted=True,
-                                                                           verbose=0)
+                                                                               initial_cut_method,
+                                                                               which='edge', distance_weighted=True,
+                                                                               verbose=0)
     else:
         tree_cut = tree.copy()
         clusters = sorted([get_cluster_stats_from_graph(tree_cut, x) for x in nx.connected_components(tree_cut)],
@@ -789,15 +789,45 @@ def twophase_cuts(tree, dist_array, phase1_proportion=0.1, initial_cut_threshold
         np.array([scores, purities, retentions, mean_cluster_sizes, n_clusters, [len(x) for x in clusters_above]]).T,
         columns=['silhouette', 'mean_purity', 'retention', 'mean_cluster_size', 'n_cluster', 'n_above']).assign(
         silhouette_aggregation=silhouette_aggregation)
-    best_si = results_df.iloc[int(0.1*len(results_df)):]['silhouette'].idxmax()
+    best_si = results_df.iloc[int(0.1 * len(results_df)):]['silhouette'].idxmax()
     results_df['best'] = False
     results_df.loc[best_si, 'best'] = True
     return results_df, best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, all_cluster_sizes, clusters_above
 
 
-
-
-
+def plot_sprm(df, title=None, fn=None, burn_in=0.05, vline=None, vline_label=None, hline=None, hline_label=None):
+    sns.set_palette('tab10', 4)
+    f, a = plt.subplots(1, 1, figsize=(9, 5))
+    x = range(len(df))
+    s = df['silhouette']
+    a.plot(x, s, label='silhouette', ls='--', lw=1)
+    p = df['mean_purity']
+    a.plot(x, p, label='purity', ls='--', lw=1)
+    r = df['retention']
+    a.plot(x, r, label='retention', ls='--', lw=1)
+    if any([x in df.columns for x in ['mean_cluster_size', 'n_above']]):
+        twa = a.twinx()
+        twa.set_yscale('log', base=2)
+        twa.grid(False)
+    if 'mean_cluster_size' in df.columns:
+        m = df['mean_cluster_size']
+        twa.plot(x, m, label='mean size', ls='--', lw=1, c='m')
+    if 'n_above' in df.columns:
+        n = df['n_above']
+        twa.plot(x, n, label='n_clust above', ls='--', lw=1, c='c')
+    if vline is not None:
+        a.axvline(vline, label=vline_label, ls='-.', lw=1, c='r')
+    if hline is not None:
+        a.axhline(hline, label=hline_label, ls='-.', lw=1, c='b')
+    # Take after the 5% of cuts to avoid getting the best silhouette at the very start ?
+    a.axvline(df.loc[int(burn_in * len(df)):]['silhouette'].idxmax(), label='max SI', ls=':', lw=1, c='k')
+    a.legend()
+    twa.legend()
+    if title is not None:
+        a.set_title(title)
+    if fn is not None:
+        f.savefig(f'{fn}.png', dpi=300, bbox_inches='tight')
+    return df.loc[[df.loc[int(burn_in * len(df)):]['silhouette'].idxmax()]]
 
 #
 #
