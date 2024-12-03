@@ -795,9 +795,10 @@ def twophase_cuts(tree, dist_array, phase1_proportion=0.1, initial_cut_threshold
     return results_df, best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, all_cluster_sizes, clusters_above
 
 
-def plot_sprm(df, title=None, fn=None, burn_in=0.05, vline=None, vline_label=None, hline=None, hline_label=None):
+def plot_sprm(df, title=None, fn=None, burn_in=0.05, vline=None, vline_label=None, hline=None, hline_label=None, f=None, a=None):
     sns.set_palette('tab10', 4)
-    f, a = plt.subplots(1, 1, figsize=(9, 5))
+    if f is None and a is None:
+        f, a = plt.subplots(1, 1, figsize=(9, 5))
     x = range(len(df))
     s = df['silhouette']
     a.plot(x, s, label='silhouette', ls='--', lw=1)
@@ -823,11 +824,83 @@ def plot_sprm(df, title=None, fn=None, burn_in=0.05, vline=None, vline_label=Non
     a.axvline(df.loc[int(burn_in * len(df)):]['silhouette'].idxmax(), label='max SI', ls=':', lw=1, c='k')
     a.legend()
     twa.legend()
+    twa.set_ylim([1, max(df['n_above'].max()+2, df['mean_cluster_size'].max()+2)])
+    best = df.loc[[df.loc[int(burn_in * len(df)):]['silhouette'].idxmax()]]
+    title = f'{title}'+f'\n Mean Pur:{best["mean_purity"].item():.3f}, Retention:{best["retention"].item():.3f}, Silhouette:{best["silhouette"].item():.3f}, N_above:{best["n_above"].item():.1f}, mean_cluster_size:{best["mean_cluster_size"].item():.2f}'
     if title is not None:
         a.set_title(title)
     if fn is not None:
         f.savefig(f'{fn}.png', dpi=300, bbox_inches='tight')
-    return df.loc[[df.loc[int(burn_in * len(df)):]['silhouette'].idxmax()]]
+    return
+
+
+def alternating_cuts(dist_array, tree, initial_cut_threshold=1, initial_cut_method='top', cut_threshold=1,
+                     which='edge', distance_weighted=True, verbose=0, score_threshold=1,
+                     min_purity=.8, min_size=6,
+                     silhouette_aggregation='micro', scale_aggregation='mean'):
+    # Set initial_cut_method to 'top' and initial_cut_threshold to top_n=1 to have fully iterative behaviour
+    # -> If using augmented tree, we need to iteratively pre-cut until we have at least 2 connected components
+    # For now, find some percentile threshold so that this doesn't happen (let's use 0.5)
+    tree_cut, clusters, edges_removed, nodes_removed = betweenness_cut(tree, initial_cut_threshold,
+                                                                       initial_cut_method,
+                                                                       which, distance_weighted, verbose)
+    current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
+    print('Initial mean purity, silhouette score, retention')
+    print(np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score,
+          round(sum([x['cluster_size'] for x in clusters]) / dist_array.shape[0], 4))
+
+    scores = [current_silhouette_score]
+    purities = [np.mean([x['purity'] for x in clusters])]
+    retentions = [round(sum([x['cluster_size'] for x in clusters]) / dist_array.shape[0], 4)]
+    mean_cluster_sizes = [np.mean([x['cluster_size'] for x in clusters])]
+    all_cluster_sizes = [[x['cluster_size'] for x in clusters]]
+    clusters_above = [[x for x in clusters if x['cluster_size'] > min_size and x['purity'] > min_purity]]
+    n_clusters = [len(clusters)]
+    best_silhouette_score = -1
+    # deepcopy because lists are mutable: otherwise the update in `if best_silhouette` doesn't work as intended
+    best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_cut, clusters, deepcopy(
+        edges_removed), deepcopy(nodes_removed)
+    # Make a copy before starting the iteration to re-use the variable
+    tree_trimmed = tree_cut.copy()
+    # while current_silhouette_score <= score_threshold or retentions[-1] > 0:
+    for i in tqdm(range(len(best_tree.edges()) - 1), desc='cuts', leave=True, position=0):
+        if i % 2 == 0:
+            tree_trimmed, clusters, edges_trimmed, nodes_trimmed = betweenness_cut(tree_trimmed,
+                                                                                   cut_threshold=cut_threshold,
+                                                                                   cut_method='top', which=which,
+                                                                                   distance_weighted=distance_weighted,
+                                                                                   verbose=verbose)
+        else:
+            tree_trimmed, clusters, edges_trimmed, nodes_trimmed = silhouette_rank_cut(tree_trimmed, dist_array, 'edge',
+                                                                                       1, 'top', scale_aggregation)
+
+        try:
+            current_silhouette_score = get_score_at_cut(dist_array, clusters, aggregation=silhouette_aggregation)
+            scores.append(current_silhouette_score)
+            purities.append(np.mean([x['purity'] for x in clusters]))
+            retentions.append(round(sum([x['cluster_size'] for x in clusters]) / dist_array.shape[0], 4))
+            mean_cluster_sizes.append(np.mean([x['cluster_size'] for x in clusters]))
+            all_cluster_sizes.append([x['cluster_size'] for x in clusters])
+            n_clusters.append(len(clusters))
+            clusters_above.append(
+                [x for x in clusters if x['cluster_size'] > min_size and x['purity'] > min_purity])
+
+            edges_removed.extend(edges_trimmed)
+            nodes_removed.extend(nodes_trimmed)
+            # print(iter, current_silhouette_score, best_silhouette_score)
+            if current_silhouette_score > best_silhouette_score:
+                best_silhouette_score = current_silhouette_score
+                best_tree, best_clusters, best_edges_removed, best_nodes_removed = tree_trimmed, clusters, deepcopy(
+                    edges_removed), deepcopy(nodes_removed)
+        except ValueError:
+            # Fake an exit condition when we reach the error where we only have singletons
+            current_silhouette_score = score_threshold + 1
+            break
+
+        # print(iter, np.mean([x['purity'] for x in clusters]).round(4), current_silhouette_score, round(sum([x['cluster_size'] for x in clusters])/len(dist_array),4))
+        # iter += 1
+    subgraphs = [nx.subgraph(best_tree, c['members']) for c in best_clusters]
+    return best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, scores, purities, retentions, mean_cluster_sizes, n_clusters, all_cluster_sizes, clusters_above
 
 #
 #
