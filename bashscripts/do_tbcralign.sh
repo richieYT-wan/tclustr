@@ -88,6 +88,7 @@ if c is None:
 df[chains+[c]].to_csv(tmppath, sep='\t', header=False)
 EOF
 # Run TBCRalign
+echo "Running TBCR"
 $TBCRALIGN -a -w 1,1,4,1,1,4 $tmppath > $tbcrtmp
 # Embedded Python code to recover the distance matrix
 python3 -W ignore <<EOF
