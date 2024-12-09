@@ -1343,7 +1343,7 @@ def get_linspace(array, decimals=5, n_points=500):
     return np.round(np.linspace(*get_bounds(array, decimals), n_points), decimals)
 
 
-def find_true_maximum(scores, patience):
+def find_true_maximum(scores, patience, idx_only=False):
     """
     Efficiently finds the correct maximum score based on a patience-based early stopping criterion,
     handling NaN values in the scores array.
@@ -1382,8 +1382,11 @@ def find_true_maximum(scores, patience):
     # If no valid maximum was found (e.g., all NaNs), handle gracefully
     if max_index == -1:
         return None, None
-
-    return max_score, max_index
+    
+    if idx_only:
+        return max_index
+    else:
+        return max_score, max_index
 
 
 ### KMeans stuff
