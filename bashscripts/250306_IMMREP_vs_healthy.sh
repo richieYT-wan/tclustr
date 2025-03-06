@@ -6,7 +6,7 @@ do
 script_content=$(cat <<EOF
 #! /usr/bin/bash
 source /home/projects/vaccine/people/yatwan/anaconda3/etc/profile.d/conda.sh
-source activate pynn
+source activate cuda
 HOMEDIR=/home/projects/vaccine/people/yatwan/tclustr/
 PYDIR=\${HOMEDIR}pyscripts/
 filename=${filename}
