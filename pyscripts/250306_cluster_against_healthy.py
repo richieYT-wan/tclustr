@@ -206,7 +206,7 @@ def main():
                      outdir, f'{unique_filename}OS_CSTRP_', args)
         pipeline_fct(latent_df_ts_notrp, 'label', seq_cols, 'index_col', rest_cols,
                      outdir, f'{unique_filename}TS_NOTRP_', args)
-        pipeline_fct(latent_df_ts_cstrp, 'label', seq_cols, 'indfefxf_col', rest_cols,
+        pipeline_fct(latent_df_ts_cstrp, 'label', seq_cols, 'index_col', rest_cols,
                      outdir, f'{unique_filename}TS_CSTRP_', args)
 
 
