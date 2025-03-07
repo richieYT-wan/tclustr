@@ -208,6 +208,8 @@ def main():
                      outdir, f'{unique_filename}TS_NOTRP_', args)
         pipeline_fct(latent_df_ts_cstrp, 'label', seq_cols, 'index_col', rest_cols,
                      outdir, f'{unique_filename}TS_CSTRP_', args)
+    if args['save_sample']:
+        merged_df.to_csv(f'{outdir}{unique_filename}_saved_merged_sample_df.csv', index=False)
 
 
 if __name__=='__main__':
