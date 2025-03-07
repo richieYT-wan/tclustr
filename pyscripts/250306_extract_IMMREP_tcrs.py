@@ -24,9 +24,13 @@ def get_binom(k):
 		return np.nan
 
 model_names = ['TBCRalign', 'VAE_OS_NoTRP', 'VAE_OS_CsTRP', 'VAE_TS_NoTRP', 'VAE_TS_CsTRP','tcrdist3']
-def pipeline(francis_number, model_name, purity_threshold=0.8, size_threshold=5):
+def pipeline(seed_number, model_name, purity_threshold=0.8, size_threshold=5):
+	# Get the path
+	dirpath = glob(f'../output/2503XX_IMMREP25_output/score_vs_healthy/*seed_{seed_number:04}*/')[0]
+	if not os.path.exists(dirpath):
+		raise ValueError(f'Path not found for seed = {seed_number}; globbed dirpath :{dirpath}')
 	# Read the files corresponding to a given number
-	raw_file = glob(f'../data/OTS/francis_covid_042/*{francis_number:04}*.txt')[0]
+	raw_file = glob(f'{dirpath})[0]
 	out_files = glob(f'../output/241002_subsampled_francis_garner_lowcount/*francis_{francis_number:03}_seed_*/*cluster_results_{model_name}_agglo*.csv')
 	raw_df = pd.read_csv(raw_file)
 	out_dfs = pd.concat([pd.read_csv(x).assign(seed=get_seed(x)) for x in out_files])
