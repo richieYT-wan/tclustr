@@ -124,7 +124,7 @@ def pipeline_fct(latent_df, label_col, seq_cols, index_col, rest_cols,
     keep_columns = ['index_col', 'cluster_label']
     results_df = pd.merge(latent_df, dist_matrix[keep_columns], left_on=index_col, right_on=index_col)
     # print('Merged dfs')
-    clusters_df.to_csv(f'{outdir}clusters_summary.csv', index=False)
+    clusters_df.to_csv(f'{outdir}{name}clusters_summary.csv', index=False)
     # Here now sort DF / results + plot heatmap
     sorted_dm, sorted_da = get_linkage_sorted_dm(dist_matrix, 'complete', 'cosine', True)
     if args['save_dm']:
