@@ -78,10 +78,10 @@ def do_single_adj(adj_matrix, seed_number, model_name, purity_threshold=.75, siz
     return adj_matrix.values
 
 
-def get_adj_dist_matrices(raw_df, purity_threshold, size_threshold, n_jobs=8):
+def get_adj_dist_matrices(raw_df, model_name, purity_threshold, size_threshold, n_jobs=8):
     # WORKAROUND TO USE PARALLEL to fill adj matrix because otherwise it doesn't update the df
     adj_matrix = pd.DataFrame(columns=raw_df['index_col'].values, index=raw_df['index_col'].values).fillna(0)
-    wrapper = partial(do_single_adj, adj_matrix=adj_matrix, model_name='OS_NOTRP', purity_threshold=purity_threshold,
+    wrapper = partial(do_single_adj, adj_matrix=adj_matrix, model_name=model_name, purity_threshold=purity_threshold,
                       size_threshold=size_threshold)
     adjs = Parallel(n_jobs=n_jobs)(delayed(wrapper)(seed_number=s) for s in tqdm(range(100), desc='fill adj'))
     adj_values = sum([adj for adj in adjs])
@@ -144,9 +144,10 @@ def pipeline(model_name, purity_threshold=0.75, size_threshold=6):
     raw_file = '../data/IMMREP25/test.csv_fmt4TCRcluster_uniq'
     raw_df = pd.read_csv(raw_file)
     raw_df['index_col'] = [f'sample_{i:05}' for i in range(len(raw_df))]
+    raw_df.to_csv('../output/2503XX_IMMREP25_output/score_vs_healthy/test.csv_fmt4TCRcluster_uniq_LABELLED.csv')
 
-    # debug :
-    filtered = []
+    # # debug :
+    # filtered = []
     # for s in range(100):
     #     filtered.append(filter_single(s, model_name, purity_threshold, size_threshold))
     # filtered = pd.concat(filtered)
@@ -188,12 +189,21 @@ def pipeline(model_name, purity_threshold=0.75, size_threshold=6):
         f'../output/2503XX_IMMREP25_output/score_vs_healthy/100_seeds_analysis/{model_name}/concat_bot50.csv')
 
     # Here, from the raw_file, re-run the clusters:
-    adj_matrix, dist_matrix = get_adj_dist_matrices(raw_df, purity_threshold, size_threshold, -1)
+    adj_matrix, dist_matrix = get_adj_dist_matrices(raw_df, model_name, purity_threshold, size_threshold, -1)
+    adj_matrix.to_csv(f'../output/2503XX_IMMREP25_output/score_vs_healthy/{model_name}_100runs_adjacency_matrix.csv')
+    dist_matrix.to_csv(f'../output/2503XX_IMMREP25_output/score_vs_healthy/{model_name}_100runs_normed_distance_matrix.csv')
+
     for pv in [0.05, 0.01, 0.001, 0.0001]:
         wtf = f'{pv:e}'
         wtf = wtf.split('.')[0] + 'e' + wtf.split('e')[1]
         cluster_output = rerun_clustering(raw_df, dist_matrix, None, pv)
         cluster_output.to_csv(f'../output/2503XX_IMMREP25_output/score_vs_healthy/rerun_cluster_{model_name}_pv_{wtf}.csv')
+
+    for dt in [0.45, 0.5, 0.55, 0.6, 0.65, 0.7]:
+        wtf = f'{dt:2f}'
+        cluster_output = rerun_clustering(raw_df, dist_matrix, dt)
+        cluster_output.to_csv(
+            f'../output/2503XX_IMMREP25_output/score_vs_healthy/rerun_cluster_{model_name}_pv_{wtf}.csv')
 
 
 model_names = ['OS_NOTRP', 'OS_CSTRP', 'TS_NOTRP', 'TS_CSTRP']
