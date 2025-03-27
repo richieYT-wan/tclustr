@@ -24,7 +24,7 @@ def get_binom(k):
 		return np.nan
 
 model_names = ['TBCRalign', 'VAE_OS_NoTRP', 'VAE_OS_CsTRP', 'VAE_TS_NoTRP', 'VAE_TS_CsTRP','tcrdist3']
-def pipeline(francis_number, model_name, purity_threshold=0.8, size_threshold=5):
+def pipeline(francis_number, model_name, purity_threshold=0.7, size_threshold=5):
 	# Read the files corresponding to a given number
 	raw_file = glob(f'../data/OTS/francis_covid_042/*{francis_number:04}*.txt')[0]
 	out_files = glob(f'../output/241002_subsampled_francis_garner_lowcount/*francis_{francis_number:03}_seed_*/*cluster_results_{model_name}_agglo*.csv')

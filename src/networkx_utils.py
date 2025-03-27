@@ -8,11 +8,10 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Patch
 import seaborn as sns
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from tqdm.auto import tqdm
 from collections import OrderedDict
 from src.metrics import custom_silhouette_score
-
 
 def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_col='raw_index',
                                     weight_col=None, algorithm='kruskal'):
@@ -48,6 +47,55 @@ def create_mst_from_distance_matrix(distance_matrix, label_col='peptide', index_
 
     # Creating the graph and storing data in nodes
     G = nx.Graph(values)
+    for i, node in enumerate(G.nodes()):
+        G.nodes[node]['label'] = labels[i]
+        G.nodes[node]['index'] = raw_indices[i]
+        if weight_col is not None and weight_col in distance_matrix.columns:
+            G.nodes[node]['weight'] = weights[i]
+
+    tree = nx.minimum_spanning_tree(G, algorithm=algorithm)
+    # For now, return all values as they may be useful later for analysis
+    return G, tree, distance_matrix, values, labels, encoded_labels, label_encoder, raw_indices
+
+
+def create_mst_from_distance_matrix_REDO(distance_matrix, label_col='peptide', index_col='raw_index',
+                                         weight_col=None, algorithm='kruskal'):
+    """
+    Given a labelled distance matrix, create the Graph and minimum spanning tree associated
+    Args:
+        distance_matrix:
+        label_col:
+        index_col:
+        algorithm:
+
+    Returns:
+
+    """
+    distance_matrix = distance_matrix.copy(deep=True)
+    indexing = [str(x) for x in distance_matrix.index] if type(
+        distance_matrix.columns[0]) == str else distance_matrix.index
+    values = distance_matrix[indexing].values
+    mms = MinMaxScaler()
+    adj_matrix = 1 - values
+    adj_matrix = mms.fit_transform(adj_matrix)
+    np.fill_diagonal(adj_matrix, 0)
+    labels = distance_matrix[label_col].values
+    if index_col is not None:
+        # print(f'here in create_mst_from_distance_matrix, index_col is not None, using {index_col}')
+        raw_indices = distance_matrix[index_col].values
+    else:
+        print(f'Here in create_mst_from_distance_matrix, index_col is None. Will create and use {"raw_index"} instead')
+        index_col = 'raw_index'
+        distance_matrix[index_col] = [f'seqid_{i}' for i in range(len(distance_matrix))]
+        raw_indices = distance_matrix[index_col].values
+
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
+    if weight_col is not None and weight_col in distance_matrix.columns:
+        weights = distance_matrix[weight_col].values
+
+    # Creating the graph and storing data in nodes
+    G = nx.Graph(adj_matrix)
     for i, node in enumerate(G.nodes()):
         G.nodes[node]['label'] = labels[i]
         G.nodes[node]['index'] = raw_indices[i]
@@ -795,7 +843,8 @@ def twophase_cuts(tree, dist_array, phase1_proportion=0.1, initial_cut_threshold
     return results_df, best_tree, subgraphs, best_clusters, best_edges_removed, best_nodes_removed, all_cluster_sizes, clusters_above
 
 
-def plot_sprm(df, title=None, fn=None, burn_in=0.05, vline=None, vline_label=None, hline=None, hline_label=None, f=None, a=None):
+def plot_sprm(df, title=None, fn=None, burn_in=0.05, vline=None, vline_label=None, hline=None, hline_label=None, f=None,
+              a=None):
     sns.set_palette('tab10', 4)
     if f is None and a is None:
         f, a = plt.subplots(1, 1, figsize=(9, 5))
@@ -825,13 +874,13 @@ def plot_sprm(df, title=None, fn=None, burn_in=0.05, vline=None, vline_label=Non
     a.legend()
     twa.legend()
     if 'n_above' in df.columns:
-        twa.set_ylim([1, max(df['n_above'].max()+2, df['mean_cluster_size'].max()+2)])
+        twa.set_ylim([1, max(df['n_above'].max() + 2, df['mean_cluster_size'].max() + 2)])
     else:
-        twa.set_ylim([1, df['mean_cluster_size'].max()+2])
+        twa.set_ylim([1, df['mean_cluster_size'].max() + 2])
     best = df.loc[[df.loc[int(burn_in * len(df)):]['silhouette'].idxmax()]]
-    title = f'{title}'+f'\n Mean Pur:{best["mean_purity"].item():.3f}, Retention:{best["retention"].item():.3f}, Silhouette:{best["silhouette"].item():.3f}, mean_cluster_size:{best["mean_cluster_size"].item():.2f}'
+    title = f'{title}' + f'\n Mean Pur:{best["mean_purity"].item():.3f}, Retention:{best["retention"].item():.3f}, Silhouette:{best["silhouette"].item():.3f}, mean_cluster_size:{best["mean_cluster_size"].item():.2f}'
     if 'n_above' in df.columns:
-        title = title+f' N_above:{best["n_above"].item():.1f}'
+        title = title + f' N_above:{best["n_above"].item():.1f}'
     if title is not None:
         a.set_title(title)
     if fn is not None:
