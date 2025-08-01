@@ -1,4 +1,0 @@
-cat test.csv | gawk -F "," '{print $14,$2,$3,substr($4,2,length($4)-2),$8,$9,substr($10,2,length($10)-2)}' | tr " " "," > test.csv_fmt4NetTCR-2.2
-
-cat test.csv | gawk -F "," '{print $2,$3,substr($4,2,length($4)-2),$8,$9,substr($10,2,length($10)-2)}' | tr " " "," > test.csv_fmt4TCRcluster
-
